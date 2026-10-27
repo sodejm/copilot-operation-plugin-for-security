@@ -67,3 +67,13 @@ verified values to the verifier; pass the journal digest as
 trust anchors. The verifier binds cleanup completion before the signed post-cleanup
 operator observation. A verified bundle only creates a review candidate and never
 closes a finding automatically.
+
+The laboratory harness stages eligible review evidence in the terminal journal
+before finalization. If artifact publication fails, restart with the same
+protected journal and evidence store and call
+`recover_retest_evidence_publication()`; this republishes the staged bundle
+without rerunning the case or reusing its one-use authorization. Independent
+review may happen later: durable verification checks the signed observation's
+signature and chronology against the authenticated run, cleanup completion, and
+terminal journal timestamp. Live classification still requires a fresh
+observation.

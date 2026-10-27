@@ -15,7 +15,11 @@ from cops.execution.authorization import AuthorizationTrustStore, verify_executi
 from cops.execution.ssh_execution import RemoteAuthorizedRun, validate_remote_authorized_run
 from cops.execution.ssh_transport import SSHRemoteEndpointInventory, endpoint_identity
 from cops.execution.supervisor_attestation import verify_attested_authorized_run
-from cops.laboratory.receipts import LaboratoryCaseObservation, LaboratoryObservationTrustStore, verify_worker_receipt
+from cops.laboratory.receipts import (
+    LaboratoryCaseObservation,
+    LaboratoryObservationTrustStore,
+    verify_receipt_signature,
+)
 
 
 class RetestExecutionEvidenceError(ValueError):
@@ -218,12 +222,13 @@ def verify_retest_execution_evidence(
             key_id=bundle["observation"]["key_id"],
             signature=bundle["observation"]["signature"],
         )
-        verify_worker_receipt(
+        verify_receipt_signature(
             observation,
             trust_store=observation_trust_store,
             worker_identity=worker,
-            after=authorized_run.result.started_at,
         )
+        if type(observation.canary_token_detected) is not bool or type(observation.control_blocked) is not bool:
+            raise ValueError("signed observation is incomplete")
         if (
             observation.environment_id != bundle["environment_id"]
             or observation.worker_identity != worker
@@ -361,6 +366,17 @@ def verify_retest_execution_evidence(
         if bundle.get("baseline_finding_id") != finding_id or bundle.get("asset_id") != asset_id:
             raise ValueError("execution evidence is not bound to the exact baseline finding and asset")
         journal_details = journal_result.get("details")
+        terminal_journaled_at = (
+            journal_details.get("terminal_journaled_at") if isinstance(journal_details, Mapping) else None
+        )
+        if not isinstance(terminal_journaled_at, str) or timestamp(observation.observed_at) > timestamp(
+            terminal_journaled_at
+        ):
+            raise ValueError("signed observation postdates the terminal laboratory journal record")
+        staged_bundle = journal_details.get("retest_execution_bundle") if isinstance(journal_details, Mapping) else None
+        review_bundle = {key: value for key, value in bundle.items() if key != "case_journal_record"}
+        if staged_bundle != review_bundle:
+            raise ValueError("terminal journal recovery bundle differs from reviewed evidence")
         if (
             not isinstance(journal_details, Mapping)
             or journal_details.get("baseline_finding_id") != finding_id

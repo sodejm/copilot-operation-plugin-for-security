@@ -9,7 +9,7 @@ import hashlib
 import hmac
 import json
 import uuid
-from dataclasses import replace
+from dataclasses import asdict, replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
@@ -414,7 +414,14 @@ def test_case_classification_uses_bound_worker_observation(
             previously_consumed_authorization_ids=[],
             evidence_store=harness.evidence_store,
         )
-        review = verify_retest_execution_evidence_reference(reference, **verification)
+
+        class FutureReviewTime(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return datetime.now(UTC) + timedelta(days=30)
+
+        with patch("cops.laboratory.receipts.datetime", FutureReviewTime):
+            review = verify_retest_execution_evidence_reference(reference, **verification)
         assert review.outcome == ("candidate_fixed" if expected == "remediated" else "candidate_still_vulnerable")
         assert review.finding_id == "find-test-case"
         assert review.closure_status == "blocked"
@@ -486,6 +493,34 @@ def test_case_classification_uses_bound_worker_observation(
             verify_retest_execution_evidence(
                 persisted,
                 **{**verification, "trusted_terminal_journal_record_digest": "0" * 64},
+            )
+        after_terminal = copy.deepcopy(persisted)
+        terminal_at = datetime.fromisoformat(
+            after_terminal["case_journal_record"]["result"]["details"]["terminal_journaled_at"].replace("Z", "+00:00")
+        )
+        late_observation = case_observation(
+            environment,
+            plan,
+            auth.authorization_id,
+            dispatched,
+            inventory,
+            request_nonce=observation.request_nonce,
+            canary_token_detected=canary,
+            control_blocked=blocked,
+            observed_at=(terminal_at + timedelta(seconds=1)).isoformat().replace("+00:00", "Z"),
+        )
+        late_observation_document = asdict(late_observation)
+        after_terminal["observation"] = late_observation_document
+        journal_details = after_terminal["case_journal_record"]["result"]["details"]
+        journal_details["operator_case_observation"] = late_observation_document
+        journal_details["retest_execution_bundle"]["observation"] = late_observation_document
+        with pytest.raises(RetestExecutionEvidenceError):
+            verify_retest_execution_evidence(
+                after_terminal,
+                **{
+                    **verification,
+                    "trusted_terminal_journal_record_digest": digest(after_terminal["case_journal_record"]),
+                },
             )
         wrong_plan = make_inert_action_plan(plan_id="plan-untrusted-context", target="attacker.example.test")
         bad_contexts = (
@@ -988,6 +1023,99 @@ def test_failure_evidence_write_failures_still_mark_attempt_unknown(tmp_path: Pa
                 scope_guard=guard,
             )
         dispatch.assert_not_called()
+
+
+def test_retest_bundle_publication_recovers_after_restart_without_reexecution(tmp_path: Path) -> None:
+    harness, inventory, environment, plan, auth, trust, engagement, worker_inventory, guard = _ready_case(tmp_path)
+    run = remote_run(plan, auth.authorization_id, environment.owner)
+    run = replace(
+        run,
+        result=replace(run.result, started_at=auth.issued_at, finished_at=auth.issued_at),
+    )
+    run = replace(
+        run,
+        cleanup_receipt=CleanupReceipt(
+            schema_version="cops.cleanup-receipt/v1",
+            receipt_id="cln-recovery-test",
+            plan_id=plan.plan_id,
+            engagement_id=plan.engagement_id,
+            worker_identity=environment.owner,
+            status="completed",
+            created_at=run.result.finished_at,
+            completed_at=(datetime.fromisoformat(run.result.finished_at.replace("Z", "+00:00")) + timedelta(seconds=1))
+            .isoformat()
+            .replace("+00:00", "Z"),
+            cleaned_effects=[],
+            unresolved_effects=[],
+            evidence_hash="0" * 64,
+        ),
+    )
+    with patch(
+        "cops.laboratory.harness.SSHExecutionDispatcher.execute_with_evidence",
+        side_effect=lambda **kwargs: supervisor_exchange(
+            run, plan, auth.authorization_id, environment.owner, inventory, request_id=kwargs["request_id"]
+        ),
+    ):
+        dispatched = harness.execute_case(
+            environment,
+            plan,
+            auth,
+            "remediated",
+            trust_store=trust,
+            engagement=engagement,
+            worker_inventory=worker_inventory,
+            endpoint_inventory=inventory,
+            scope_guard=guard,
+        )
+    observation = case_observation(
+        environment,
+        plan,
+        auth.authorization_id,
+        dispatched,
+        inventory,
+        request_nonce=harness.case_observation_challenge(dispatched),
+        canary_token_detected=False,
+        control_blocked=True,
+        observed_at=(
+            datetime.fromisoformat(run.cleanup_receipt.completed_at.replace("Z", "+00:00")) + timedelta(seconds=1)
+        )
+        .isoformat()
+        .replace("+00:00", "Z"),
+    )
+    original_write = harness.evidence_store.write_json
+
+    def fail_publication(kind, value):
+        if kind == "retest-execution-evidence":
+            raise OSError("injected publication failure")
+        return original_write(kind, value)
+
+    with patch.object(harness.evidence_store, "write_json", side_effect=fail_publication):
+        with pytest.raises(OSError, match="publication failure"):
+            harness.classify_case(
+                environment,
+                plan,
+                dispatched,
+                auth.authorization_id,
+                "remediated",
+                case_observation=observation,
+                endpoint_inventory=inventory,
+                baseline_finding_id="find-recovery",
+                asset_id="asset-recovery",
+            )
+    (record,) = harness.recorded_cases()
+    assert record["state"] == "classified"
+    assert (
+        record["result"]["details"]["retest_execution_bundle"]["authorization"]["authorization_id"]
+        == auth.authorization_id
+    )
+    restarted = _harness(inventory)
+    assert restarted.recover_retest_evidence_publication() == 1
+    reference = restarted.retest_evidence_reference(dispatched.result.result_id)
+    assert reference is not None
+    persisted = restarted.evidence_store.read_json(reference)
+    assert persisted["case_journal_record"] == record
+    assert restarted.recover_retest_evidence_publication() == 1
+    assert restarted.retest_evidence_reference(dispatched.result.result_id) == reference
 
 
 def test_case_journal_is_required_before_dispatch(tmp_path: Path) -> None:

@@ -99,6 +99,24 @@ class LaboratoryHarness:
         reference = self._retest_evidence_references.get(result_id)
         return dict(reference) if reference is not None else None
 
+    def recover_retest_evidence_publication(self) -> int:
+        """Publish staged review bundles from terminal journal records without rerunning cases."""
+        if self.case_journal is None or self.evidence_store is None:
+            raise LaboratoryGateError("journal and durable evidence storage are required for recovery")
+        recovered = 0
+        for record in self.case_journal.records():
+            result_id = record.get("result_id")
+            result = record.get("result")
+            details = result.get("details") if isinstance(result, dict) else None
+            staged = details.get("retest_execution_bundle") if isinstance(details, dict) else None
+            if record.get("state") != "classified" or not isinstance(result_id, str) or not isinstance(staged, dict):
+                continue
+            bundle = {**staged, "case_journal_record": record}
+            reference = self.evidence_store.write_json("retest-execution-evidence", bundle)
+            self._retest_evidence_references[result_id] = dict(reference)
+            recovered += 1
+        return recovered
+
     @staticmethod
     def _invalidate_verification(environment: LaboratoryEnvironment) -> None:
         environment.isolation["verification_status"] = "unverified"
@@ -744,6 +762,39 @@ class LaboratoryHarness:
             raise LaboratoryGateError("baseline finding and exact asset identities must be supplied together")
         observation_evidence = self.evidence_store.write_json("case-observation", asdict(case_observation))
         durable_evidence = [*durable_evidence, observation_evidence]
+        reviewable = (
+            authorized_run.cleanup_receipt is not None
+            and authorized_run.cleanup_receipt.status in {"completed", "not_required"}
+            and baseline_finding_id is not None
+            and asset_id is not None
+            and observed_case_type == case_type
+            and case_status != "failed"
+        )
+        staged_bundle = None
+        terminal_journaled_at = (
+            max(
+                datetime.now(UTC),
+                datetime.fromisoformat(case_observation.observed_at.replace("Z", "+00:00")),
+            )
+            .isoformat()
+            .replace("+00:00", "Z")
+        )
+        if reviewable:
+            staged_bundle = {
+                "schema_version": "cops.laboratory-retest-evidence/v1",
+                "environment_id": environment.environment_id,
+                "case_type": case_type,
+                "classification_status": case_status,
+                "action_plan": action_plan.to_dict(),
+                "action_plan_sha256": pending[3],
+                "authorization": pending[10],
+                "supervisor_exchange": pending[11],
+                "authorized_run": pending[0].to_dict(),
+                "observation": asdict(case_observation),
+                "cleanup_receipt": pending[0].cleanup_receipt.to_dict(),
+                "baseline_finding_id": baseline_finding_id,
+                "asset_id": asset_id,
+            }
         case_result = LaboratoryCaseResult(
             case_type=case_type,
             status=case_status,
@@ -772,6 +823,8 @@ class LaboratoryHarness:
                 "durable_evidence": durable_evidence,
                 "baseline_finding_id": baseline_finding_id,
                 "asset_id": asset_id,
+                "terminal_journaled_at": terminal_journaled_at,
+                **({"retest_execution_bundle": staged_bundle} if staged_bundle is not None else {}),
             },
         )
         if self.case_journal is None:
@@ -787,31 +840,7 @@ class LaboratoryHarness:
         )
         if case_record is None:
             raise LaboratoryGateError("classified laboratory case journal record is unavailable")
-        bundle = {
-            "schema_version": "cops.laboratory-retest-evidence/v1",
-            "environment_id": environment.environment_id,
-            "case_type": case_type,
-            "classification_status": case_status,
-            "action_plan": action_plan.to_dict(),
-            "action_plan_sha256": pending[3],
-            "authorization": pending[10],
-            "supervisor_exchange": pending[11],
-            "authorized_run": pending[0].to_dict(),
-            "observation": asdict(case_observation),
-            "cleanup_receipt": pending[0].cleanup_receipt.to_dict() if pending[0].cleanup_receipt else None,
-            "case_journal_record": case_record,
-            "baseline_finding_id": baseline_finding_id,
-            "asset_id": asset_id,
-        }
-        if (
-            authorized_run.cleanup_receipt is not None
-            and authorized_run.cleanup_receipt.status in {"completed", "not_required"}
-            and baseline_finding_id is not None
-            and asset_id is not None
-            and observed_case_type == case_type
-            and case_status != "failed"
-        ):
-            bundle_ref = self.evidence_store.write_json("retest-execution-evidence", bundle)
-            self._retest_evidence_references[result.result_id] = dict(bundle_ref)
+        if staged_bundle is not None:
+            self.recover_retest_evidence_publication()
         self._pending_cases.pop(result.result_id)
         return case_result
