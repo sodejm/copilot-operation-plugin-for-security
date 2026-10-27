@@ -4,14 +4,26 @@ from __future__ import annotations
 
 import json
 from copy import deepcopy
+from dataclasses import replace
+from datetime import datetime
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 from pytest_bdd import given, scenarios, then, when
 
+from cops.contracts.models import CleanupReceipt
 from cops.evidence.canonical import digest
 from cops.reporting.assessment import build_assessment_report
 from cops.reporting.retest import build_retest_report
+from cops.reporting.retest_execution import (
+    RetestExecutionEvidenceError,
+    TrustedLaboratoryContext,
+    verify_retest_execution_evidence,
+    verify_retest_execution_evidence_reference,
+)
+from tests.laboratory_testkit import case_observation, remote_run, supervisor_exchange
+from tests.test_laboratory_harness import _ready_case
 
 scenarios("../../specs/features/engagement-retest-and-closure.feature")
 
@@ -86,7 +98,155 @@ def _input() -> dict:
 
 @pytest.fixture
 def retest_ctx():
-    return {"bundle": None, "reports": []}
+    return {"bundle": None, "reports": [], "execution": None}
+
+
+def _create_laboratory_bundle(retest_ctx, tmp_path):
+    harness, inventory, environment, plan, auth, trust, engagement, worker_inventory, guard = _ready_case(tmp_path)
+    run = remote_run(plan, auth.authorization_id, environment.owner)
+    started = datetime.fromisoformat(auth.issued_at.replace("Z", "+00:00"))
+    run = replace(
+        run,
+        result=replace(
+            run.result,
+            started_at=started.isoformat().replace("+00:00", "Z"),
+            finished_at=started.isoformat().replace("+00:00", "Z"),
+        ),
+        cleanup_receipt=CleanupReceipt(
+            schema_version="cops.cleanup-receipt/v1",
+            receipt_id="cln-bdd-test-01",
+            plan_id=plan.plan_id,
+            engagement_id=plan.engagement_id,
+            worker_identity=environment.owner,
+            status="completed",
+            created_at=started.isoformat().replace("+00:00", "Z"),
+            completed_at=started.isoformat().replace("+00:00", "Z"),
+            cleaned_effects=[],
+            unresolved_effects=[],
+            evidence_hash="0" * 64,
+        ),
+    )
+    with patch(
+        "cops.laboratory.harness.SSHExecutionDispatcher.execute_with_evidence",
+        side_effect=lambda **kwargs: supervisor_exchange(
+            run,
+            plan,
+            auth.authorization_id,
+            environment.owner,
+            inventory,
+            request_id=kwargs["request_id"],
+        ),
+    ):
+        dispatched = harness.execute_case(
+            environment,
+            plan,
+            auth,
+            "positive",
+            trust_store=trust,
+            engagement=engagement,
+            worker_inventory=worker_inventory,
+            endpoint_inventory=inventory,
+            scope_guard=guard,
+        )
+    observation = case_observation(
+        environment,
+        plan,
+        auth.authorization_id,
+        dispatched,
+        inventory,
+        request_nonce=harness.case_observation_challenge(dispatched),
+        canary_token_detected=True,
+        control_blocked=False,
+    )
+    harness.classify_case(
+        environment,
+        plan,
+        dispatched,
+        auth.authorization_id,
+        "positive",
+        case_observation=observation,
+        endpoint_inventory=inventory,
+        baseline_finding_id="find-bdd-lab",
+        asset_id="asset-bdd-lab",
+    )
+    reference = harness.retest_evidence_reference(dispatched.result.result_id)
+    journal_record = next(
+        record for record in harness.recorded_cases() if record.get("result_id") == dispatched.result.result_id
+    )
+    retest_ctx["execution"] = {
+        "harness": harness,
+        "inventory": inventory,
+        "environment": environment,
+        "plan": plan,
+        "auth": auth,
+        "trust": trust,
+        "engagement": engagement,
+        "reference": reference,
+        "terminal_journal_digest": digest(journal_record),
+    }
+
+
+@given(
+    "a disposable laboratory case with a signed authorization, attested worker result, observation, cleanup receipt, and exact journal record"
+)
+def verified_laboratory_bundle(retest_ctx, tmp_path):
+    _create_laboratory_bundle(retest_ctx, tmp_path)
+
+
+@given("a persisted laboratory retest evidence bundle")
+def persisted_laboratory_bundle(retest_ctx, tmp_path):
+    _create_laboratory_bundle(retest_ctx, tmp_path)
+
+
+@when("the content-addressed bundle is verified against the exact baseline finding and asset")
+def verify_laboratory_bundle(retest_ctx):
+    ctx = retest_ctx["execution"]
+    retest_ctx["review"] = verify_retest_execution_evidence_reference(
+        ctx["reference"],
+        evidence_store=ctx["harness"].evidence_store,
+        trust_store=ctx["trust"],
+        endpoint_inventory=ctx["inventory"],
+        observation_trust_store=ctx["harness"].observation_trust_store,
+        engagement=ctx["engagement"],
+        finding_id="find-bdd-lab",
+        asset_id="asset-bdd-lab",
+        trusted_context=TrustedLaboratoryContext(
+            environment=ctx["environment"],
+            plan=ctx["plan"],
+            target=ctx["plan"].target,
+            provenance="verified fixture registration and expected baseline plan",
+        ),
+        trusted_terminal_journal_record_digest=ctx["terminal_journal_digest"],
+        previously_consumed_authorization_ids=[],
+    )
+
+
+@when(
+    "its plan, identity, authorization consumption, supervisor attestation, observation, cleanup, or journal binding differs"
+)
+def reject_changed_laboratory_bundle(retest_ctx):
+    ctx = retest_ctx["execution"]
+    bundle = ctx["harness"].evidence_store.read_json(ctx["reference"])
+    bundle["action_plan_sha256"] = "0" * 64
+    with pytest.raises(RetestExecutionEvidenceError):
+        verify_retest_execution_evidence(
+            bundle,
+            trust_store=ctx["trust"],
+            endpoint_inventory=ctx["inventory"],
+            observation_trust_store=ctx["harness"].observation_trust_store,
+            engagement=ctx["engagement"],
+            finding_id="find-bdd-lab",
+            asset_id="asset-bdd-lab",
+            trusted_context=TrustedLaboratoryContext(
+                environment=ctx["environment"],
+                plan=ctx["plan"],
+                target=ctx["plan"].target,
+                provenance="verified fixture registration and expected baseline plan",
+            ),
+            trusted_terminal_journal_record_digest=ctx["terminal_journal_digest"],
+            previously_consumed_authorization_ids=[],
+            evidence_store=ctx["harness"].evidence_store,
+        )
 
 
 @given("a baseline finding and a later assessed retest of the same engagement and exact asset")
@@ -159,3 +319,16 @@ def live_retest_requires_bindings(retest_ctx):
     gates = retest_ctx["reports"][0]["closure_gates"]
     assert "live_authority_binding_required" in gates
     assert "cleanup_run_binding_required" in gates
+
+
+@then("it yields a candidate retest input and closure remains blocked pending independent review")
+def laboratory_evidence_is_review_only(retest_ctx):
+    review = retest_ctx["review"]
+    assert review.outcome == "candidate_still_vulnerable"
+    assert review.closure_status == "blocked"
+    assert review.independent_review_required is True
+
+
+@then("verification fails closed and no retest review input is produced")
+def changed_laboratory_evidence_is_rejected(retest_ctx):
+    assert "review" not in retest_ctx

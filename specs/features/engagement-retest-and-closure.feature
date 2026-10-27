@@ -18,3 +18,13 @@ Feature: Offline engagement retest and closure review
     Given an assessed live retest using the baseline plan ID
     When the comparison finds an absent observation
     Then it still requires verification of the run authority and cleanup binding
+
+  Scenario: Verified laboratory execution evidence
+    Given a disposable laboratory case with a signed authorization, attested worker result, observation, cleanup receipt, and exact journal record
+    When the content-addressed bundle is verified against the exact baseline finding and asset
+    Then it yields a candidate retest input and closure remains blocked pending independent review
+
+  Scenario: Changed or replayed laboratory execution evidence
+    Given a persisted laboratory retest evidence bundle
+    When its plan, identity, authorization consumption, supervisor attestation, observation, cleanup, or journal binding differs
+    Then verification fails closed and no retest review input is produced

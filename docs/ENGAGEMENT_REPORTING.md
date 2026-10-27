@@ -257,3 +257,33 @@ that its actual run used bound authority and that cleanup evidence belongs to th
 run, even when the baseline and retest plan IDs match. A changed live plan needs
 fresh authorization before execution unless a valid bound approval already
 covers its exact actions and budget; this offline review cannot grant it.
+
+For disposable laboratory executions, `verify_retest_execution_evidence_reference`
+can verify a content-addressed `cops.laboratory-retest-evidence/v1` artifact
+before producing a review input. The caller must supply a `TrustedLaboratoryContext`
+loaded independently of the artifact: a verified disposable `LaboratoryEnvironment`,
+the expected baseline `ActionPlan`, its target, and a provenance description naming
+the trusted registration/baseline source. The verifier checks the environment's
+verified isolation and canary state, the exact target, and the exact plan. An
+environment or target copied from the artifact is not an independent trust source.
+It rechecks persisted bytes, the exact plan and
+authorization, supervisor response attestation, approval consumption, worker
+observation, cleanup receipt, journal payload and result, and exact finding and
+asset IDs. The caller must also provide
+`trusted_terminal_journal_record_digest`, obtained from an independently trusted
+terminal-journal source rather than copied from the evidence bundle. The verifier
+requires that digest to match the persisted terminal journal record exactly. The
+journal binds pre-execution observation references and the cleanup receipt
+reference/digest; the current cleanup receipt model has no workspace
+identity field, so this verifier does not claim to bind a workspace identity.
+The caller must supply a snapshot of previously consumed authorization IDs; an
+authorization present in that snapshot is rejected. This is a read-only prior-ledger
+assertion, not an atomic consumption operation: concurrent reviewers require an
+external durable transaction that records consumption before accepting a review.
+A positive case maps to
+`candidate_still_vulnerable`; an accepted remediated case maps to
+`candidate_fixed`; a negative-control case maps to `blocked`, since a blocked
+control is not affirmative evidence of remediation. This bridge supplies evidence for review; it does not rewrite
+or bypass the existing offline importer, and closure remains blocked pending
+independent review. Failed or indeterminate cases do not produce a reviewable
+bundle.

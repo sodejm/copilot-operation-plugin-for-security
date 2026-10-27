@@ -16,7 +16,12 @@ from cops.contracts.models import ActionPlan, LaboratoryEnvironment, RunResult
 from cops.evidence.canonical import canonical, digest, utc_now
 from cops.execution.control import ApprovalConsumptionReceipt
 from cops.execution.ssh_execution import RemoteAuthorizedRun
-from cops.execution.ssh_transport import SSH_ENDPOINT_INVENTORY_SCHEMA, SSHRemoteEndpointInventory
+from cops.execution.ssh_transport import (
+    SSH_ENDPOINT_INVENTORY_SCHEMA,
+    SSHRemoteEndpointInventory,
+    endpoint_identity,
+)
+from cops.execution.supervisor_attestation import SSH_PROTOCOL, SupervisorResponseAttestor
 from cops.laboratory.models import LaboratoryObservation
 from cops.laboratory.receipts import LaboratoryCaseObservation, LaboratoryObservationTrustStore, LaboratoryResetReceipt
 
@@ -53,7 +58,9 @@ def observation_trust_store(root: Path, worker_identity: str = "lab-operator") -
     return LaboratoryObservationTrustStore.from_file(path)
 
 
-def endpoint_inventory(root: Path, worker_identity: str = "lab-operator") -> SSHRemoteEndpointInventory:
+def endpoint_inventory(
+    root: Path, worker_identity: str = "lab-operator", *, port: int = 22
+) -> SSHRemoteEndpointInventory:
     """Load a protected, pinned SSH endpoint inventory with a test-only key."""
     root.mkdir(parents=True, exist_ok=True)
     known_hosts = root / "known_hosts"
@@ -73,7 +80,7 @@ def endpoint_inventory(root: Path, worker_identity: str = "lab-operator") -> SSH
                         "attestation_key_id": "supervisor-key-01",
                         "attestation_key_path": str(key),
                         "known_hosts_path": str(known_hosts),
-                        "port": 22,
+                        "port": port,
                         "remote_command": ["python3", "-m", "cops.remote_worker"],
                         "username": "cops-worker",
                         "worker_id": worker_identity,
@@ -148,13 +155,13 @@ def remote_run(
     finished = started + timedelta(seconds=1)
     result = RunResult(
         schema_version="cops.run-result/v1",
-        result_id=str(uuid.uuid4()),
+        result_id=f"res-{uuid.uuid4().hex[:16]}",
         plan_id=plan.plan_id,
         engagement_id=plan.engagement_id,
         status=status,
-        started_at=started.isoformat(),
-        finished_at=finished.isoformat(),
-        status_details={},
+        started_at=started.isoformat().replace("+00:00", "Z"),
+        finished_at=finished.isoformat().replace("+00:00", "Z"),
+        status_details={"summary": "test remote worker result"},
         evidence_records=[],
         artifacts=[],
         cleanup_status=cleanup_status,
@@ -171,6 +178,55 @@ def remote_run(
         target=plan.target,
     )
     return RemoteAuthorizedRun(result=result, approval_receipt=receipt)
+
+
+def supervisor_exchange(run, plan, authorization_id, worker_identity, inventory, *, request_id=None):
+    """Build a deterministic test-only signed dispatcher response."""
+    endpoint = inventory.resolve(worker_identity)
+    request_id = request_id or str(uuid.uuid4())
+    nonce = "N" * 43
+    endpoint_identity_document = endpoint_identity(endpoint)
+    request_payload = {
+        "schema_version": "cops.remote-execution-request/v1",
+        "authorization_id": authorization_id,
+        "action_plan": plan.to_dict(),
+        "timeout_seconds": 30.0,
+        "max_output_bytes": 65_536,
+        "exchange_nonce": nonce,
+        "endpoint_identity": endpoint_identity_document,
+    }
+    request = {
+        "protocol": SSH_PROTOCOL,
+        "request_id": request_id,
+        "expected_host": endpoint.host,
+        "expected_worker_id": worker_identity,
+        "payload": request_payload,
+    }
+    response = {
+        "protocol": SSH_PROTOCOL,
+        "request_id": request_id,
+        "host": endpoint.host,
+        "worker_id": worker_identity,
+        "payload": run.to_dict(),
+    }
+    key = bytes.fromhex("11" * 32)
+    wire = SupervisorResponseAttestor(endpoint.attestation_key_id, key).attest(
+        canonical(request) + b"\n", canonical(response) + b"\n"
+    )
+    signed = json.loads(wire[:-1])
+    return run, {
+        "request_id": request_id,
+        "exchange_nonce": nonce,
+        "endpoint_host": endpoint.host,
+        "worker_identity": worker_identity,
+        "authorization_id": authorization_id,
+        "action_plan": plan.to_dict(),
+        "timeout_seconds": 30.0,
+        "max_output_bytes": 65_536,
+        "attestation_key_id": endpoint.attestation_key_id,
+        "endpoint_identity": endpoint_identity_document,
+        "response_payload": signed["payload"],
+    }
 
 
 def case_observation(

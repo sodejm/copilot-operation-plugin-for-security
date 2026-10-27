@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/sodejm/copilot-operation-plugin-for-security/catalog/schemas/laboratory-retest-evidence.schema.json",
+  "title": "COPS Laboratory Retest Execution Evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "environment_id", "case_type", "classification_status", "action_plan", "action_plan_sha256", "authorization", "supervisor_exchange", "authorized_run", "observation", "cleanup_receipt", "case_journal_record", "baseline_finding_id", "asset_id"],
+  "properties": {
+    "schema_version": {"const": "cops.laboratory-retest-evidence/v1"},
+    "environment_id": {"type": "string", "minLength": 1},
+    "case_type": {"enum": ["positive", "negative", "remediated"]},
+    "classification_status": {"enum": ["success", "rejected", "remediated"]},
+    "action_plan": {"$ref": "action-plan.schema.json"},
+    "action_plan_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "authorization": {"$ref": "execution-authorization.schema.json"},
+    "supervisor_exchange": {"type": "object", "additionalProperties": false, "required": ["request_id", "exchange_nonce", "endpoint_host", "worker_identity", "authorization_id", "action_plan", "timeout_seconds", "max_output_bytes", "attestation_key_id", "endpoint_identity", "response_payload"], "properties": {
+      "request_id": {"type": "string", "format": "uuid"}, "exchange_nonce": {"type": "string", "minLength": 32}, "endpoint_host": {"type": "string", "minLength": 1}, "worker_identity": {"type": "string", "minLength": 1}, "authorization_id": {"type": "string", "minLength": 1}, "action_plan": {"type": "object"}, "timeout_seconds": {"type": "number", "exclusiveMinimum": 0}, "max_output_bytes": {"type": "integer", "minimum": 0}, "attestation_key_id": {"type": "string", "minLength": 1}, "endpoint_identity": {"type": "object", "additionalProperties": false, "required": ["host", "port", "username", "worker_identity", "remote_command", "host_key_algorithm", "known_hosts_pin_sha256", "attestation_key_id", "attestation_key_sha256"], "properties": {"host": {"type": "string", "minLength": 1}, "port": {"type": "integer", "minimum": 1, "maximum": 65535}, "username": {"type": "string", "minLength": 1}, "worker_identity": {"type": "string", "minLength": 1}, "remote_command": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}, "host_key_algorithm": {"type": "string", "minLength": 1}, "known_hosts_pin_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}, "attestation_key_id": {"type": "string", "minLength": 1}, "attestation_key_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}}}, "response_payload": {"type": "object"}
+    }},
+    "authorized_run": {"type": "object"}, "observation": {"type": "object"},
+    "cleanup_receipt": {"oneOf": [{"$ref": "cleanup-receipt.schema.json"}, {"$ref": "cleanup-receipt-v2.schema.json"}]},
+    "case_journal_record": {
+      "type": "object", "additionalProperties": false,
+      "required": ["attempt_id", "result_id", "environment_id", "state", "payload", "result"],
+      "properties": {
+        "attempt_id": {"type": "string", "minLength": 1},
+        "result_id": {"type": "string", "minLength": 1},
+        "environment_id": {"type": "string", "minLength": 1},
+        "state": {"const": "classified"},
+        "payload": {"type": "object"},
+        "result": {"type": "object"}
+      }
+    },
+    "baseline_finding_id": {"type": "string", "pattern": "^find-[a-z0-9_-]{4,64}$"},
+    "asset_id": {"type": "string", "minLength": 1}
+  }
+}

@@ -24,6 +24,15 @@ def test_evidence_digest_covers_exact_canonical_bytes(tmp_path: Path) -> None:
     assert raw == canonical(value)
     assert reference["sha256"] == hashlib.sha256(raw).hexdigest()
     assert reference["byte_length"] == len(raw)
+    assert store.read_json(reference) == value
+
+
+def test_read_json_rejects_tampered_persisted_bytes(tmp_path: Path) -> None:
+    store = LaboratoryEvidenceStore(tmp_path / "evidence")
+    reference = store.write_json("observation", {"status": "observed"})
+    store.resolve(reference).write_bytes(b'{"status":"changed"}')
+    with pytest.raises(LaboratoryGateError, match="safely read|digest or length"):
+        store.read_json(reference)
 
 
 @pytest.mark.parametrize(

@@ -132,6 +132,7 @@ def verify_attested_authorized_run(
     action_plan_document: Mapping[str, object],
     timeout_seconds: float,
     max_output_bytes: int,
+    endpoint_identity_digest: str | None = None,
 ) -> Mapping[str, object]:
     """Verify an attested payload before its result is reconstructed or accepted."""
     validate_attestation_key_id(attestation_key_id)
@@ -165,6 +166,7 @@ def verify_attested_authorized_run(
         timeout_seconds=timeout_seconds,
         max_output_bytes=max_output_bytes,
         authorized_run=run,
+        endpoint_identity_digest=endpoint_identity_digest,
     )
     if attestation["claims"] != expected_claims:
         raise SupervisorAttestationError("remote response attestation binding mismatch")
@@ -205,7 +207,7 @@ def _claims_from_documents(
         raise SupervisorAttestationError("supervisor exchange endpoint binding mismatch")
     request_payload = request["payload"]
     run = response["payload"]
-    required = {
+    legacy_required = {
         "schema_version",
         "authorization_id",
         "action_plan",
@@ -213,8 +215,18 @@ def _claims_from_documents(
         "max_output_bytes",
         "exchange_nonce",
     }
-    if not isinstance(request_payload, Mapping) or set(request_payload) != required or not isinstance(run, Mapping):
+    endpoint_fields = legacy_required | {"endpoint_identity"}
+    if (
+        not isinstance(request_payload, Mapping)
+        or set(request_payload) not in (legacy_required, endpoint_fields)
+        or not isinstance(run, Mapping)
+    ):
         raise SupervisorAttestationError("supervisor execution payload is invalid")
+    endpoint_digest = None
+    if "endpoint_identity" in request_payload:
+        if not isinstance(request_payload["endpoint_identity"], Mapping):
+            raise SupervisorAttestationError("supervisor endpoint identity is invalid")
+        endpoint_digest = digest(dict(request_payload["endpoint_identity"]))
     claims = _build_claims(
         request_id=request["request_id"],
         exchange_nonce=request_payload["exchange_nonce"],
@@ -225,6 +237,7 @@ def _claims_from_documents(
         timeout_seconds=request_payload["timeout_seconds"],
         max_output_bytes=request_payload["max_output_bytes"],
         authorized_run=run,
+        endpoint_identity_digest=endpoint_digest,
     )
     return claims, run
 
@@ -240,18 +253,21 @@ def _build_claims(
     timeout_seconds: object,
     max_output_bytes: object,
     authorized_run: Mapping[str, object],
+    endpoint_identity_digest: str | None = None,
 ) -> dict[str, Any]:
     validate_exchange_nonce(exchange_nonce)
     if not isinstance(action_plan, Mapping) or not isinstance(authorized_run, Mapping):
         raise SupervisorAttestationError("supervisor attestation binding document is invalid")
-    if set(authorized_run) != {"schema_version", "result", "approval_receipt"}:
+    legacy_fields = {"schema_version", "result", "approval_receipt"}
+    cleanup_fields = legacy_fields | {"cleanup_receipt"}
+    if set(authorized_run) not in (legacy_fields, cleanup_fields):
         raise SupervisorAttestationError("supervisor authorized run fields are invalid")
     result = authorized_run["result"]
     receipt = authorized_run["approval_receipt"]
     if not isinstance(result, Mapping) or not isinstance(receipt, Mapping):
         raise SupervisorAttestationError("supervisor authorized run payload is invalid")
     try:
-        return {
+        claims = {
             "request_id": request_id,
             "exchange_nonce": exchange_nonce,
             "host": host,
@@ -268,6 +284,14 @@ def _build_claims(
             "result_digest": digest(dict(result)),
             "receipt_digest": digest(dict(receipt)),
         }
+        if "cleanup_receipt" in authorized_run:
+            cleanup = authorized_run["cleanup_receipt"]
+            if not isinstance(cleanup, Mapping):
+                raise SupervisorAttestationError("supervisor cleanup receipt is invalid")
+            claims["cleanup_receipt_digest"] = digest(dict(cleanup))
+        if endpoint_identity_digest is not None:
+            claims["endpoint_identity_digest"] = endpoint_identity_digest
+        return claims
     except (KeyError, TypeError, ValueError) as err:
         raise SupervisorAttestationError("supervisor attestation binding fields are invalid") from err
 

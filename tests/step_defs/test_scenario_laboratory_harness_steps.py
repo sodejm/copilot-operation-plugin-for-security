@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+from datetime import datetime
 from unittest.mock import patch
 
 import pytest
 from pytest_bdd import given, parsers, scenarios, then, when
 
+from cops.contracts.models import CleanupReceipt
 from cops.execution.scope_guard import ScopeDefinition, ScopeGuard
 from cops.execution.worker import WorkerCapabilityInventory
 from cops.laboratory import (
@@ -25,6 +28,7 @@ from tests.laboratory_testkit import (
     observation_trust_store,
     remote_run,
     reset_receipt,
+    supervisor_exchange,
 )
 
 scenarios("../../specs/features/scenario_laboratory_harness.feature")
@@ -149,7 +153,36 @@ def when_dispatch_and_classify(lab_ctx, case_type):
         status=status,
         exit_code=exit_code,
     )
-    with patch("cops.laboratory.harness.SSHExecutionDispatcher.execute", return_value=run):
+    issued = datetime.fromisoformat(authorization.issued_at.replace("Z", "+00:00"))
+    timestamp = issued.isoformat().replace("+00:00", "Z")
+    run = replace(
+        run,
+        result=replace(run.result, started_at=timestamp, finished_at=timestamp),
+        cleanup_receipt=CleanupReceipt(
+            schema_version="cops.cleanup-receipt/v1",
+            receipt_id=f"cln-bdd-{case_type}",
+            plan_id=plan.plan_id,
+            engagement_id=plan.engagement_id,
+            worker_identity=environment.owner,
+            status="completed",
+            created_at=timestamp,
+            completed_at=timestamp,
+            cleaned_effects=[],
+            unresolved_effects=[],
+            evidence_hash="0" * 64,
+        ),
+    )
+    with patch(
+        "cops.laboratory.harness.SSHExecutionDispatcher.execute_with_evidence",
+        side_effect=lambda **kwargs: supervisor_exchange(
+            run,
+            plan,
+            authorization.authorization_id,
+            environment.owner,
+            lab_ctx["inventory"],
+            request_id=kwargs["request_id"],
+        ),
+    ):
         dispatched = lab_ctx["harness"].execute_case(
             environment,
             plan,
