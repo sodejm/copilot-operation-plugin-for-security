@@ -274,3 +274,6 @@ Cancellation interrupts active I/O with kernel socket shutdown, without mutating
 the worker's SSL state or closing its descriptor from another thread. The worker
 owns final socket closure, including failed or cancelled TLS handshakes.
 A DNS resolver may finish after cancellation, but cannot dispatch a late request.
+
+For the Issue #100 isolated-worker integration, its acceptance mapping and
+pending qualification gates are specified in [worker qualification](issue-100-worker-qualification.md).

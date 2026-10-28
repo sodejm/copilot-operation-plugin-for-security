@@ -122,3 +122,11 @@ Use [VERIFICATION.md](VERIFICATION.md) for the complete evidence contract, accep
 - [Machine-readable playbook](../playbooks/offline-assessment.json)
 - [Runnable offline walkthrough](../walkthroughs/offline-assessment.md)
 <!-- END COPS GENERATED OFFLINE ASSESSMENT LINKS -->
+
+## Worker integration and recovery
+
+The [worker qualification contract](../../../../specs/issue-100-worker-qualification.md)
+describes the required approval, credential resolution, destination and egress
+boundaries. For a cancelled or uncertain post-dispatch outcome, reconcile remote
+effects and cleanup before requesting a fresh authorization; do not automatically
+retry the consumed approval. Worker integration qualification is pending.

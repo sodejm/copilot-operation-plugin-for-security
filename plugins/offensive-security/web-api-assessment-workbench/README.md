@@ -217,3 +217,10 @@ HAR, Postman, and absolute raw HTTP request imports preserve their source URL sc
 OpenAPI imports require exactly one supported version declaration: `swagger: "2.0"` or an `openapi` string in `3.x.y` form. Missing, malformed, conflicting, and other major versions fail before inventory generation.
 
 Path-level OpenAPI/Swagger parameters are inherited by each operation. An operation overrides a shared parameter with the same name and location; an empty operation parameter list retains inherited parameters. Malformed declarations, duplicate identities within one level, and unresolved parameter references fail closed.
+
+## Worker integration qualification
+
+The [Issue #100 worker qualification contract](../../../specs/issue-100-worker-qualification.md)
+records the required isolated-worker, approval, egress, evidence and cleanup gates.
+Those requirements must be verified on the integrated revision before claiming
+worker or production qualification; the offline CLI remains non-dispatching.

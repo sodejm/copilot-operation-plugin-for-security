@@ -114,3 +114,10 @@ that does not establish arbitrary WebSocket application or provider support.
 Record the repository revision, interpreter version, source-fixture digests, commands, exit codes, sanitized reports, vulnerable/corrected profile, destinations, budgets, and any blocked or insufficient cases. Keep credentials and private endpoint details out of retained evidence.
 
 Promotion requires the baseline commands and local-service acceptance to pass in the intended host, plus separate resolution of the isolation blocker and production-provider validation. Until then, describe the package as locally validated for the documented inventory, preview, offline replay, and loopback assessment behavior only.
+
+## Issue 100 worker integration
+
+Use the [worker qualification contract](../../../../specs/issue-100-worker-qualification.md)
+to record exact-revision acceptance, Linux isolation, installed/exported package,
+hosted CPython 3.15 and human security review evidence. An unavailable gate remains
+unverified; portable package and loopback results do not qualify production isolation.
