@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import traceback
+from dataclasses import replace
 
 import pytest
 
@@ -133,12 +134,16 @@ def test_duplicate_and_same_scheme_sources_keep_distinct_graph_bindings_and_offl
         engagement_id="eng-import-bindings",
         scenario_id="scen-import-bindings",
         specialist_id="web-api-assessment-workbench",
-        requests=requests,
-        sessions=restored.sessions,
+        requests=[replace(request, headers={}) for request in requests],
+        sessions=[replace(session, headers={}) for session in restored.sessions],
+        session_credential_bindings={
+            session.session_id: [{"reference": f"credential-{index}", "header": session.auth_mechanism.token_name}]
+            for index, session in enumerate(restored.sessions)
+        },
         allowed_destinations=["api.example.test"],
         created_at="2026-10-18T00:00:00Z",
     )
-    assert {operation["arguments"]["session_id"] for operation in plan.operations} == session_ids
+    assert {operation["arguments"]["envelope"]["session_id"] for operation in plan.operations} == session_ids
     report = execute_replay_session(requests, ["api.example.test"])
     assert report.total_dispatched == 3
     assert {request.session_id for request in report.requests} == session_ids

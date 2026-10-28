@@ -10,13 +10,13 @@ import sys
 import threading
 import time
 import traceback
-from dataclasses import asdict, replace
+from dataclasses import replace
 
 import pytest
 
 from cops.evidence.canonical import digest
+from cops.execution.cleanup import CleanupPersistenceError
 from cops.execution.scope_guard import ScopeDefinition, ScopeGuard, ScopeViolationError
-from cops.execution.store import ApprovalStore
 from cops.laboratory.service_tls import _certificate_material
 from cops.web_api.models import ReplayBudget, ReplayRequest, ReplayResponse, SessionContext
 from cops.web_api.replay import (
@@ -27,7 +27,8 @@ from cops.web_api.replay import (
     build_replay_action_plan,
     execute_authorized_replay_session,
 )
-from tests.auth_testkit import TestApprovalControl, authorize_test_plan
+from cops.web_api.worker_replay import WEB_API_REPLAY_TOOL, WEB_API_REPLAY_VERSION, validate_web_api_operation
+from tests.web_api_worker_testkit import loopback_worker
 from tests.websocket_testkit import WebSocketTestServer
 
 
@@ -37,7 +38,7 @@ def request(**changes):
             "ws-one",
             "ws-endpoint",
             "GET",
-            "ws://example.test/socket",
+            "wss://example.test/socket",
             protocol="websocket",
             websocket_messages=["hello"],
         ),
@@ -58,12 +59,29 @@ def plan(req=None, budget=None):
     )
 
 
-def test_websocket_plan_uses_distinct_versioned_operation():
+def test_websocket_plan_uses_registered_worker_envelope():
     operation = plan().operations[0]
-    assert operation["tool"] == "cops.web_api.bounded-websocket-replayer"
-    assert operation["tool_version"] == "1"
-    assert operation["action"] == "replay_websocket_session"
-    assert operation["arguments"]["request_digest"] == digest(asdict(request()))
+    assert operation["tool"] == WEB_API_REPLAY_TOOL
+    assert operation["tool_version"] == WEB_API_REPLAY_VERSION
+    assert operation["action"] == "replay"
+    envelope = validate_web_api_operation(operation).to_dict()
+    assert envelope["request"]["protocol"] == "websocket"
+    assert envelope["request"]["websocket_messages"] == ["hello"]
+    assert envelope["destination_policy"] == {
+        "transport": "production",
+        "request_urls": ["wss://example.test/socket"],
+    }
+    assert envelope["request_digest"] == digest(
+        {
+            key: envelope[key]
+            for key in (
+                "session_id",
+                "role_id",
+                "request",
+                "credential_references",
+            )
+        }
+    )
 
 
 @pytest.mark.parametrize(
@@ -303,24 +321,20 @@ def test_wss_verifies_chain_original_hostname_and_tls_policy(tmp_path, trusted, 
         assert bool(lab.handshakes) is result.replay_success
 
 
-def authority_for(tmp_path, action_plan):
-    auth, trust, engagement = authorize_test_plan(action_plan, worker_identity="worker-websocket")
-    store = ApprovalStore(tmp_path / "authority" / "approvals.sqlite3")
-    store.store_authorization(auth)
-    return auth.authorization_id, TestApprovalControl(store, trust, engagement)
-
-
-def execute(lab, requests, budget, action_plan, auth_id, control, sessions=None, **kwargs):
+def execute(lab, requests, budget, action_plan, auth_id, control, sessions=None, *, worker, **kwargs):
+    active_scope = kwargs.pop("scope_guard", worker.scope_guard)
     return execute_authorized_replay_session(
         requests=requests,
         sessions=sessions or [],
         allowed_destinations=[lab.url.split("/")[2]],
-        scope_guard=kwargs.pop("scope_guard", scope()),
+        scope_guard=active_scope,
         budget=budget,
         action_plan=action_plan,
         authorization_id=auth_id,
         approval_control=control,
-        worker_identity="worker-websocket",
+        worker_identity=worker.config.worker_id,
+        worker=worker,
+        transport="laboratory",
         **kwargs,
     )
 
@@ -335,19 +349,18 @@ def live_plan(lab, requests, budget, sessions=None):
         allowed_destinations=[lab.url.split("/")[2]],
         budget=budget,
         sessions=sessions or [],
+        transport="laboratory",
     )
 
 
 @pytest.mark.parametrize("mutation", ["messages", "protocol", "frames", "bytes", "message_bytes", "session", "url"])
-def test_plan_drift_rejected_before_consumption_or_dispatch(tmp_path, mutation):
+def test_plan_drift_rejected_before_consumption_or_dispatch(tmp_path, monkeypatch, mutation):
     with WebSocketTestServer() as lab:
-        sessions = [
-            SessionContext(session_id="session-one", role_id="owner", headers={"Authorization": "Bearer owner-token"})
-        ]
+        sessions = [SessionContext(session_id="session-one", role_id="owner", headers={"X-Replay-Variant": "owner"})]
         requests = [request(url=lab.url, session_id="session-one", role_id="owner")]
         budget = ReplayBudget()
         action_plan = live_plan(lab, requests, budget, sessions)
-        auth_id, control = authority_for(tmp_path, action_plan)
+        worker, auth_id, control = loopback_worker(tmp_path, monkeypatch, action_plan, scope())
         if mutation == "messages":
             requests[0].websocket_messages = ["different"]
         elif mutation == "protocol":
@@ -359,11 +372,11 @@ def test_plan_drift_rejected_before_consumption_or_dispatch(tmp_path, mutation):
         elif mutation == "message_bytes":
             budget.max_websocket_message_bytes = 2048
         elif mutation == "session":
-            sessions[0].headers["Authorization"] = "Bearer changed-token"
+            sessions[0].headers["X-Replay-Variant"] = "changed-owner"
         else:
             requests[0].url += "?changed=yes"
         with pytest.raises(ReplayAuthorizationError):
-            execute(lab, requests, budget, action_plan, auth_id, control, sessions)
+            execute(lab, requests, budget, action_plan, auth_id, control, sessions, worker=worker)
         assert control.consume_calls == [] and not lab.handshakes
 
 
@@ -371,7 +384,7 @@ def test_inputs_are_frozen_during_consumption_and_approval_is_single_use(tmp_pat
     with WebSocketTestServer() as lab:
         requests, budget = [request(url=lab.url)], ReplayBudget()
         action_plan = live_plan(lab, requests, budget)
-        auth_id, control = authority_for(tmp_path, action_plan)
+        worker, auth_id, control = loopback_worker(tmp_path, monkeypatch, action_plan, scope())
         original = control.consume_authorization
 
         def consume(*args):
@@ -380,54 +393,76 @@ def test_inputs_are_frozen_during_consumption_and_approval_is_single_use(tmp_pat
             return original(*args)
 
         monkeypatch.setattr(control, "consume_authorization", consume)
-        report = execute(lab, requests, budget, action_plan, auth_id, control)
+        report = execute(lab, requests, budget, action_plan, auth_id, control, worker=worker)
         assert report.responses[0].replay_success
         assert lab.messages == [(None, "hello")]
         assert not control._issued_receipts
+        assert control.store.get_authorization(auth_id).status == "consumed"
         monkeypatch.setattr(control, "consume_authorization", original)
-        with pytest.raises(ValueError):
-            execute(lab, [request(url=lab.url)], ReplayBudget(), action_plan, auth_id, control)
-        assert len(lab.handshakes) == 1
+        with pytest.raises(CleanupPersistenceError, match="already contains execution run"):
+            execute(
+                lab,
+                [request(url=lab.url)],
+                ReplayBudget(),
+                action_plan,
+                auth_id,
+                control,
+                worker=worker,
+            )
+        assert len(control.consume_calls) == 1 and len(lab.handshakes) == 1
 
 
-def test_cancel_before_approval_has_no_dispatch_or_consumption(tmp_path):
+def test_cancel_before_approval_has_no_dispatch_or_consumption(tmp_path, monkeypatch):
     with WebSocketTestServer() as lab:
         requests, budget = [request(url=lab.url)], ReplayBudget()
         action_plan = live_plan(lab, requests, budget)
-        auth_id, control = authority_for(tmp_path, action_plan)
+        worker, auth_id, control = loopback_worker(tmp_path, monkeypatch, action_plan, scope())
         event = threading.Event()
         event.set()
         with pytest.raises(ReplayAuthorizationError, match="cancelled"):
-            execute(lab, requests, budget, action_plan, auth_id, control, cancellation_event=event)
+            execute(
+                lab,
+                requests,
+                budget,
+                action_plan,
+                auth_id,
+                control,
+                worker=worker,
+                cancellation_event=event,
+            )
         assert not control.consume_calls and not lab.handshakes
 
 
-def test_failed_exchange_stops_batch_and_releases_consumed_receipt(tmp_path):
+def test_failed_exchange_stops_batch_and_releases_consumed_receipt(tmp_path, monkeypatch):
     with WebSocketTestServer(mode="binary") as lab:
         requests = [request(url=lab.url), request(url=lab.url, request_id="ws-two")]
         budget = ReplayBudget()
         action_plan = live_plan(lab, requests, budget)
-        auth_id, control = authority_for(tmp_path, action_plan)
-        report = execute(lab, requests, budget, action_plan, auth_id, control)
+        worker, auth_id, control = loopback_worker(tmp_path, monkeypatch, action_plan, scope())
+        report = execute(lab, requests, budget, action_plan, auth_id, control, worker=worker)
         assert len(report.responses) == 1 and not report.responses[0].replay_success
         assert len(lab.handshakes) == 1 and not control._issued_receipts
         # Recovery requires a fresh plan/approval, not a retry of the consumed grant.
-        with pytest.raises(ValueError):
-            execute(lab, requests, budget, action_plan, auth_id, control)
+        with pytest.raises(CleanupPersistenceError, match="already contains execution run"):
+            execute(lab, requests, budget, action_plan, auth_id, control, worker=worker)
+        assert len(control.consume_calls) == 1 and len(lab.handshakes) == 1
 
 
-def test_http_version_two_budget_and_operation_identity_stay_compatible():
+def test_http_plan_uses_same_worker_contract_and_explicit_byte_budgets():
     req = request(url="https://example.test/", protocol="http", websocket_messages=[])
     budget = ReplayBudget()
     operation = plan(req, budget).operations[0]
-    legacy_budget = {
-        name: value
-        for name, value in asdict(budget).items()
-        if name not in {"max_websocket_bytes", "max_websocket_message_bytes"}
+    assert operation["tool"] == WEB_API_REPLAY_TOOL
+    assert operation["tool_version"] == WEB_API_REPLAY_VERSION and operation["action"] == "replay"
+    envelope = validate_web_api_operation(operation).to_dict()
+    assert envelope["request"]["protocol"] == "http"
+    assert envelope["budgets"]["timeout_seconds"] == budget.timeout_seconds
+    assert envelope["budgets"]["max_websocket_bytes"] == budget.max_websocket_bytes
+    assert envelope["budgets"]["max_websocket_message_bytes"] == budget.max_websocket_message_bytes
+    assert envelope["destination_policy"] == {
+        "transport": "production",
+        "request_urls": ["https://example.test/"],
     }
-    assert operation["arguments"]["budget_digest"] == digest(legacy_budget)
-    assert operation["tool"] == "cops.web_api.standard-http-replayer"
-    assert operation["tool_version"] == "2" and operation["action"] == "replay_http_request"
 
 
 @pytest.mark.parametrize(
@@ -446,11 +481,11 @@ def test_invalid_byte_budgets_fail_before_plan(name, value):
         plan(budget=budget)
 
 
-def test_cancelled_approved_exchange_releases_receipt_and_recovers_with_fresh_approval(tmp_path):
+def test_cancelled_approved_exchange_releases_receipt_and_recovers_with_fresh_approval(tmp_path, monkeypatch):
     with WebSocketTestServer(mode="stall") as lab:
         requests, budget = [request(url=lab.url)], ReplayBudget()
         action_plan = live_plan(lab, requests, budget)
-        auth_id, control = authority_for(tmp_path / "first", action_plan)
+        worker, auth_id, control = loopback_worker(tmp_path / "first", monkeypatch, action_plan, scope())
         event = threading.Event()
 
         def cancel():
@@ -459,14 +494,36 @@ def test_cancelled_approved_exchange_releases_receipt_and_recovers_with_fresh_ap
 
         operator = threading.Thread(target=cancel)
         operator.start()
-        report = execute(lab, requests, budget, action_plan, auth_id, control, cancellation_event=event)
+        report = execute(
+            lab,
+            requests,
+            budget,
+            action_plan,
+            auth_id,
+            control,
+            worker=worker,
+            cancellation_event=event,
+        )
         operator.join(timeout=1)
         assert not report.responses[0].replay_success and not control._issued_receipts
         assert lab.closed.wait(1)
         lab.mode = "echo"
         fresh = live_plan(lab, requests, budget)
-        fresh_id, fresh_control = authority_for(tmp_path / "recovery", fresh)
-        recovered = execute(lab, requests, budget, fresh, fresh_id, fresh_control)
+        fresh_worker, fresh_id, fresh_control = loopback_worker(
+            tmp_path / "recovery",
+            monkeypatch,
+            fresh,
+            scope(),
+        )
+        recovered = execute(
+            lab,
+            requests,
+            budget,
+            fresh,
+            fresh_id,
+            fresh_control,
+            worker=fresh_worker,
+        )
         assert recovered.responses[0].replay_success and not fresh_control._issued_receipts
         assert len(lab.handshakes) == 2
 
@@ -653,8 +710,8 @@ def test_runtime_egress_is_checked_before_consumption_and_rechecked_before_conne
     with WebSocketTestServer() as lab:
         requests, budget = [request(url=lab.url)], ReplayBudget()
         action_plan = live_plan(lab, requests, budget)
-        auth_id, control = authority_for(tmp_path, action_plan)
         guard = scope()
+        worker, auth_id, control = loopback_worker(tmp_path, monkeypatch, action_plan, guard)
         if during_consumption:
             original = control.consume_authorization
 
@@ -665,8 +722,30 @@ def test_runtime_egress_is_checked_before_consumption_and_rechecked_before_conne
             monkeypatch.setattr(control, "consume_authorization", consume)
         else:
             guard.scope.egress_allowed = False
-        with pytest.raises(ScopeViolationError, match="egress is disabled"):
-            execute(lab, requests, budget, action_plan, auth_id, control, scope_guard=guard)
+        if during_consumption:
+            report = execute(
+                lab,
+                requests,
+                budget,
+                action_plan,
+                auth_id,
+                control,
+                worker=worker,
+                scope_guard=guard,
+            )
+            assert len(report.responses) == 1 and not report.responses[0].replay_success
+        else:
+            with pytest.raises(ScopeViolationError, match="egress is disabled"):
+                execute(
+                    lab,
+                    requests,
+                    budget,
+                    action_plan,
+                    auth_id,
+                    control,
+                    worker=worker,
+                    scope_guard=guard,
+                )
         assert len(control.consume_calls) == int(during_consumption)
         assert not control._issued_receipts and not lab.handshakes
 

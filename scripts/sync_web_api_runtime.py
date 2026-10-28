@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 
 RUNTIME_MODULES = (
+    "catalog/schemas/action-plan.schema.json",
     "cops/__init__.py",
     "cops/contracts/lifecycle.py",
     "cops/contracts/models.py",
@@ -30,6 +31,7 @@ RUNTIME_MODULES = (
     "cops/web_api/replay.py",
     "cops/web_api/sanitization.py",
     "cops/web_api/websocket.py",
+    "cops/web_api/worker_replay.py",
 )
 MINIMAL_INITIALIZERS = (
     "cops/contracts/__init__.py",
@@ -39,6 +41,10 @@ MINIMAL_INITIALIZERS = (
 )
 MANIFEST = "runtime-provenance.json"
 MARKER = '"""Package marker for the vendored Web API workbench runtime."""\n'
+UNAVAILABLE_WORKER = (
+    '"""The portable package does not include a qualified isolated worker."""\n\n'
+    'raise ImportError("live Web API replay requires a separately qualified isolated worker runtime")\n'
+)
 
 
 def _digest(content: bytes) -> str:
@@ -51,11 +57,18 @@ def _expected(source_root: Path) -> dict[str, bytes]:
         raise ValueError(f"runtime source is incomplete: {missing}")
     files = {name: (source_root / name).read_bytes() for name in RUNTIME_MODULES}
     files.update({name: MARKER.encode("utf-8") for name in MINIMAL_INITIALIZERS})
+    files["cops/execution/worker.py"] = UNAVAILABLE_WORKER.encode("utf-8")
     records = [
         {
             "path": name,
             "sha256": _digest(content),
-            "source": name if name in RUNTIME_MODULES else "generated-package-marker",
+            "source": (
+                name
+                if name in RUNTIME_MODULES
+                else "generated-unavailable-worker"
+                if name == "cops/execution/worker.py"
+                else "generated-package-marker"
+            ),
         }
         for name, content in sorted(files.items())
     ]

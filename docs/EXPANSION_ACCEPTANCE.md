@@ -532,3 +532,10 @@ image rebuild is required for this test/documentation-only change. Production
 supervision (#328), independent production observation and deployed-environment
 validation (#331) remain separate follow-ups; #327 does not establish production
 readiness or authorize a release.
+
+## Issue 100 worker integration
+
+The earlier expansion results in this document do not qualify the subsequent
+Issue #100 isolated-worker integration. Its criterion-by-criterion evidence and
+remaining closure gates are tracked in the [worker qualification contract](../specs/issue-100-worker-qualification.md).
+Record results against the actual integrated revision before claiming completion.

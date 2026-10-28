@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 import traceback
+from dataclasses import replace
 
 from pytest_bdd import given, scenario, then, when
 
@@ -36,8 +37,9 @@ def disposable_websocket_case(tmp_path):
 
 
 @when("the messages are replayed with a signed one-use approval")
-def approved_websocket_replay(websocket_case):
-    from tests.test_web_api_websocket import authority_for, execute, live_plan, request
+def approved_websocket_replay(websocket_case, monkeypatch):
+    from tests.test_web_api_websocket import execute, live_plan, request, scope
+    from tests.web_api_worker_testkit import loopback_worker
 
     lab = websocket_case["lab"]
     sessions = [models.SessionContext(session_id="bdd-session", role_id="anonymous")]
@@ -50,8 +52,8 @@ def approved_websocket_replay(websocket_case):
         ReplayBudget(),
     )
     plan = live_plan(lab, requests, budget, sessions)
-    auth_id, control = authority_for(websocket_case["tmp_path"], plan)
-    websocket_case["report"] = execute(lab, requests, budget, plan, auth_id, control, sessions)
+    worker, auth_id, control = loopback_worker(websocket_case["tmp_path"], monkeypatch, plan, scope())
+    websocket_case["report"] = execute(lab, requests, budget, plan, auth_id, control, sessions, worker=worker)
     websocket_case["control"] = control
 
 
@@ -645,8 +647,12 @@ def authenticated_sources_pass_every_offline_boundary(authenticated_import_sourc
         engagement_id="eng-web-auth-bindings",
         scenario_id="scen-web-auth-bindings",
         specialist_id="web-api-assessment-workbench",
-        requests=requests,
-        sessions=round_tripped.sessions,
+        requests=[replace(request, headers={}) for request in requests],
+        sessions=[replace(session, headers={}) for session in round_tripped.sessions],
+        session_credential_bindings={
+            session.session_id: [{"reference": f"credential-{index}", "header": session.auth_mechanism.token_name}]
+            for index, session in enumerate(round_tripped.sessions)
+        },
         allowed_destinations=["api.example.test"],
         created_at="2026-10-18T00:00:00Z",
     )
@@ -661,7 +667,7 @@ def every_authenticated_endpoint_keeps_its_session(authenticated_import_result):
     assert len(inventory.endpoints) == len(inventory.sessions) == 4
     assert {endpoint.session_id for endpoint in inventory.endpoints} == session_ids
     assert {request.session_id for request in requests} == session_ids
-    assert {operation["arguments"]["session_id"] for operation in plan.operations} == session_ids
+    assert {operation["arguments"]["envelope"]["session_id"] for operation in plan.operations} == session_ids
     assert {request.session_id for request in report.requests} == session_ids
 
 

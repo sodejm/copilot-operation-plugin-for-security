@@ -109,6 +109,11 @@ def test_live_dry_run_returns_json_preview_without_dispatch_or_file_write(tmp_pa
         "timeout_seconds": 4.0,
         "max_redirect_hops": 1,
         "max_websocket_frames": 3,
+        "max_request_header_bytes": 16384,
+        "max_request_body_bytes": 1048576,
+        "max_response_header_bytes": 16384,
+        "max_response_body_bytes": 1048576,
+        "max_output_bytes": 2097152,
     }
     assert preview["evidence"]["inventory_id"] == "inv-preview"
     assert preview["evidence"]["inventory_name"] == "Preview fixture"

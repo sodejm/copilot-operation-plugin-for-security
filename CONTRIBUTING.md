@@ -115,12 +115,14 @@ validates exports offline. No external schema path is needed. See the
 
 `requirements.txt` is the canonical declaration for local setup and all CI test
 jobs. Each non-comment line contains a distribution name with an optional numeric
-`>=` minimum version. The verifier checks stable numeric releases, including post
+`>=` minimum version and an optional exclusive `<` upper bound after the minimum.
+The verifier checks stable numeric releases, including post
 releases, and imports the name with hyphens replaced by underscores. Unsupported
 declaration syntax, duplicate names, and prerelease or development versions fail
 explicitly. Extend the verifier and its tests before introducing other requirement
-formats or dependencies with different import names. This file sets minimum
-versions; it is not a lockfile.
+formats or dependencies with different import names. The pytest upper bound keeps
+pytest-bdd 9.0.0 compatible until an upstream fix is available. These constraints
+are not a lockfile. CI tests Python 3.11, 3.13, and 3.15 on Linux and Windows.
 
 Native service DACL changes also require the real Windows SCM correction gate:
 

@@ -19,7 +19,7 @@ from typing import Any, Protocol
 from cops.evidence.canonical import digest, utc_now
 
 from .filesystem import SecureDirectoryError, open_directory_no_symlinks, same_directory_identity
-from .process import BoundedProcessResult, ProcessResourceLimits, run_bounded_process
+from .process import BoundedProcessResult, CancellationSignal, ProcessResourceLimits, run_bounded_process
 
 
 class SandboxReadinessError(RuntimeError):
@@ -47,6 +47,7 @@ class ExecutionSandbox(Protocol):
         expected_workspace_fd: int | None = None,
         expected_isolation_digest: str | None = None,
         isolation_observer: Callable[[dict[str, Any]], None] | None = None,
+        cancellation_event: CancellationSignal | None = None,
     ) -> BoundedProcessResult: ...
 
 
@@ -70,6 +71,26 @@ class SandboxResourcePolicy:
 
 _ENV_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\Z")
 _EGRESS_BROKER_FD_ENV = "COPS_EGRESS_BROKER_FD"
+_FD_SCRUBBER = r"""
+keep_fd=$1
+shift
+case "$keep_fd" in
+  none) ;;
+  ''|*[!0-9]*) exit 126 ;;
+esac
+for fd_path in /proc/self/fd/*; do
+  fd=${fd_path##*/}
+  case "$fd" in
+    0|1|2) ;;
+    "$keep_fd") ;;
+    ''|*[!0-9]*) exit 126 ;;
+    # Bash accepts multi-digit descriptor redirections after expansion. The
+    # value is constrained to decimal digits above before eval is reached.
+    *) eval "exec ${fd}>&-" 2>/dev/null || : ;;
+  esac
+done
+exec "$@"
+""".strip()
 
 
 @dataclass(frozen=True)
@@ -136,6 +157,15 @@ class LinuxBubblewrapSandbox:
     @contextmanager
     def _held_prlimit(self) -> Iterator[int]:
         with self._held_root_executable(self.prlimit_path, "prlimit") as descriptor:
+            yield descriptor
+
+    @contextmanager
+    def _held_fd_scrubber(self) -> Iterator[int]:
+        try:
+            bash_path = Path("/bin/bash").resolve(strict=True)
+        except OSError as err:
+            raise SandboxReadinessError("descriptor scrubber is unavailable") from err
+        with self._held_root_executable(bash_path, "descriptor scrubber") as descriptor:
             yield descriptor
 
     @staticmethod
@@ -450,6 +480,7 @@ class LinuxBubblewrapSandbox:
         expected_workspace_fd: int | None = None,
         expected_isolation_digest: str | None = None,
         isolation_observer: Callable[[dict[str, Any]], None] | None = None,
+        cancellation_event: CancellationSignal | None = None,
     ) -> BoundedProcessResult:
         self._validate_host()
         if not command or len(pass_fds) != 1:
@@ -463,7 +494,11 @@ class LinuxBubblewrapSandbox:
         try:
             if expected_workspace_fd is not None and not same_directory_identity(workspace_fd, expected_workspace_fd):
                 raise SandboxReadinessError("sandbox workspace changed after preflight")
-            with self._held_bubblewrap() as bubblewrap_fd, self._held_prlimit() as prlimit_fd:
+            with (
+                self._held_bubblewrap() as bubblewrap_fd,
+                self._held_prlimit() as prlimit_fd,
+                self._held_fd_scrubber() as scrubber_fd,
+            ):
                 # RLIMIT_NPROC counts the host account's existing tasks. Applying it
                 # before bwrap creates its namespaces can prevent isolation itself
                 # from starting on a shared runner. Install it after isolation and
@@ -489,6 +524,9 @@ class LinuxBubblewrapSandbox:
                     "--ro-bind",
                     f"/proc/self/fd/{prlimit_fd}",
                     "/cops/limit",
+                    "--ro-bind",
+                    f"/proc/self/fd/{scrubber_fd}",
+                    "/cops/launcher",
                     "--chdir",
                     "/work",
                 ]
@@ -505,12 +543,18 @@ class LinuxBubblewrapSandbox:
                             raise
                         wrapped.extend(("--info-fd", str(info_write), "--block-fd", str(gate_read)))
                     wrapped.extend(("--args", str(argument_fd)))
+                    broker_fd = (operation_env or {}).get(_EGRESS_BROKER_FD_ENV, "none")
                     wrapped.extend(
                         (
                             "--",
                             "/cops/limit",
                             f"--nproc={process_limit}:{process_limit}",
                             "--",
+                            "/cops/launcher",
+                            "-c",
+                            _FD_SCRUBBER,
+                            "cops-fd-scrubber",
+                            broker_fd,
                             "/cops/tool",
                             *command[1:],
                         )
@@ -541,6 +585,7 @@ class LinuxBubblewrapSandbox:
                             pass_fds=(
                                 bubblewrap_fd,
                                 prlimit_fd,
+                                scrubber_fd,
                                 workspace_fd,
                                 executable_fd,
                                 argument_fd,
@@ -550,6 +595,7 @@ class LinuxBubblewrapSandbox:
                             resource_limits=self.resources.as_process_limits(),
                             defer_process_limit=True,
                             on_started=release_observed_child if offline_gate else None,
+                            cancellation_event=cancellation_event,
                         )
                     finally:
                         for descriptor in (info_read, info_write, gate_read, gate_write):

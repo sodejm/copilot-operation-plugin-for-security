@@ -1,0 +1,30 @@
+{
+  "tool": "cops.web_api.bounded-replay-worker",
+  "version": "1",
+  "binary": "python3",
+  "provenance": {
+    "source": "https://www.python.org/",
+    "license": "PSF-2.0",
+    "pinned_revision": "3"
+  },
+  "execution": {
+    "version_args": [
+      "--version"
+    ],
+    "version_pattern": "Python (?P<version>3)(?:\\.[0-9]+)+"
+  },
+  "supported_environments": [
+    "linux"
+  ],
+  "actions": {
+    "replay": {
+      "description": "Trigger exactly one supervisor-owned Web API replay",
+      "base_args": [
+        "-I",
+        "-c",
+        "import json,os,socket,sys\ntry:\n    value=os.environ[\"COPS_EGRESS_BROKER_FD\"]\n    if not value.isascii() or not value.isdecimal():\n        raise ValueError()\n    channel=socket.socket(fileno=int(value))\n    if channel.family != socket.AF_UNIX or channel.type != socket.SOCK_STREAM:\n        raise ValueError()\n    channel.getpeername()\n    channel.sendall(b'{\"version\":\"cops.web-api-replay/v1\",\"action\":\"dispatch\"}\\n')\n    payload=b\"\"\n    limit=1024\n    while not payload.endswith(b\"\\n\"):\n        part=channel.recv(min(1024,limit+1-len(payload)))\n        if not part:\n            raise ValueError()\n        payload+=part\n        if len(payload)>limit:\n            raise ValueError()\n    result=json.loads(payload.decode(\"utf-8\"))\n    if result != {\"status\":\"completed\"}:\n        raise ValueError()\n    sys.stdout.buffer.write(b'{\"status\":\"completed\"}\\n')\n    sys.stdout.buffer.flush()\nexcept Exception:\n    sys.exit(1)\n"
+      ],
+      "parameters": {}
+    }
+  }
+}

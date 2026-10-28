@@ -179,7 +179,7 @@ Linux sandbox changes must also pass the real bubblewrap integration gate:
 sudo apt-get install apparmor-profiles apparmor-utils bubblewrap util-linux
 sudo install -m 0644 /usr/share/apparmor/extra-profiles/bwrap-userns-restrict /etc/apparmor.d/bwrap-userns-restrict
 sudo apparmor_parser -r /etc/apparmor.d/bwrap-userns-restrict
-python -m pytest -m linux_bubblewrap tests/integration/test_linux_bubblewrap_sandbox.py -q
+python -m pytest -m linux_bubblewrap tests/integration/test_linux_bubblewrap_sandbox.py tests/integration/test_linux_fd_scrubber_qualification.py -q
 ```
 
 These setup commands target Ubuntu 24.04, whose AppArmor user-namespace policy

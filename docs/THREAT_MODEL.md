@@ -685,7 +685,10 @@ Executable laboratory retest evidence adds a narrower authenticated review path;
   Regressions cover corrected access, disclosure alongside errors, malformed error
   codes and repeated redaction. The repository acceptance gate requires all named
   local-service cases without skips; the offline package gate cannot stand in for
-  them. Loopback listeners still do not qualify isolation or production providers.
+  them. The disposable GraphQL fixture recognizes only its exact object-query
+  shape with a linear-time parser after bounded transport parsing; unsupported
+  documents fail closed. Loopback listeners still do not qualify isolation or
+  production providers.
 - WebSocket boundary: An approved version 1 operation binds explicit text messages,
   exact isolated sessions, allowlist and frame/byte/deadline budgets. The existing
   mediator owns resolution, numeric connection and original-host verified TLS;
@@ -896,3 +899,13 @@ nonces. The strict container gate supplies network isolation; installer flags an
 version checks alone cannot establish it. Arbitrary package execution, hostile
 interpreters/installers and production registries remain outside this adapter.
 Independent human security review is pending.
+
+### Issue 100: Web API worker qualification boundary
+
+Untrusted descriptions, redirects, DNS answers, session data and remote responses
+can attempt to expand destination scope, substitute identity, leak credentials or
+obscure an uncertain remote effect. The [worker qualification contract](../specs/issue-100-worker-qualification.md)
+requires exact approval and scoped typed egress, post-approval credential resolution,
+independent Linux isolation tests, redacted evidence and cleanup receipts. Its
+integration, production isolation and exact-revision human security review remain
+to be verified; a local loopback result does not establish those boundaries.

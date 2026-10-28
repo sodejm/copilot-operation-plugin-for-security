@@ -39,11 +39,14 @@ class PrerequisiteTests(unittest.TestCase):
                 raise importlib.metadata.PackageNotFoundError(name)
             return versions[name]
 
-        with patch.object(prerequisites.sys, "version_info", python_version), \
-             patch.object(prerequisites, "version", side_effect=installed), \
-             patch.object(prerequisites, "import_module", side_effect=import_error) as imports, \
-             patch.object(subprocess, "run", side_effect=AssertionError("unexpected subprocess")), \
-             redirect_stdout(self.output), redirect_stderr(self.output):
+        with (
+            patch.object(prerequisites.sys, "version_info", python_version),
+            patch.object(prerequisites, "version", side_effect=installed),
+            patch.object(prerequisites, "import_module", side_effect=import_error) as imports,
+            patch.object(subprocess, "run", side_effect=AssertionError("unexpected subprocess")),
+            redirect_stdout(self.output),
+            redirect_stderr(self.output),
+        ):
             result = prerequisites.check_prerequisites(self.root)
         return result, imports
 
@@ -71,6 +74,22 @@ class PrerequisiteTests(unittest.TestCase):
         self.assertFalse(result)
         self.assertIn("pytest: installed 7.4.4, requires >=8.0", self.output.getvalue())
 
+    def test_exclusive_upper_bound_is_enforced(self):
+        (self.root / "requirements.txt").write_text("pytest>=9.1.1,<9.2\n", encoding="utf-8")
+        for installed, accepted in (
+            ("9.1.1", True),
+            ("9.1.9", True),
+            ("9.2", False),
+            ("9.2.0.post1", False),
+            ("10.0", False),
+        ):
+            with self.subTest(installed=installed):
+                self.output = StringIO()
+                result, _ = self.verify({"pytest": installed})
+                self.assertEqual(result, accepted)
+                if not accepted:
+                    self.assertIn(f"pytest: installed {installed}, requires <9.2", self.output.getvalue())
+
     def test_broken_import_is_a_prerequisite_failure(self):
         result, _ = self.verify(import_error=ImportError("broken test dependency"))
         self.assertFalse(result)
@@ -83,10 +102,22 @@ class PrerequisiteTests(unittest.TestCase):
         imports.assert_not_called()
         self.assertIn("requirements.txt:1", self.output.getvalue())
 
+    def test_invalid_version_range_is_rejected(self):
+        (self.root / "requirements.txt").write_text("pytest>=9.2,<9.2.0\n", encoding="utf-8")
+        result, imports = self.verify()
+        self.assertFalse(result)
+        imports.assert_not_called()
+        self.assertIn("minimum must be less than exclusive upper bound", self.output.getvalue())
+
     def test_release_version_comparison(self):
-        for installed, accepted in (("8.0", True), ("8.0.0", True),
-                                    ("8.0.0.post1", True), ("8.10.0", True),
-                                    ("8.0rc1", False), ("8.0.dev1", False)):
+        for installed, accepted in (
+            ("8.0", True),
+            ("8.0.0", True),
+            ("8.0.0.post1", True),
+            ("8.10.0", True),
+            ("8.0rc1", False),
+            ("8.0.dev1", False),
+        ):
             with self.subTest(installed=installed):
                 result, _ = self.verify({"pytest": installed, "pytest-bdd": "8.1.0"})
                 self.assertEqual(result, accepted)
@@ -130,9 +161,11 @@ class PrerequisiteTests(unittest.TestCase):
         self.assertFalse(any(environment.rglob("pytest*")))
 
     def test_gate_stops_before_any_repository_checks(self):
-        with patch.object(gate, "check_prerequisites", return_value=False), \
-             patch.object(gate, "validate_python") as syntax, \
-             patch.object(gate, "run") as run:
+        with (
+            patch.object(gate, "check_prerequisites", return_value=False),
+            patch.object(gate, "validate_python") as syntax,
+            patch.object(gate, "run") as run,
+        ):
             self.assertEqual(gate.main(), 1)
         syntax.assert_not_called()
         run.assert_not_called()

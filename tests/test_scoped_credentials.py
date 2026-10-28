@@ -159,6 +159,66 @@ def test_resolves_only_with_authority_receipt_and_registers_redaction() -> None:
     assert resolver.redactor.redact("output short-secret") == "output [REDACTED:SECRET]"
 
 
+def test_parent_mediator_resolves_values_by_exact_reference() -> None:
+    plan = _load_plan()
+    provider = RecordingProvider("parent-only-secret")
+    reference = str(plan.credential_references[0])
+    resolver = _scoped_resolver(provider, [_grant(plan)])
+
+    values = resolver.resolve_values_for_operation(
+        plan=plan,
+        authorization=_receipt(plan),
+        worker_identity="worker-credential-test",
+        operation=plan.operations[0],
+        operation_index=0,
+        references=(reference,),
+    )
+
+    assert values == {reference: "parent-only-secret"}
+    assert provider.references == [reference]
+    assert resolver.redactor.redact("parent-only-secret") == "[REDACTED:SECRET]"
+
+
+@pytest.mark.parametrize("references", [(), ("unexpected-reference",)])
+def test_parent_mediator_reference_mismatch_is_denied_before_provider_lookup(
+    references: tuple[str, ...],
+) -> None:
+    plan = _load_plan()
+    provider = RecordingProvider("unused-secret")
+    resolver = _scoped_resolver(provider, [_grant(plan)])
+
+    with pytest.raises(CredentialResolutionError, match="approved operation grants"):
+        resolver.resolve_values_for_operation(
+            plan=plan,
+            authorization=_receipt(plan),
+            worker_identity="worker-credential-test",
+            operation=plan.operations[0],
+            operation_index=0,
+            references=references,
+        )
+
+    assert provider.references == []
+
+
+def test_parent_mediator_reference_without_grant_is_denied_before_provider_lookup() -> None:
+    plan = _load_plan()
+    provider = RecordingProvider("unused-secret")
+    reference = str(plan.credential_references[0])
+    resolver = _scoped_resolver(provider, [])
+
+    with pytest.raises(CredentialResolutionError, match="approved operation grants"):
+        resolver.resolve_values_for_operation(
+            plan=plan,
+            authorization=_receipt(plan),
+            worker_identity="worker-credential-test",
+            operation=plan.operations[0],
+            operation_index=0,
+            references=(reference,),
+        )
+
+    assert provider.references == []
+
+
 @pytest.mark.parametrize(
     ("field", "wrong_value"),
     [

@@ -22,14 +22,18 @@ from contextlib import ExitStack
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
+from threading import Event
 from time import monotonic
 from types import MappingProxyType
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from cops.adapters import AdapterError, ToolAdapterRegistry
 from cops.contracts.models import ActionPlan, CleanupReceipt, RunResult
 from cops.contracts.validation import validate_contract
 from cops.evidence.canonical import digest, utc_now
+
+if TYPE_CHECKING:
+    from cops.web_api.worker_replay import WebApiReplayEnvelope
 
 from .cleanup import (
     PLAN_DECLARED_PROVENANCE_KEY,
@@ -78,6 +82,10 @@ class WorkerExecutionError(WorkerError):
     """An operation within the action plan failed or exceeded allowed limits."""
 
 
+class WorkerReplayDispatchUncertain(WorkerExecutionError):
+    """A replay reached its wire transition but no authenticated result returned."""
+
+
 @dataclass(frozen=True)
 class AuthorizedExecution:
     """Execution result paired with the receipt issued by the approval authority."""
@@ -85,6 +93,8 @@ class AuthorizedExecution:
     result: RunResult
     approval_receipt: ApprovalConsumptionReceipt
     cleanup_receipt: CleanupReceipt
+    operation_outputs: Mapping[str, Mapping[str, Any]] = field(default_factory=lambda: MappingProxyType({}))
+    attempted_operation_ids: tuple[str, ...] = ()
 
 
 def _supports_secure_evidence_dirs() -> bool:
@@ -324,6 +334,8 @@ class IsolatedWorker:
         return self.recovery_cleanup_receipts
 
     def _verify_plan_compatibility(self, plan: ActionPlan) -> None:
+        from cops.web_api.worker_replay import WEB_API_REPLAY_TOOL, WebApiReplayError, validate_web_api_operation
+
         batch = plan.batch
         if batch.get("mode") != "sequential":
             raise WorkerExecutionError("worker supports only sequential approved batches")
@@ -334,6 +346,8 @@ class IsolatedWorker:
             raise WorkerExecutionError(f"worker lacks approved platform prerequisites: {sorted(missing_capabilities)}")
         for operation in plan.operations:
             tool = operation["tool"]
+            if tool in {"cops.web_api.standard-http-replayer", "cops.web_api.bounded-websocket-replayer"}:
+                raise WorkerExecutionError("legacy Web API replay operations are not executable")
             if tool not in self.config.allowed_tools and tool != "inert":
                 raise WorkerExecutionError(f"tool {tool!r} is not allowed by this worker")
             configured = self.config.tool_versions.get(tool)
@@ -352,8 +366,12 @@ class IsolatedWorker:
                         f"{operation['tool_version']!r}"
                     )
                 try:
-                    adapter.assemble_command(operation["action"], operation.get("arguments"))
-                except AdapterError as err:
+                    parameters = operation.get("arguments")
+                    if tool == WEB_API_REPLAY_TOOL:
+                        validate_web_api_operation(operation)
+                        parameters = {}
+                    adapter.assemble_command(operation["action"], parameters)
+                except (AdapterError, WebApiReplayError) as err:
                     raise WorkerExecutionError(
                         f"adapter operation for {tool!r} is incompatible with this worker environment"
                     ) from err
@@ -374,13 +392,25 @@ class IsolatedWorker:
 
     def _preflight_execution_request(
         self, plan: ActionPlan, *, cancel_requested: bool
-    ) -> tuple[HTTPSOperationEgressPolicy | None, ...]:
+    ) -> tuple[HTTPSOperationEgressPolicy | WebApiReplayEnvelope | None, ...]:
         """Reject immutable request failures before preparing or consuming an approval."""
+        from cops.web_api.worker_replay import (
+            WEB_API_REPLAY_TOOL,
+            WebApiReplayEnvelope,
+            WebApiReplayError,
+            validate_web_api_operation,
+        )
+
         if cancel_requested:
             raise WorkerExecutionError("execution cancelled by operator before start")
         try:
-            operation_egress_policies = tuple(parse_operation_egress_policy(op) for op in plan.operations)
-        except OperationEgressPolicyError as err:
+            operation_egress_policies = tuple(
+                validate_web_api_operation(op)
+                if op["tool"] == WEB_API_REPLAY_TOOL
+                else parse_operation_egress_policy(op)
+                for op in plan.operations
+            )
+        except (OperationEgressPolicyError, WebApiReplayError) as err:
             raise WorkerExecutionError("operation egress policy is invalid") from err
 
         active_egress_policies = tuple(policy for policy in operation_egress_policies if policy is not None)
@@ -390,7 +420,10 @@ class IsolatedWorker:
         if active_egress_policies:
             if plan.limits.get("egress_allowed") is not True:
                 raise WorkerExecutionError("action plan must explicitly allow operation egress")
-            if self._egress_identity_verifier is None:
+            if (
+                any(isinstance(policy, HTTPSOperationEgressPolicy) for policy in active_egress_policies)
+                and self._egress_identity_verifier is None
+            ):
                 raise WorkerIsolationError("operation egress requires an owner-provisioned trust domain")
             if self.scope_guard is None or not self.scope_guard.scope.egress_allowed:
                 raise WorkerIsolationError("operation egress requires an egress-enabled engagement scope")
@@ -412,7 +445,11 @@ class IsolatedWorker:
 
         check(plan.target, "plan target")
         for policy in active_egress_policies:
-            check(policy.host, "operation egress host")
+            if isinstance(policy, WebApiReplayEnvelope):
+                for url in policy.to_dict()["destination_policy"]["request_urls"]:
+                    check(url, "operation egress URL")
+            else:
+                check(policy.host, "operation egress host")
         for operation in plan.operations:
             arguments = operation.get("arguments", {})
             if not isinstance(arguments, Mapping):
@@ -429,6 +466,7 @@ class IsolatedWorker:
         authorization: str,
         workspace_dir: Path | None = None,
         cancel_requested: bool = False,
+        cancellation_event: Event | None = None,
         failure_injection: dict[str, Any] | None = None,
     ) -> RunResult:
         """Execute an ActionPlan under a consume-only authorization identifier."""
@@ -437,6 +475,7 @@ class IsolatedWorker:
             authorization_id=authorization,
             workspace_dir=workspace_dir,
             cancel_requested=cancel_requested,
+            cancellation_event=cancellation_event,
             failure_injection=failure_injection,
         ).result
 
@@ -447,6 +486,7 @@ class IsolatedWorker:
         authorization_id: str,
         workspace_dir: Path | None = None,
         cancel_requested: bool = False,
+        cancellation_event: Event | None = None,
         failure_injection: dict[str, Any] | None = None,
         timeout_seconds: float | None = None,
         max_output_bytes: int | None = None,
@@ -458,6 +498,7 @@ class IsolatedWorker:
                 authorization_id=authorization_id,
                 workspace_dir=workspace_dir,
                 cancel_requested=cancel_requested,
+                cancellation_event=cancellation_event,
                 failure_injection=failure_injection,
                 timeout_seconds=timeout_seconds,
                 max_output_bytes=max_output_bytes,
@@ -471,12 +512,21 @@ class IsolatedWorker:
         authorization_id: str,
         workspace_dir: Path | None,
         cancel_requested: bool,
+        cancellation_event: Event | None,
         failure_injection: dict[str, Any] | None,
         timeout_seconds: float | None,
         max_output_bytes: int | None,
         workspace_stack: ExitStack,
     ) -> AuthorizedExecution:
         """Keep workspace inode references live through execution and cleanup."""
+        from cops.web_api.worker_broker import (
+            DISPATCH_ATTEMPTED_UNCERTAIN,
+            DISPATCH_COMPLETED,
+            DISPATCH_NOT_DISPATCHED,
+            WebApiReplayBroker,
+        )
+        from cops.web_api.worker_replay import WebApiReplayEnvelope, WebApiReplayMediator
+
         # 1. Resolve ActionPlan model
         if isinstance(action_plan, dict):
             plan_model = ActionPlan.from_dict(action_plan)
@@ -534,7 +584,9 @@ class IsolatedWorker:
             credential_resolver=self.credential_resolver,
             egress_identity_verifier=self._egress_identity_verifier,
         )
-        operation_egress_policies = self._preflight_execution_request(plan_model, cancel_requested=cancel_requested)
+        operation_egress_policies = self._preflight_execution_request(
+            plan_model, cancel_requested=cancel_requested or bool(cancellation_event and cancellation_event.is_set())
+        )
         self._verify_plan_compatibility(plan_model)
 
         # Compatibility and workspace safety are part of the pre-consumption gate.
@@ -693,6 +745,11 @@ class IsolatedWorker:
             overall_exit_code = 0
             status = "success"
             status_reason = ""
+            operation_outputs: dict[str, Mapping[str, Any]] = {}
+            attempted_operation_ids: list[str] = []
+            last_replay_started: float | None = None
+            last_replay_interval = 0.0
+            pacing_event = cancellation_event if cancellation_event is not None else Event()
 
             from .evidence import EvidenceContext, EvidenceRecorder
 
@@ -766,6 +823,31 @@ class IsolatedWorker:
                     tool = op["tool"]
                     action = op["action"]
                     is_idempotent = bool(op.get("idempotent", False))
+                    if cancellation_event is not None and cancellation_event.is_set():
+                        status, status_reason, overall_exit_code = "cancelled", "execution cancelled by operator", 130
+                        break
+                    replay_interval = 0.0
+                    if isinstance(operation_egress_policy, WebApiReplayEnvelope):
+                        rate = operation_egress_policy.to_dict()["budgets"]["rate_limit_rps"]
+                        replay_interval = 1 / rate if rate else 0.0
+                        if last_replay_started is not None:
+                            delay = last_replay_started + max(last_replay_interval, replay_interval) - monotonic()
+                            remaining = max_duration_seconds - (datetime.now(UTC) - start_dt).total_seconds()
+                            if delay > 0:
+                                if pacing_event.wait(min(delay, max(0.0, remaining))):
+                                    status, status_reason, overall_exit_code = (
+                                        "cancelled",
+                                        "execution cancelled during approved replay pacing",
+                                        130,
+                                    )
+                                    break
+                                if delay >= remaining:
+                                    status, status_reason, overall_exit_code = (
+                                        "partial",
+                                        "approved replay pacing exceeds action plan duration",
+                                        124,
+                                    )
+                                    break
                     # Track declared cleanup in side-effect ledger
                     if "cleanup" in op and isinstance(op["cleanup"], Mapping):
                         clean_spec = op["cleanup"]
@@ -888,7 +970,12 @@ class IsolatedWorker:
                                 )
                                 overall_exit_code = 126
                                 break
-                            cmd = adapter.assemble_command(action, op.get("arguments"))
+                            cmd = adapter.assemble_command(
+                                action,
+                                {}
+                                if isinstance(operation_egress_policy, WebApiReplayEnvelope)
+                                else op.get("arguments"),
+                            )
                             if (
                                 offline_profile is not None
                                 and tool == "cat"
@@ -945,6 +1032,25 @@ class IsolatedWorker:
                                 ),
                             )
                             try:
+                                replay_values: dict[str, str] = {}
+                                if isinstance(operation_egress_policy, WebApiReplayEnvelope):
+                                    references = tuple(
+                                        item["reference"]
+                                        for item in operation_egress_policy.to_dict()["credential_references"]
+                                    )
+                                    if references and self.credential_resolver is None:
+                                        raise WorkerExecutionError("replay credential resolver is unavailable")
+                                    if self.credential_resolver is not None:
+                                        replay_values = self.credential_resolver.resolve_values_for_operation(
+                                            plan=plan_model,
+                                            authorization=receipt,
+                                            worker_identity=self.config.worker_id,
+                                            operation=op,
+                                            operation_index=operation_index,
+                                            references=references,
+                                            deadline=step_deadline,
+                                            redactor=redactor,
+                                        )
                                 credential_env = (
                                     self.credential_resolver.resolve_for_operation(
                                         plan=plan_model,
@@ -956,6 +1062,7 @@ class IsolatedWorker:
                                         redactor=redactor,
                                     )
                                     if self.credential_resolver is not None
+                                    and not isinstance(operation_egress_policy, WebApiReplayEnvelope)
                                     else {}
                                 )
 
@@ -1013,6 +1120,87 @@ class IsolatedWorker:
                                     proc = run_prepared_adapter(
                                         **({"operation_env": credential_env} if credential_env else {})
                                     )
+                                elif isinstance(operation_egress_policy, WebApiReplayEnvelope):
+                                    envelope_data = operation_egress_policy.to_dict()
+
+                                    def resolve_replay(
+                                        reference: str,
+                                        session_id: str,
+                                        role_id: str,
+                                        _session: str = envelope_data["session_id"],
+                                        _role: str = envelope_data["role_id"],
+                                        _values: Mapping[str, str] = replay_values,
+                                    ) -> str:
+                                        if session_id != _session or role_id != _role:
+                                            raise WorkerExecutionError("replay credential binding mismatch")
+                                        return _values[reference]
+
+                                    replay_mediator = WebApiReplayMediator(
+                                        scope_guard=self.scope_guard,
+                                        envelope=operation_egress_policy,
+                                        plan_digest=receipt.plan_digest,
+                                        approval_digest=receipt.authorization_digest,
+                                        credential_resolver=resolve_replay,
+                                    )
+                                    last_replay_started = monotonic()
+                                    last_replay_interval = replay_interval
+                                    channel = None
+                                    try:
+                                        with WebApiReplayBroker(replay_mediator).open_channel(
+                                            deadline=step_deadline, cancellation_event=cancellation_event
+                                        ) as channel:
+                                            proc = run_prepared_adapter(
+                                                operation_env=dict(channel.environment),
+                                                capability_fds=channel.pass_fds,
+                                                cancellation_event=cancellation_event,
+                                            )
+                                    except BaseException:
+                                        if channel is not None and channel.dispatch_state == DISPATCH_NOT_DISPATCHED:
+                                            adapter_dispatched = False
+                                        if (
+                                            channel is not None
+                                            and channel.dispatch_state != DISPATCH_NOT_DISPATCHED
+                                            and step_id not in attempted_operation_ids
+                                        ):
+                                            attempted_operation_ids.append(step_id)
+                                        if (
+                                            channel is not None
+                                            and channel.dispatch_state == DISPATCH_ATTEMPTED_UNCERTAIN
+                                        ):
+                                            raise WorkerReplayDispatchUncertain(
+                                                "replay dispatch outcome is uncertain"
+                                            ) from None
+                                        raise
+                                    if channel.dispatch_state == DISPATCH_NOT_DISPATCHED:
+                                        adapter_dispatched = False
+                                    if channel.dispatch_state != DISPATCH_NOT_DISPATCHED:
+                                        attempted_operation_ids.append(step_id)
+                                    if channel.dispatch_state == DISPATCH_ATTEMPTED_UNCERTAIN:
+                                        raise WorkerReplayDispatchUncertain("replay dispatch outcome is uncertain")
+                                    if channel.dispatch_state == DISPATCH_COMPLETED and (
+                                        proc is None
+                                        or proc.returncode != 0
+                                        or proc.timed_out
+                                        or proc.output_limit_exceeded
+                                    ):
+                                        # The trusted broker completed the remote request, but
+                                        # the isolated adapter did not complete its acknowledgement
+                                        # path. Never downgrade that ordering to an ordinary failure
+                                        # that a caller could safely retry.
+                                        raise WorkerReplayDispatchUncertain(
+                                            "replay completed before the adapter failed"
+                                        )
+                                    if cancellation_event is not None and cancellation_event.is_set():
+                                        raise KeyboardInterrupt
+                                    if (
+                                        proc is not None
+                                        and proc.returncode == 0
+                                        and not proc.timed_out
+                                        and not proc.output_limit_exceeded
+                                    ):
+                                        if channel.result is None:
+                                            raise WorkerExecutionError("replay broker returned no authenticated output")
+                                        operation_outputs[step_id] = MappingProxyType(channel.result)
                                 else:
                                     if self.scope_guard is None or self._egress_identity_verifier is None:
                                         raise WorkerIsolationError("operation egress preflight state is unavailable")
@@ -1074,8 +1262,15 @@ class IsolatedWorker:
                         status_reason = str(err)
                         overall_exit_code = 126
                         break
+                    except WorkerReplayDispatchUncertain:
+                        status = "uncertain"
+                        status_reason = (
+                            f"replay dispatch outcome is uncertain at step '{step_id}'; automatic repeat disallowed"
+                        )
+                        overall_exit_code = 1
+                        break
                     except KeyboardInterrupt:
-                        if not is_idempotent:
+                        if adapter_dispatched and not is_idempotent:
                             status = "uncertain"
                             status_reason = (
                                 f"interrupted during non-idempotent step '{step_id}'; automatic repeat disallowed"
@@ -1317,4 +1512,10 @@ class IsolatedWorker:
             result_doc["offline_research"] = offline_evidence
 
         validate_contract(result_doc, "run_result")
-        return AuthorizedExecution(RunResult.from_dict(result_doc), receipt, cleanup_receipt)
+        return AuthorizedExecution(
+            RunResult.from_dict(result_doc),
+            receipt,
+            cleanup_receipt,
+            MappingProxyType(operation_outputs),
+            tuple(attempted_operation_ids),
+        )

@@ -1,6 +1,11 @@
 {
   "files": [
     {
+      "path": "catalog/schemas/action-plan.schema.json",
+      "sha256": "a89ca7aaadfabf8c2f3bf6e4c7c998c2e5e1fd4dce05217e4995789c67dd8a46",
+      "source": "catalog/schemas/action-plan.schema.json"
+    },
+    {
       "path": "cops/__init__.py",
       "sha256": "8d372a47e4328f57bffeb32c08d6ae08b5562533a81cf1139e043a5ab571a48a",
       "source": "cops/__init__.py"
@@ -22,7 +27,7 @@
     },
     {
       "path": "cops/contracts/validation.py",
-      "sha256": "bf8db4d2cb7cec92c4c2dd27fa9762912212fcdf68e7578f0ff8c09eb7393959",
+      "sha256": "6ce1683540a3d945f6c67da2edf24cd1403fefd4a28f5d28cf12ca037a5d745d",
       "source": "cops/contracts/validation.py"
     },
     {
@@ -76,6 +81,11 @@
       "source": "cops/execution/store.py"
     },
     {
+      "path": "cops/execution/worker.py",
+      "sha256": "99cf6d2e805428fbcb9367e467017bae3905c69f0c1a0d6f8856740b92d851b1",
+      "source": "generated-unavailable-worker"
+    },
+    {
       "path": "cops/web_api/__init__.py",
       "sha256": "408aaefab718babe38939ef332aa9ece20a9192e52f88be47b8f83e529ab947a",
       "source": "cops/web_api/__init__.py"
@@ -97,17 +107,17 @@
     },
     {
       "path": "cops/web_api/laboratory.py",
-      "sha256": "545eb8099786f687e30f704adb09fbbc5b1fb8516ffad0a2512d7ed61497bc4e",
+      "sha256": "be0139f18dd73a555b723dfce5a56782203107faf59d05318ed3e8d3280cdee5",
       "source": "cops/web_api/laboratory.py"
     },
     {
       "path": "cops/web_api/models.py",
-      "sha256": "420a293adb4785302390403935b888007c257d440aa2a38202e1675b04c40cb3",
+      "sha256": "977452b160b6d5d51bbc2db792234d23a8bfe3f88246b5d8a5fbed54200536e5",
       "source": "cops/web_api/models.py"
     },
     {
       "path": "cops/web_api/replay.py",
-      "sha256": "cacc43ca6f55de23155e72af14c4ca2897e3d42b1a234f10eb4776676517fe7d",
+      "sha256": "8fc245eaf9b73835ad33c036f9ce5837f27233e17e82bf29a62f5298d9520402",
       "source": "cops/web_api/replay.py"
     },
     {
@@ -119,6 +129,11 @@
       "path": "cops/web_api/websocket.py",
       "sha256": "12afd48de7332b7dc842a2ec0bad99f846e28fd4b43c31fccda43bf56242d620",
       "source": "cops/web_api/websocket.py"
+    },
+    {
+      "path": "cops/web_api/worker_replay.py",
+      "sha256": "37ceb0e9e5f3e2fa1df1aea2dde7bd12f3deaff2d78098716eb60334ffec3ec1",
+      "source": "cops/web_api/worker_replay.py"
     }
   ],
   "purpose": "offline Web API workbench execution from an installed portable package",

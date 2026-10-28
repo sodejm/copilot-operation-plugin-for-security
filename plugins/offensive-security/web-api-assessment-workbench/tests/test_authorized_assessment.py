@@ -36,6 +36,14 @@ from cops.web_api.models import (  # noqa: E402  # Import after runtime prerequi
     SessionContext,
 )
 from tests.auth_testkit import TestApprovalControl, authorize_test_plan  # noqa: E402
+from tests.web_api_worker_testkit import loopback_worker  # noqa: E402
+
+
+def _bindings():
+    return {
+        f"{actor}-session": [{"reference": f"lab-{actor}-session", "header": "Authorization"}]
+        for actor in ("owner", "other")
+    }
 
 
 def _authority(tmp_path, plan):
@@ -51,12 +59,10 @@ def _sessions() -> list[SessionContext]:
         SessionContext(
             session_id="owner-session",
             role_id="owner",
-            headers={"Authorization": "Bearer owner-token"},
         ),
         SessionContext(
             session_id="other-session",
             role_id="other",
-            headers={"Authorization": "Bearer other-token"},
         ),
         SessionContext(session_id="anonymous-session", role_id="anonymous"),
     ]
@@ -100,7 +106,7 @@ def _authorization_requests(base_url: str) -> list[ReplayRequest]:
                 headers={"Content-Type": "application/json"},
                 body=graphql_body,
                 protocol="graphql",
-                graphql_query=graphql_body,
+                graphql_query=json.loads(graphql_body)["query"],
                 session_id=session_id,
                 role_id=actor,
             )
@@ -122,7 +128,7 @@ def _rate_requests(base_url: str, count: int = 4) -> list[ReplayRequest]:
     ]
 
 
-def _execute(laboratory, requests, tmp_path, *, plan_id: str):
+def _execute(laboratory, requests, tmp_path, monkeypatch, *, plan_id: str):
     port = laboratory.base_url.rsplit(":", 1)[1]
     destinations = [f"127.0.0.1:{port}"]
     budget = ReplayBudget(max_requests=len(requests), rate_limit_rps=1000, timeout_seconds=2)
@@ -135,20 +141,31 @@ def _execute(laboratory, requests, tmp_path, *, plan_id: str):
         sessions=_sessions(),
         allowed_destinations=destinations,
         budget=budget,
-        credential_references=["lab-owner-session", "lab-other-session"],
+        session_credential_bindings=_bindings(),
+        transport="laboratory",
         created_at="2026-10-15T00:00:00Z",
     )
-    authorization_id, approval = _authority(tmp_path, plan)
+    guard = _scope_guard()
+    worker, authorization_id, approval = loopback_worker(
+        tmp_path,
+        monkeypatch,
+        plan,
+        guard,
+        {"lab-owner-session": "Bearer owner-token", "lab-other-session": "Bearer other-token"},
+    )
     report = execute_authorized_replay_session(
         requests=requests,
         sessions=_sessions(),
         allowed_destinations=destinations,
-        scope_guard=_scope_guard(),
+        scope_guard=guard,
         budget=budget,
         action_plan=plan,
         authorization_id=authorization_id,
         approval_control=approval,
-        worker_identity="worker-web-api-lab",
+        worker_identity="test-worker-01",
+        worker=worker,
+        session_credential_bindings=_bindings(),
+        transport="laboratory",
     )
     return report, approval, plan, budget, destinations
 
@@ -157,7 +174,7 @@ def _execute(laboratory, requests, tmp_path, *, plan_id: str):
     ("profile", "expected_verdict"),
     [("vulnerable", AssessmentVerdict.FAIL), ("corrected", AssessmentVerdict.PASS)],
 )
-def test_owner_other_and_anonymous_authorization_evidence(profile, expected_verdict, tmp_path) -> None:
+def test_owner_other_and_anonymous_authorization_evidence(profile, expected_verdict, tmp_path, monkeypatch) -> None:
     with WebApiAssessmentLaboratory(profile) as laboratory:
         requests = _authorization_requests(laboratory.base_url)
         port = laboratory.base_url.rsplit(":", 1)[1]
@@ -167,9 +184,11 @@ def test_owner_other_and_anonymous_authorization_evidence(profile, expected_verd
         assert preview.total_dispatched == 0
         assert laboratory.request_count == 0
 
-        report, approval, _, _, _ = _execute(laboratory, requests, tmp_path, plan_id=f"plan-auth-{profile}")
+        report, approval, _, _, _ = _execute(
+            laboratory, requests, tmp_path, monkeypatch, plan_id=f"plan-auth-{profile}"
+        )
         assert laboratory.request_count == 6
-        assert approval.ready_workers == ["worker-web-api-lab"]
+        assert approval.ready_workers == ["test-worker-01"]
         assert len(approval.consume_calls) == 1
         assert not approval._issued_receipts
 
@@ -198,10 +217,10 @@ def test_owner_other_and_anonymous_authorization_evidence(profile, expected_verd
     ("profile", "expected_verdict"),
     [("vulnerable", AssessmentVerdict.FAIL), ("corrected", AssessmentVerdict.PASS)],
 )
-def test_bounded_request_rate_evidence(profile, expected_verdict, tmp_path) -> None:
+def test_bounded_request_rate_evidence(profile, expected_verdict, tmp_path, monkeypatch) -> None:
     with WebApiAssessmentLaboratory(profile) as laboratory:
         report, approval, _, _, _ = _execute(
-            laboratory, _rate_requests(laboratory.base_url), tmp_path, plan_id=f"plan-rate-{profile}"
+            laboratory, _rate_requests(laboratory.base_url), tmp_path, monkeypatch, plan_id=f"plan-rate-{profile}"
         )
         assessment = assess_rate_limit(report.responses, minimum_attempts=3)
         assert assessment.verdict is expected_verdict
@@ -209,20 +228,24 @@ def test_bounded_request_rate_evidence(profile, expected_verdict, tmp_path) -> N
         assert not approval._issued_receipts
 
 
-def test_rate_limit_requires_enough_evidence(tmp_path) -> None:
+def test_rate_limit_requires_enough_evidence(tmp_path, monkeypatch) -> None:
     with WebApiAssessmentLaboratory("corrected") as laboratory:
         report, _, _, _, _ = _execute(
-            laboratory, _rate_requests(laboratory.base_url, count=2), tmp_path, plan_id="plan-rate-insufficient"
+            laboratory,
+            _rate_requests(laboratory.base_url, count=2),
+            tmp_path,
+            monkeypatch,
+            plan_id="plan-rate-insufficient",
         )
         assessment = assess_rate_limit(report.responses, minimum_attempts=3)
         assert assessment.verdict is AssessmentVerdict.INSUFFICIENT_EVIDENCE
 
 
-def test_plan_mismatch_is_rejected_before_approval_or_dispatch(tmp_path) -> None:
+def test_plan_mismatch_is_rejected_before_approval_or_dispatch(tmp_path, monkeypatch) -> None:
     with WebApiAssessmentLaboratory("corrected") as laboratory:
         original = _rate_requests(laboratory.base_url, count=1)
         _, _, plan, budget, destinations = _execute(
-            laboratory, original, tmp_path / "original", plan_id="plan-original"
+            laboratory, original, tmp_path / "original", monkeypatch, plan_id="plan-original"
         )
         laboratory.reset()
         authorization_id, approval = _authority(tmp_path / "changed", plan)
@@ -247,6 +270,8 @@ def test_plan_mismatch_is_rejected_before_approval_or_dispatch(tmp_path) -> None
                 authorization_id=authorization_id,
                 approval_control=approval,
                 worker_identity="worker-web-api-lab",
+                session_credential_bindings=_bindings(),
+                transport="laboratory",
             )
         assert approval.consume_calls == []
         assert laboratory.request_count == 0
@@ -277,10 +302,12 @@ def test_request_cannot_override_isolated_session_credentials(tmp_path) -> None:
             sessions=_sessions(),
             allowed_destinations=destinations,
             budget=budget,
+            session_credential_bindings=_bindings(),
+            transport="laboratory",
             created_at="2026-10-15T00:00:00Z",
         )
         authorization_id, approval = _authority(tmp_path, plan)
-        with pytest.raises(ReplayAuthorizationError, match="cannot override"):
+        with pytest.raises(ReplayAuthorizationError, match="bounded replay worker contract"):
             execute_authorized_replay_session(
                 requests=requests,
                 sessions=_sessions(),
@@ -291,6 +318,8 @@ def test_request_cannot_override_isolated_session_credentials(tmp_path) -> None:
                 authorization_id=authorization_id,
                 approval_control=approval,
                 worker_identity="worker-web-api-lab",
+                session_credential_bindings=_bindings(),
+                transport="laboratory",
             )
         assert approval.consume_calls == []
         assert laboratory.request_count == 0

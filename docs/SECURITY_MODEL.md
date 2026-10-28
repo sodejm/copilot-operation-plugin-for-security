@@ -359,3 +359,10 @@ the complete response and transaction ID; timeout, malformed data or changed
 address stops later actions. Existing plans bind the resolver and endpoint, and
 all HTTP traffic stays on loopback. This does not validate public DNS or production
 authentication policy.
+
+## Issue 100 worker qualification
+
+The [worker qualification contract](../specs/issue-100-worker-qualification.md)
+sets the required approval, credential, typed egress, Linux isolation, evidence
+redaction and cleanup boundaries for the Web API worker integration. These are
+qualification requirements; local replay tests alone do not establish them.

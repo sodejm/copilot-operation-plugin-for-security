@@ -138,6 +138,72 @@ class ScopedCredentialResolver:
         checked defensively, but caller-constructed authorization status fields
         are not accepted as proof that the authority performed consumption.
         """
+        resolved = self._resolve_values_for_operation(
+            plan=plan,
+            authorization=authorization,
+            worker_identity=worker_identity,
+            operation=operation,
+            operation_index=operation_index,
+            deadline=deadline,
+            redactor=redactor,
+            expected_references=None,
+        )
+        operation_data = _plain(operation)
+        return {
+            grant.environment_variable: resolved[grant.reference]
+            for grant in self._matching_grants(plan.plan_id, operation_data, operation_index)
+        }
+
+    def resolve_values_for_operation(
+        self,
+        *,
+        plan: ActionPlan,
+        authorization: ApprovalConsumptionReceiptView,
+        worker_identity: str,
+        operation: Mapping[str, Any],
+        operation_index: int,
+        references: set[str] | frozenset[str] | tuple[str, ...],
+        deadline: float | None = None,
+        redactor: StreamRedactor | None = None,
+    ) -> dict[str, str]:
+        """Resolve exact references for a parent-side mediator.
+
+        Unlike :meth:`resolve_for_operation`, values returned here are keyed by
+        their authority-owned references and must never be copied into a child
+        process environment or workspace.  The requested set must match the
+        operation grants exactly so a mediator cannot widen or narrow the
+        approval after consumption.
+        """
+        reference_snapshot = tuple(references)
+        requested = frozenset(reference_snapshot)
+        if len(requested) != len(reference_snapshot) or any(
+            not isinstance(item, str) or not item for item in requested
+        ):
+            raise CredentialResolutionError("credential request references are invalid")
+        resolved = self._resolve_values_for_operation(
+            plan=plan,
+            authorization=authorization,
+            worker_identity=worker_identity,
+            operation=operation,
+            operation_index=operation_index,
+            deadline=deadline,
+            redactor=redactor,
+            expected_references=requested,
+        )
+        return resolved
+
+    def _resolve_values_for_operation(
+        self,
+        *,
+        plan: ActionPlan,
+        authorization: ApprovalConsumptionReceiptView,
+        worker_identity: str,
+        operation: Mapping[str, Any],
+        operation_index: int,
+        deadline: float | None,
+        redactor: StreamRedactor | None,
+        expected_references: frozenset[str] | None,
+    ) -> dict[str, str]:
         try:
             verified_authorization = self._approval_control.validate_receipt_provenance(authorization)
         except Exception:
@@ -162,6 +228,8 @@ class ScopedCredentialResolver:
         references = {str(reference) for reference in plan.credential_references}
         operation_grants = self._matching_grants(plan.plan_id, operation_data, operation_index)
         if not operation_grants:
+            if expected_references:
+                raise CredentialResolutionError("credential request does not match the approved operation grants")
             # A plan can declare credentials for other operations while this
             # operation is deliberately credential-free.
             return {}
@@ -181,6 +249,8 @@ class ScopedCredentialResolver:
             if grant.reference in resolved_references:
                 raise CredentialResolutionError("credential grants contain a duplicate reference binding")
             resolved_references.add(grant.reference)
+        if expected_references is not None and resolved_references != expected_references:
+            raise CredentialResolutionError("credential request does not match the approved operation grants")
 
         environment_variables: set[str] = set()
         for grant in operation_grants:
@@ -195,7 +265,7 @@ class ScopedCredentialResolver:
                 raise CredentialResolutionError("credential grants contain a duplicate environment binding")
             environment_variables.add(grant.environment_variable)
 
-        environment: dict[str, str] = {}
+        values: dict[str, str] = {}
         for grant in operation_grants:
             try:
                 value = _resolve_provider(self._provider, grant.reference, deadline)
@@ -207,15 +277,15 @@ class ScopedCredentialResolver:
                 raise CredentialResolutionError("credential provider resolution failed") from None
             if not isinstance(value, str) or not value or "\x00" in value:
                 raise CredentialResolutionError("credential provider returned an invalid value")
-            environment[grant.environment_variable] = value
+            values[grant.reference] = value
 
         # Register every value after all lookups succeed. The worker
         # shares this redactor with evidence capture before launching the process.
         try:
-            (redactor or self.redactor).add_secrets(tuple(environment.values()))
+            (redactor or self.redactor).add_secrets(tuple(values.values()))
         except Exception:
             raise CredentialResolutionError("credential redactor registration failed") from None
-        return environment
+        return values
 
     @staticmethod
     def _validate_authorization_receipt(
