@@ -10,11 +10,13 @@ from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-REQUIREMENT = re.compile(r"([A-Za-z0-9]+(?:[-_][A-Za-z0-9]+)*)(?:\s*>=\s*(\d+(?:\.\d+)*))?")
+REQUIREMENT = re.compile(
+    r"([A-Za-z0-9]+(?:[-_][A-Za-z0-9]+)*)(?:\s*>=\s*(\d+(?:\.\d+)*)(?:\s*,\s*<\s*(\d+(?:\.\d+)*))?)?"
+)
 RELEASE = re.compile(r"(\d+(?:\.\d+)*)(?:\.post\d+)?")
 
 
-def read_requirements(path: Path) -> list[tuple[str, str | None]]:
+def read_requirements(path: Path) -> list[tuple[str, str | None, str | None]]:
     requirements = []
     seen = set()
     for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
@@ -23,13 +25,15 @@ def read_requirements(path: Path) -> list[tuple[str, str | None]]:
             continue
         match = REQUIREMENT.fullmatch(declaration)
         if not match:
-            raise ValueError(f"requirements.txt:{number}: expected a name or name>=numeric.version")
-        name, minimum = match.groups()
+            raise ValueError(f"requirements.txt:{number}: expected a name or name>=version[,<version]")
+        name, minimum, maximum = match.groups()
         name = name.lower().replace("_", "-")
         if name in seen:
             raise ValueError(f"requirements.txt:{number}: duplicate dependency {name}")
         seen.add(name)
-        requirements.append((name, minimum))
+        if minimum and maximum and release_tuple(minimum) >= release_tuple(maximum):
+            raise ValueError(f"requirements.txt:{number}: minimum must be less than exclusive upper bound")
+        requirements.append((name, minimum, maximum))
     if not requirements:
         raise ValueError("requirements.txt: no test dependencies declared")
     return requirements
@@ -57,7 +61,7 @@ def check_prerequisites(root: Path = ROOT) -> bool:
             requirements = read_requirements(root / "requirements.txt")
         except (OSError, UnicodeError, ValueError) as error:
             errors.append(f"cannot read test requirements: {error}")
-    for name, minimum in requirements:
+    for name, minimum, maximum in requirements:
         try:
             installed = version(name)
         except PackageNotFoundError:
@@ -70,6 +74,9 @@ def check_prerequisites(root: Path = ROOT) -> bool:
             continue
         if minimum and installed_release < release_tuple(minimum):
             errors.append(f"{name}: installed {installed}, requires >={minimum}")
+            continue
+        if maximum and installed_release >= release_tuple(maximum):
+            errors.append(f"{name}: installed {installed}, requires <{maximum}")
             continue
         module = name.replace("-", "_")
         try:

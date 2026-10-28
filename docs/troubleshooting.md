@@ -26,7 +26,7 @@ For contributor environments, also run:
 .venv/bin/python -m cops doctor --contributor
 ```
 
-The contributor check looks for the `pytest` and `pytest_bdd` modules and the `git` executable. It also reports whether the optional `make` and `gh` executables are present. It does not check all contributor dependency versions. To check Python and the test dependencies in `requirements.txt`, including their minimum versions, run:
+The contributor check looks for the `pytest` and `pytest_bdd` modules and the `git` executable. It also reports whether the optional `make` and `gh` executables are present. It does not check all contributor dependency versions. To check Python and the test dependencies in `requirements.txt`, including their version bounds, run:
 
 ```bash
 make check-prerequisites PYTHON=.venv/bin/python

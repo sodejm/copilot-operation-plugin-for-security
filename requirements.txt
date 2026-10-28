@@ -1,5 +1,6 @@
 # Canonical contributor test dependencies; see CONTRIBUTING.md for offline setup.
-pytest>=9.1.1
+# pytest-bdd 9.0.0 uses a fixture API removed in pytest 9.2.
+pytest>=9.1.1,<9.2
 pytest-bdd>=9.0.0
 jsonschema>=4.26.0
 cryptography>=43
