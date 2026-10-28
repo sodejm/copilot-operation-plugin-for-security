@@ -53,3 +53,9 @@ Feature: Isolated local agent and MCP laboratory
     When a matching bounded MCP request is compiled into one Action Plan
     Then the canonical envelope revalidates against the adapter command template
     And credential arguments and changed command flags are rejected before execution
+
+  Scenario: Executable contracts reject legacy input and separate evidence categories
+    Given strict executable scenario and execution trace contracts
+    When legacy versions or unknown execution fields are supplied
+    Then execution parsing rejects them before dispatch
+    And trace categories preserve immutable redacted evidence bindings

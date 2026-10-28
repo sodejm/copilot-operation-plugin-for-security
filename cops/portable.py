@@ -48,6 +48,7 @@ PORTABLE_ENTRIES = {
     "exposuretriage",
     "foundryharness",
     "scenarios",
+    "executable_scenarios",
     "lab_cases",
     "auth_cases",
     "provider_fixtures",

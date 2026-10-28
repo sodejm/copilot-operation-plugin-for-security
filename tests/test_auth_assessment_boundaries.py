@@ -14,7 +14,6 @@ import time
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from types import SimpleNamespace
 
 import jsonschema
 import pytest
@@ -496,13 +495,39 @@ def test_consumption_clock_is_observed_after_acquiring_write_lock(tmp_path, monk
     assert store.get_authorization(receipt.authorization_id).status == "expired"
 
 
-@pytest.mark.parametrize("over_by", [0, 1])
+@pytest.mark.parametrize("over_by", [-1, 0, 1])
 def test_response_reads_respect_exact_remaining_byte_budget(tmp_path, monkeypatch, over_by):
+    class CountingBytesIO(io.BytesIO):
+        bytes_read = 0
+
+        def readline(self, size=-1):
+            line = super().readline(size)
+            self.bytes_read += len(line)
+            return line
+
+    class FakeProcess:
+        def __init__(self, raw):
+            self.stdin = io.BytesIO()
+            self.stdout = CountingBytesIO(raw)
+            self.returncode = None
+
+        def poll(self):
+            return self.returncode
+
+        def terminate(self):
+            self.returncode = -signal.SIGTERM
+
+        def kill(self):
+            self.returncode = -signal.SIGKILL
+
+        def wait(self, timeout=None):
+            return self.returncode
+
     _, context = authorized_batch(tmp_path)
     budget = auth_approval._BatchBudget(context["plan"], context["authorization"].authorized_until_utc)
     raw = b'{"ok":true}\n'
     budget.output_limit = len(raw) - over_by
-    process = SimpleNamespace(stdin=io.BytesIO(), stdout=io.BytesIO(raw))
+    process = FakeProcess(raw)
     monkeypatch.setattr(laboratory.subprocess, "Popen", lambda *_args, **_kwargs: process)
     child = laboratory._JsonLineProcess(
         "auth_peer_fixture.py",
@@ -511,15 +536,22 @@ def test_response_reads_respect_exact_remaining_byte_budget(tmp_path, monkeypatc
         account_response=budget.account_response,
         response_bytes_remaining=budget.remaining_bytes,
     )
-    if over_by:
+    if over_by >= 0:
         with pytest.raises(auth_approval._BatchBudgetStop, match="output_budget_exhausted"):
             child.exchange({"request": "test"})
     else:
         assert child.exchange({"request": "test"}) == {"ok": True}
-    assert process.stdout.tell() == budget.output_limit
-    assert budget.output_bytes == budget.output_limit
-    with pytest.raises(auth_approval._BatchBudgetStop, match="output_budget_exhausted"):
+    expected_response_bytes = min(len(raw), budget.output_limit)
+    assert process.stdout.bytes_read == expected_response_bytes
+    assert budget.output_bytes == expected_response_bytes
+    if over_by >= 0:
+        with pytest.raises(auth_approval._BatchBudgetStop, match="output_budget_exhausted"):
+            budget.admit()
+        assert process.poll() is not None
+    else:
         budget.admit()
+        assert process.poll() is None
+        assert child.close()
 
 
 @pytest.mark.parametrize("over_by", [0, 1])

@@ -66,7 +66,7 @@ jobs:
           sudo apparmor_parser -r /etc/apparmor.d/bwrap-userns-restrict
           python -m pip install -r requirements.txt
       - name: Verify required Linux isolation boundaries
-        run: python -m pytest -m linux_bubblewrap tests/integration/test_linux_bubblewrap_sandbox.py tests/integration/test_linux_fd_scrubber_qualification.py -q
+        run: python -m pytest -m linux_bubblewrap tests/integration/test_linux_bubblewrap_sandbox.py tests/integration/test_linux_fd_scrubber_qualification.py tests/integration/test_linux_cancellation_qualification.py -q
 
   portability-smoke:
     name: Operator smoke (${{ matrix.os }})
@@ -100,7 +100,7 @@ jobs:
           COPS_REQUIRE_NATIVE_LOOPBACK: "1"
         run: python -m pytest tests/integration/test_active_discovery_loopback.py -q
       - name: Exercise local agent and MCP laboratory acceptance
-        run: python -m pytest plugins/offensive-security/foundry-agent-harness/tests/test_laboratory.py tests/step_defs/test_agent_mcp_laboratories.py -q
+        run: make check-agent-mcp-acceptance PYTHON=python
       - name: Exercise reachability report acceptance
         run: python -m pytest tests/step_defs/test_cve_reachability.py -q
       - name: Exercise native Windows host assessment bridge

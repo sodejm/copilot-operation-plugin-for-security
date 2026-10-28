@@ -1,0 +1,364 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Foundry executable scenario v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "scenario_id",
+    "title",
+    "legitimate_task",
+    "injected_artifact",
+    "trust_boundary",
+    "execution",
+    "bindings",
+    "expected_outcome",
+    "cleanup"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "foundry.scenario/v2"
+    },
+    "scenario_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512
+    },
+    "legitimate_task": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2048
+    },
+    "injected_artifact": {
+      "type": "string",
+      "maxLength": 8192
+    },
+    "trust_boundary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "surface",
+        "source_trust",
+        "target_trust"
+      ],
+      "properties": {
+        "surface": {
+          "enum": [
+            "retrieved_document",
+            "tool_response",
+            "cross_tenant_request",
+            "peer_agent_message",
+            "exfiltration_request",
+            "state_mutation_request",
+            "memory",
+            "context",
+            "tool_permission",
+            "trusted_task"
+          ]
+        },
+        "source_trust": {
+          "const": "untrusted"
+        },
+        "target_trust": {
+          "const": "authorized_tool"
+        }
+      }
+    },
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "adapter_id",
+        "adapter_version",
+        "profile_id",
+        "profile_digest",
+        "request",
+        "limits"
+      ],
+      "properties": {
+        "adapter_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$"
+        },
+        "adapter_version": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$"
+        },
+        "profile_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$"
+        },
+        "profile_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "request": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "schema_version",
+            "profile_id",
+            "adapter_binding",
+            "effect",
+            "request"
+          ],
+          "properties": {
+            "schema_version": {
+              "const": "cops.agent-mcp-stdio-envelope/v1"
+            },
+            "profile_id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$"
+            },
+            "adapter_binding": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "protocol_version",
+                "source_revision",
+                "executable_sha256",
+                "command_template_sha256"
+              ],
+              "properties": {
+                "protocol_version": {
+                  "const": "2025-11-25"
+                },
+                "source_revision": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "executable_sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "command_template_sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              }
+            },
+            "effect": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "classification",
+                "network_egress"
+              ],
+              "properties": {
+                "classification": {
+                  "const": "read_only"
+                },
+              "network_egress": {
+                "type": "boolean",
+                "const": false
+                }
+              }
+            },
+            "request": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "schema_version",
+                "request_id",
+                "method",
+                "tool_name",
+                "arguments",
+                "nonce"
+              ],
+              "properties": {
+                "schema_version": {
+                  "const": "cops.agent-mcp-stdio-request/v1"
+                },
+                "request_id": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$"
+                },
+                "method": {
+                  "const": "tools/call"
+                },
+                "tool_name": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$"
+                },
+                "arguments": {
+                  "type": "object",
+                  "maxProperties": 16,
+                  "additionalProperties": {
+                    "type": [
+                      "string",
+                      "integer",
+                      "boolean"
+                    ],
+                    "maxLength": 2048
+                  }
+                },
+                "nonce": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$"
+                }
+              }
+            }
+          }
+        },
+        "limits": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "max_duration_seconds",
+            "max_output_bytes",
+            "max_trace_events",
+            "max_trace_bytes"
+          ],
+          "properties": {
+            "max_duration_seconds": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 300
+            },
+            "max_output_bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 4194304
+            },
+            "max_trace_events": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 256
+            },
+            "max_trace_bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1048576
+            }
+          }
+        }
+      }
+    },
+    "bindings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "engagement_id",
+        "session_id",
+        "role_id",
+        "tenant_id",
+        "scenario_id",
+        "plan_digest",
+        "approval_digest",
+        "envelope_digest"
+      ],
+      "properties": {
+        "engagement_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$"
+        },
+        "session_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$"
+        },
+        "role_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$"
+        },
+        "tenant_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$"
+        },
+        "scenario_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$"
+        },
+        "plan_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "approval_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "envelope_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "expected_outcome": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "decision",
+        "canary",
+        "effect"
+      ],
+      "properties": {
+        "decision": {
+          "enum": [
+            "denied",
+            "executed",
+            "unsupported"
+          ]
+        },
+        "canary": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "canary_id",
+            "expected_observed"
+          ],
+          "properties": {
+            "canary_id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$"
+            },
+            "expected_observed": {
+              "type": "boolean"
+            }
+          }
+        },
+        "effect": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "classification",
+            "expected_count"
+          ],
+          "properties": {
+            "classification": {
+              "enum": [
+                "read_only",
+                "reversible_canary"
+              ]
+            },
+            "expected_count": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1
+            }
+          }
+        }
+      }
+    },
+    "cleanup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "required",
+        "expected_state_digest"
+      ],
+      "properties": {
+        "required": {
+          "type": "boolean",
+          "const": true
+        },
+        "expected_state_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    }
+  }
+}

@@ -130,6 +130,27 @@ COPS centralizes **21 specialist cybersecurity agent profiles** in `agents/` and
 
 ## Delegation authorization laboratory
 
+The separate agent/MCP execution contract requires registered, versioned local
+JSONL and MCP stdio fixture adapters through a worker, with exact approval, plan,
+profile, and stdio-envelope bindings. Inventory and evaluation are data-only and
+do not grant execution authority. Versioned scenario and trace contracts separate
+model text, attempted calls, denied calls, and observed effects; unsupported
+protocol behavior must be rejected explicitly. Worker isolation and independent
+observation require their own evidence, as does cleanup; they cannot be inferred
+from a plan or response. This path supplies no general live execution CLI or
+provider-backed qualification.
+
+The worker accepts a typed envelope for one unmixed operation and requires the
+production `LinuxBubblewrapSandbox` with no egress or destination scope. A
+one-shot mediator binds the registered stdio-only dispatcher to the plan,
+consumed approval, and envelope. Its fixed disposable canary fixture reports
+bounded status and digests rather than raw model text, arguments, canary values,
+or state. The mediator emits a completed receipt only when the bounded dispatcher
+receipt has exact `completed` status and reports independently observed cleanup as
+verified. A malformed, failed, unverified-cleanup, or unacknowledged dispatch is
+uncertain and cannot be automatically repeated. Local fixture or macOS results do
+not establish actual Linux isolation or hosted acceptance.
+
 The Foundry Agent Harness `auth-plan` command compiles a versioned Action Plan
 binding the selected synthetic cases, fixture identities, source digests, and
 aggregate limits. `auth-lab` verifies and atomically consumes one signed COPS

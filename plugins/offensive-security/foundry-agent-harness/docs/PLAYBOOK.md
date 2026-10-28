@@ -4,6 +4,44 @@ Use this package to rehearse how local gates handle synthetic prompt injection p
 
 ## Choose a workflow
 
+Inventory and evaluation describe inputs and local decisions; they do not grant
+authority or prove an effect. For any separately approved isolated execution,
+review the exact plan and signed authorization, worker and isolation evidence,
+independent observations, and cleanup. Keep a vulnerable case's observed effect,
+a negative control's expected benign behavior, and a remediated case's absence
+of the same effect as separate evidence. Missing observation or failed cleanup is
+inconclusive. Reconcile uncertain effects before approving another run. No general
+live-agent or live-MCP execution CLI is provided here.
+
+The worker-only contract requires registered, versioned adapters with exact approval,
+plan, profile, and `cops.agent-mcp-stdio-envelope/v1` bindings. Its supported
+targets are local disposable JSONL and MCP stdio fixtures, not provider endpoints.
+The registered stdio-only dispatcher executes a fixed disposable canary case
+through a one-shot mediator bound to the consumed approval, plan, and typed
+envelope. The worker requires the production `LinuxBubblewrapSandbox` and
+rejects egress and destination scope. Supervisor evidence contains bounded
+status and digests, not raw model text, arguments, canary values, or state.
+The mediator emits completion only for an exact `completed` dispatcher receipt
+whose independently observed cleanup has `verified: true`. Treat malformed,
+failed, unverified-cleanup, cancelled, timed-out, or missing terminal receipts as
+attempted with an uncertain effect; reconcile them before another approval.
+Local macOS or fixture tests do not prove Linux bubblewrap isolation or hosted,
+provider-backed, or human-review acceptance.
+The `foundry.scenario/v2` input and `foundry.execution-trace/v1` output keep
+`model_output`, `tool_call_attempted`, `tool_call_denied`, and
+`tool_effect_executed` separate. A reply or proposal is not an effect; require an
+independent observation. Unsupported protocol features require explicit rejection
+evidence, not an inferred pass.
+
+The executable contract requires a single bounded JSONL request and response per
+operation. For MCP stdio it requires `initialize`, `notifications/initialized`,
+`tools/list`, and one `tools/call` matching the approved envelope exactly. It
+requires rejection of network transports, server-initiated requests, sampling,
+roots, prompts, resources, subscriptions, elicitation, extensions or capability
+expansion, duplicate or unknown IDs, malformed or oversized messages, extra
+output, and methods, tools, or arguments outside the envelope. These requirements
+do not establish interoperability with arbitrary MCP servers.
+
 The `lab` command starts a deterministic agent fixture and a fixed local MCP stdio server as separate processes. It verifies the server handshake and tool list, observes state before and after a call, and verifies reset. Use it when you need process-backed evidence for the fixture's authorization boundary. The bundled cases include retrieval and tool-response injection, cross-tenant access, peer spoofing, unauthorized mutation and export, memory and context pressure, tool-permission abuse, and authorized controls.
 
 The `evaluate` command runs the older deterministic scenario simulator against an in-memory mock sandbox. Use it to inspect scenario definitions and the simulator's authorization decisions. It does not observe an agent process or MCP transport.

@@ -8,6 +8,7 @@ that server, never from agent text or a tool's claim of success.
 from __future__ import annotations
 
 import json
+import math
 import os
 import queue
 import re
@@ -15,12 +16,14 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 from collections.abc import Callable
+from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from .bounded_json import JSONInputError, decode_json
+from .bounded_json import JSONInputError, decode_json, read_regular_file
 
 PROTOCOL_VERSION = "2025-11-25"
 AGENT_ORIGIN = "deterministic-local-fixture"
@@ -58,6 +61,14 @@ ATTACK_SURFACES = frozenset(
 )
 TOOL_NAMES = frozenset({"lookup_account", "modify_resource", "export_canary"})
 FIXTURE_TOOLS = TOOL_NAMES | {"lab/configure", "lab/state", "lab/reset"}
+FIXTURE_INITIAL_STATE = {
+    "resources": {
+        "res-faq-storage": {"tenant_id": "tenant-contoso-01", "status": "active"},
+        "res-fabrikam-ledger": {"tenant_id": "tenant-fabrikam-02", "status": "active"},
+    },
+    "canary_sink": [],
+    "tool_response": "",
+}
 
 
 class LabError(ValueError):
@@ -158,12 +169,12 @@ def load_lab_cases(path: Path) -> list[LabCase]:
     seen: set[str] = set()
     for case_path in files:
         try:
-            data = json.loads(case_path.read_text(encoding="utf-8"))
+            data = decode_json(read_regular_file(case_path, max_bytes=65536), max_bytes=65536)
             if not isinstance(data, dict):
                 raise LabError("Case root must be an object")
             case = LabCase.from_dict(data)
-        except (OSError, json.JSONDecodeError) as exc:
-            raise LabError(f"Invalid case {case_path.name}: {exc}") from exc
+        except JSONInputError as exc:
+            raise LabError(f"Invalid case {case_path.name}: {exc.code}") from exc
         if case.case_id in seen:
             raise LabError(f"Duplicate case ID: {case.case_id}")
         seen.add(case.case_id)
@@ -220,27 +231,52 @@ class _JsonLineProcess:
     ) -> dict[str, Any] | None:
         if self.admission_check is not None:
             self.admission_check()
-        if self.process.stdin is None or self.process.stdout is None:
+        try:
+            return self._exchange(payload, response=response, on_dispatch_attempt=on_dispatch_attempt)
+        except BaseException as exc:
+            # A timed-out or malformed stream cannot be reused: a late reply
+            # could otherwise be mistaken for the next request's observation.
+            try:
+                self.close()
+            except BaseException:
+                exc.add_note("Fixture process cleanup could not be verified")
+            raise
+
+    def _exchange(
+        self,
+        payload: dict[str, Any],
+        *,
+        response: bool,
+        on_dispatch_attempt: Callable[[], None] | None,
+    ) -> dict[str, Any] | None:
+        if self.process.poll() is not None or self.process.stdin is None or self.process.stdout is None:
             raise LabError("Fixture pipes unavailable")
+        try:
+            encoded = (json.dumps(payload, separators=(",", ":"), allow_nan=False) + "\n").encode("utf-8")
+            decode_json(encoded, max_bytes=65536)
+        except (TypeError, ValueError, UnicodeError, RecursionError) as exc:
+            raise LabError("Fixture request is outside the bounded JSON contract") from exc
         read_limit = 65537
         if response and self.response_bytes_remaining is not None:
             read_limit = min(read_limit, self.response_bytes_remaining())
+        if self.admission_check is not None:
+            self.admission_check()
         if on_dispatch_attempt is not None:
             on_dispatch_attempt()
         try:
-            self.process.stdin.write((json.dumps(payload, separators=(",", ":")) + "\n").encode("utf-8"))
+            self.process.stdin.write(encoded)
             self.process.stdin.flush()
         except (BrokenPipeError, OSError) as exc:
             raise LabError("Fixture process exited before request") from exc
         if not response:
             return None
         stdout = self.process.stdout
-        received: queue.Queue[bytes | OSError] = queue.Queue(maxsize=1)
+        received: queue.Queue[bytes | OSError | ValueError] = queue.Queue(maxsize=1)
 
         def read_line() -> None:
             try:
                 received.put(stdout.readline(read_limit))
-            except OSError as exc:
+            except (OSError, ValueError) as exc:
                 received.put(exc)
 
         threading.Thread(target=read_line, daemon=True).start()
@@ -248,15 +284,29 @@ class _JsonLineProcess:
             timeout = self.response_timeout_seconds
             if self.response_timeout_provider is not None:
                 timeout = min(timeout, self.response_timeout_provider())
-            line = received.get(timeout=timeout)
+            response_deadline = time.monotonic() + timeout
+            while True:
+                if self.admission_check is not None:
+                    self.admission_check()
+                remaining = response_deadline - time.monotonic()
+                if remaining <= 0:
+                    raise queue.Empty
+                try:
+                    line = received.get(timeout=min(0.05, remaining))
+                    break
+                except queue.Empty:
+                    if time.monotonic() >= response_deadline:
+                        raise
         except queue.Empty as exc:
             if self.admission_check is not None:
                 self.admission_check()
             raise LabError("Fixture response timed out") from exc
-        if isinstance(line, OSError):
+        if isinstance(line, (OSError, ValueError)):
             raise LabError("Fixture response read failed") from line
         if self.account_response is not None:
             self.account_response(line)
+        if self.admission_check is not None:
+            self.admission_check()
         if not line:
             raise LabError("Fixture exited without response")
         if not line.endswith(b"\n") and len(line) == read_limit and self.response_bytes_remaining is not None:
@@ -353,13 +403,19 @@ class _McpClient:
     ) -> None:
         self.process = process
         self.next_id = 1
+        self.state = "new"
         self.expected_tools = expected_tools
         self.expected_server_info = (
             expected_server_info if expected_server_info is not None else {"name": "cops-local-fixture", "version": "1"}
         )
-        self.expected_capabilities = expected_capabilities
+        self.expected_capabilities = expected_capabilities if expected_capabilities is not None else {"tools": {}}
         self.expected_input_schemas = expected_input_schemas
         self.expected_tool_descriptors = expected_tool_descriptors
+        if expected_tool_descriptors is None and expected_tools == FIXTURE_TOOLS and expected_server_info is None:
+            self.expected_tool_descriptors = {
+                name: {"name": name, "description": "Synthetic local fixture operation", "inputSchema": {"type": "object"}}
+                for name in FIXTURE_TOOLS
+            }
 
     def request(
         self,
@@ -368,22 +424,37 @@ class _McpClient:
         *,
         on_dispatch_attempt: Callable[[], None] | None = None,
     ) -> dict[str, Any]:
+        allowed = {
+            "new": {"initialize"},
+            "initializing": {"tools/list"},
+            "ready": {"tools/list", "tools/call"},
+        }
+        if method not in allowed.get(self.state, set()):
+            raise LabError("Unsupported MCP method or initialization order")
         request_id = self.next_id
         self.next_id += 1
         response = self.process.exchange(
             {"jsonrpc": "2.0", "id": request_id, "method": method, "params": params},
             on_dispatch_attempt=on_dispatch_attempt,
         )
-        if response is None or response.get("jsonrpc") != "2.0" or response.get("id") != request_id:
+        if (
+            response is None
+            or set(response) not in ({"jsonrpc", "id", "result"}, {"jsonrpc", "id", "error"})
+            or response.get("jsonrpc") != "2.0"
+            or type(response.get("id")) is not int
+            or response["id"] != request_id
+        ):
             raise LabError("MCP response ID or envelope mismatch")
         if "error" in response:
-            raise LabError(f"MCP fixture rejected {method}: {response['error']}")
+            raise LabError(f"MCP fixture rejected {method}")
         result = response.get("result")
         if not isinstance(result, dict):
             raise LabError("MCP result must be an object")
         return result
 
     def initialize(self) -> None:
+        if self.state != "new":
+            raise LabError("MCP fixture initialization may only be attempted once")
         result = self.request(
             "initialize",
             {
@@ -392,9 +463,11 @@ class _McpClient:
                 "clientInfo": {"name": "cops-local-lab", "version": "1"},
             },
         )
+        self.state = "initializing"
         capabilities = result.get("capabilities")
         if (
-            result.get("protocolVersion") != PROTOCOL_VERSION
+            set(result) != {"protocolVersion", "capabilities", "serverInfo"}
+            or result.get("protocolVersion") != PROTOCOL_VERSION
             or not isinstance(capabilities, dict)
             or not isinstance(capabilities.get("tools"), dict)
             or (self.expected_capabilities is not None and capabilities != self.expected_capabilities)
@@ -405,6 +478,8 @@ class _McpClient:
         listed = self.request("tools/list", {})
         if "nextCursor" in listed:
             raise LabError("MCP fixture tool inventory pagination is unsupported")
+        if set(listed) != {"tools"}:
+            raise LabError("MCP fixture tool inventory contains unsupported fields")
         tools = listed.get("tools")
         if not isinstance(tools, list) or not all(
             isinstance(tool, dict) and isinstance(tool.get("name"), str) for tool in tools
@@ -421,6 +496,7 @@ class _McpClient:
             advertised_descriptors = {tool["name"]: tool for tool in tools}
             if advertised_descriptors != self.expected_tool_descriptors:
                 raise LabError("MCP fixture tool descriptors do not match the fixed client contract")
+        self.state = "ready"
 
     def call(
         self,
@@ -429,6 +505,8 @@ class _McpClient:
         *,
         on_dispatch_attempt: Callable[[], None] | None = None,
     ) -> dict[str, Any]:
+        if self.state != "ready" or name not in self.expected_tools or not isinstance(arguments, dict):
+            raise LabError("MCP call is outside the initialized fixed client contract")
         if self.expected_input_schemas is not None:
             if name not in self.expected_input_schemas:
                 raise LabError("MCP call uses a tool outside the fixed client contract")
@@ -440,14 +518,20 @@ class _McpClient:
         )
         content_items = result.get("content")
         if (
-            not isinstance(result.get("isError"), bool)
+            set(result) != {"content", "isError"}
+            or not isinstance(result.get("isError"), bool)
             or result["isError"]
             or not isinstance(content_items, list)
             or len(content_items) != 1
         ):
             raise LabError(f"MCP fixture tool failed: {name}")
         content = content_items[0]
-        if not isinstance(content, dict) or content.get("type") != "text" or not isinstance(content.get("text"), str):
+        if (
+            not isinstance(content, dict)
+            or set(content) != {"type", "text"}
+            or content.get("type") != "text"
+            or not isinstance(content.get("text"), str)
+        ):
             raise LabError("MCP fixture returned unsupported content")
         try:
             value = decode_json(content["text"].encode("utf-8"), max_bytes=65536)
@@ -504,6 +588,7 @@ def _validate_state(state: dict[str, Any]) -> None:
         or not isinstance(resources, dict)
         or set(resources) != {"res-faq-storage", "res-fabrikam-ledger"}
         or not isinstance(sink, list)
+        or len(sink) > 1
         or not all(item == "CANARY-SYNTHETIC-001" for item in sink)
         or not isinstance(note, str)
         or len(note) > 2048
@@ -526,6 +611,12 @@ def _validate_state(state: dict[str, Any]) -> None:
 def _observed_effects(before: dict[str, Any], after: dict[str, Any]) -> list[dict[str, Any]]:
     _validate_state(before)
     _validate_state(after)
+    if (
+        before["resources"]["res-fabrikam-ledger"] != after["resources"]["res-fabrikam-ledger"]
+        or before["tool_response"] != after["tool_response"]
+        or (after["canary_sink"] != before["canary_sink"] and before["canary_sink"] != [])
+    ):
+        raise LabError("MCP observed an effect outside the reversible canary contract")
     effects: list[dict[str, Any]] = []
     for resource_id, prior in before["resources"].items():
         current = after["resources"][resource_id]
@@ -533,25 +624,137 @@ def _observed_effects(before: dict[str, Any], after: dict[str, Any]) -> list[dic
             effects.append({"kind": "resource_change", "resource_id": resource_id, "before": prior, "after": current})
     if after["canary_sink"] != before["canary_sink"]:
         effects.append({"kind": "canary_sink_change", "before": before["canary_sink"], "after": after["canary_sink"]})
-    if after["tool_response"] != before["tool_response"]:
-        effects.append(
-            {"kind": "tool_response_change", "before": before["tool_response"], "after": after["tool_response"]}
-        )
     return effects
 
 
-def run_lab_case(case: LabCase) -> dict[str, Any]:
-    """Run one case against fresh local processes and verify reset before exit."""
+class _LabRunBudget:
+    def __init__(
+        self,
+        cancellation_check: Callable[[], bool] | None,
+        deadline_monotonic: float | None,
+        max_response_bytes: int,
+    ) -> None:
+        if cancellation_check is not None and not callable(cancellation_check):
+            raise LabError("Cancellation check must be callable")
+        if deadline_monotonic is None:
+            deadline_monotonic = time.monotonic() + 30
+        if (
+            isinstance(deadline_monotonic, bool)
+            or not isinstance(deadline_monotonic, (int, float))
+            or not math.isfinite(deadline_monotonic)
+        ):
+            raise LabError("Deadline must be a finite absolute monotonic time")
+        if type(max_response_bytes) is not int or not 1 <= max_response_bytes <= 1_048_576:
+            raise LabError("Response-byte budget must be between one and 1048576")
+        self.cancellation_check = cancellation_check
+        self.deadline = deadline_monotonic
+        self.limit = max_response_bytes
+        self.cleanup_reserve = min(2048, max_response_bytes // 4)
+        self.received = 0
+        self.cleaning = False
+        self.stop_reason: str | None = None
+
+    def stop(self, reason: str) -> None:
+        if self.stop_reason is None:
+            self.stop_reason = reason
+        raise LabError(reason)
+
+    def admit(self) -> None:
+        if not self.cleaning and self.cancellation_check is not None:
+            try:
+                cancelled = self.cancellation_check()
+            except Exception as exc:
+                self.stop_reason = "cancellation_check_failed"
+                raise LabError(self.stop_reason) from exc
+            if type(cancelled) is not bool:
+                self.stop("cancellation_check_failed")
+            if cancelled:
+                self.stop("cancelled")
+        if time.monotonic() >= self.deadline:
+            self.stop("cleanup_deadline_exhausted" if self.cleaning else "deadline_exhausted")
+        self.remaining_bytes()
+
+    def remaining_bytes(self) -> int:
+        limit = self.limit if self.cleaning else self.limit - self.cleanup_reserve
+        remaining = limit - self.received
+        if remaining <= 0:
+            self.stop("response_budget_exhausted")
+        return remaining
+
+    def response_timeout(self) -> float:
+        self.admit()
+        return min(1.0, max(0.001, self.deadline - time.monotonic()))
+
+    def account_response(self, raw: bytes) -> None:
+        self.received += len(raw)
+        if self.received > self.limit:
+            self.stop("response_budget_exhausted")
+
+    def start_cleanup(self) -> None:
+        # Only the fixed reset and observation are allowed after admission stops.
+        # Their responses count against the caller's same total byte allowance.
+        self.cleaning = True
+        self.deadline = time.monotonic() + 1
+
+
+def run_lab_case(
+    case: LabCase,
+    *,
+    cancellation_check: Callable[[], bool] | None = None,
+    deadline_monotonic: float | None = None,
+    max_response_bytes: int = 65536,
+) -> dict[str, Any]:
+    """Run a fixed local case with parent stop controls and bounded cleanup.
+
+    Cancellation returns true to stop. The absolute deadline uses monotonic time.
+    Reset gets a separate one-second grace period and a reserved portion of the
+    total response-byte budget; no scenario operation is admitted during cleanup.
+    Interrupted runs raise LabError with a ``cleanup_evidence`` attribute.
+    """
+    budget = _LabRunBudget(cancellation_check, deadline_monotonic, max_response_bytes)
+    evidence: dict[str, Any] = {
+        "reset_attempted": False,
+        "reset_verified": False,
+        "processes_terminated": True,
+        "temporary_directory_removed": True,
+        "response_bytes": 0,
+        "max_response_bytes": max_response_bytes,
+    }
+    try:
+        budget.admit()
+        return _run_lab_case(case, budget, evidence)
+    except BaseException as exc:
+        workdir = evidence.pop("workdir", None)
+        evidence["temporary_directory_removed"] = workdir is None or not Path(workdir).exists()
+        evidence["response_bytes"] = budget.received
+        evidence["stop_reason"] = budget.stop_reason
+        exc.cleanup_evidence = evidence
+        raise
+
+
+def _run_lab_case(case: LabCase, budget: _LabRunBudget, evidence: dict[str, Any]) -> dict[str, Any]:
+    reset_verified = False
+    processes_terminated = True
     with tempfile.TemporaryDirectory(prefix="cops-agent-mcp-lab-") as workdir:
+        evidence["workdir"] = workdir
         server: _JsonLineProcess | None = None
         agent: _JsonLineProcess | None = None
+        mcp: _McpClient | None = None
         try:
-            server = _JsonLineProcess("mcp_fixture_server.py", workdir)
-            agent = _JsonLineProcess("fixture_agent.py", workdir)
+            hooks = {
+                "admission_check": budget.admit,
+                "response_timeout_provider": budget.response_timeout,
+                "account_response": budget.account_response,
+                "response_bytes_remaining": budget.remaining_bytes,
+            }
+            server = _JsonLineProcess("mcp_fixture_server.py", workdir, **hooks)
+            agent = _JsonLineProcess("fixture_agent.py", workdir, **hooks)
             mcp = _McpClient(server)
             mcp.initialize()
             initial_state = mcp.call("lab/state", {})
             _validate_state(initial_state)
+            if initial_state != FIXTURE_INITIAL_STATE:
+                raise LabError("MCP fixture did not start from the fixed canary state")
             if case.attack_surface == "tool_response":
                 mcp.call("lab/configure", {"note": case.untrusted_text})
             before = mcp.call("lab/state", {})
@@ -570,7 +773,12 @@ def run_lab_case(case: LabCase) -> dict[str, Any]:
                 executed_calls.append({**seed_call, "origin": "trusted_seed_read"})
                 untrusted = note
             agent_result = agent.exchange({"untrusted_text": untrusted, "approved_call": case.approved_call})
-            if agent_result is None or not isinstance(agent_result.get("model_text"), str):
+            if (
+                agent_result is None
+                or set(agent_result) != {"model_text", "proposed_calls", "proposal_origin"}
+                or not isinstance(agent_result.get("model_text"), str)
+                or len(agent_result["model_text"]) > 2048
+            ):
                 raise LabError("Agent fixture returned invalid text")
             proposals = agent_result.get("proposed_calls")
             if not isinstance(proposals, list) or len(proposals) != 1 or not isinstance(proposals[0], dict):
@@ -592,16 +800,19 @@ def run_lab_case(case: LabCase) -> dict[str, Any]:
             after = mcp.call("lab/state", {})
             _validate_state(after)
             effects = _observed_effects(before, after)
-            mcp.call("lab/reset", {})
-            reset_state = mcp.call("lab/state", {})
-            _validate_state(reset_state)
-            cleaned = reset_state == initial_state
+            expected_state = deepcopy(before)
+            if not denial and call["name"] == "modify_resource":
+                expected_state["resources"]["res-faq-storage"]["status"] = call["arguments"]["status"]
+            elif not denial and call["name"] == "export_canary":
+                expected_state["canary_sink"] = ["CANARY-SYNTHETIC-001"]
+            if after != expected_state:
+                raise LabError("MCP state change did not match the dispatched canary operation")
             expected = (
                 (case.expected_outcome == "denied" and bool(denied_calls) and not effects)
                 or (case.expected_outcome == "executed_effect" and not denied_calls and bool(effects))
                 or (case.expected_outcome == "executed_no_effect" and not denied_calls and not effects)
             )
-            return {
+            report = {
                 "schema_version": "cops.agent-mcp-lab-report/v1",
                 "case_id": case.case_id,
                 "title": case.title,
@@ -619,12 +830,41 @@ def run_lab_case(case: LabCase) -> dict[str, Any]:
                 "executed_effects": effects,
                 "state_before": before,
                 "state_after": after,
-                "cleanup_verified": cleaned,
+                "cleanup_verified": False,
                 "expected_outcome": case.expected_outcome,
-                "expectation_met": bool(expected and cleaned),
+                "expectation_met": False,
             }
         finally:
-            if agent is not None:
-                agent.close()
-            if server is not None:
-                server.close()
+            primary_error = sys.exc_info()[1]
+            cleanup_error: BaseException | None = None
+            try:
+                budget.start_cleanup()
+                if mcp is not None and mcp.state == "ready" and server is not None and server.process.poll() is None:
+                    evidence["reset_attempted"] = True
+                    mcp.call("lab/reset", {})
+                    reset_state = mcp.call("lab/state", {})
+                    _validate_state(reset_state)
+                    reset_verified = reset_state == FIXTURE_INITIAL_STATE
+                    if not reset_verified:
+                        raise LabError("MCP fixture reset did not restore the fixed canary state")
+            except BaseException as exc:
+                cleanup_error = exc
+            finally:
+                # Both children must be reaped even when reset or either close
+                # fails. Disposal evidence is collected before returning.
+                for process in (agent, server):
+                    if process is not None:
+                        try:
+                            processes_terminated = process.close() and processes_terminated
+                        except BaseException as exc:
+                            processes_terminated = False
+                            cleanup_error = cleanup_error or exc
+                evidence["reset_verified"] = reset_verified
+                evidence["processes_terminated"] = processes_terminated
+            if cleanup_error is not None:
+                if primary_error is None:
+                    raise LabError("MCP fixture cleanup could not be verified") from cleanup_error
+                primary_error.add_note("MCP fixture cleanup could not be verified")
+    report["cleanup_verified"] = bool(reset_verified and processes_terminated and not Path(workdir).exists())
+    report["expectation_met"] = bool(expected and report["cleanup_verified"])
+    return report

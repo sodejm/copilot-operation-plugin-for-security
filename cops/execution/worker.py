@@ -33,6 +33,7 @@ from cops.contracts.validation import validate_contract
 from cops.evidence.canonical import digest, utc_now
 
 if TYPE_CHECKING:
+    from cops.laboratory.agent_mcp_worker import AgentMcpEnvelope
     from cops.web_api.worker_replay import WebApiReplayEnvelope
 
 from .cleanup import (
@@ -84,6 +85,10 @@ class WorkerExecutionError(WorkerError):
 
 class WorkerReplayDispatchUncertain(WorkerExecutionError):
     """A replay reached its wire transition but no authenticated result returned."""
+
+
+class WorkerAgentMcpDispatchUncertain(WorkerExecutionError):
+    """A laboratory dispatch has no verified terminal acknowledgement."""
 
 
 @dataclass(frozen=True)
@@ -284,6 +289,7 @@ class IsolatedWorker:
         expected_engagement_id: str | None = None,
         egress_trust_domain: str | None = None,
         credential_resolver: ScopedCredentialResolver | None = None,
+        agent_mcp_dispatchers: Mapping[str, Any] | None = None,
     ) -> None:
         if not isinstance(worker_inventory, WorkerCapabilityInventory) or not worker_inventory.is_verified:
             raise WorkerIsolationError("a verified owner-provisioned worker capability inventory is required")
@@ -297,6 +303,15 @@ class IsolatedWorker:
         if credential_resolver is not None and credential_resolver.approval_control is not approval_control:
             raise WorkerIsolationError("credential resolver and worker must use the same approval control client")
         self.credential_resolver = credential_resolver
+        if agent_mcp_dispatchers is not None and (
+            not isinstance(agent_mcp_dispatchers, Mapping)
+            or any(
+                not isinstance(key, str) or not key or not callable(value)
+                for key, value in agent_mcp_dispatchers.items()
+            )
+        ):
+            raise WorkerIsolationError("laboratory dispatchers must be a trusted callable registry")
+        self._agent_mcp_dispatchers = MappingProxyType(dict(agent_mcp_dispatchers or {}))
         try:
             self._egress_identity_verifier = (
                 None
@@ -334,6 +349,7 @@ class IsolatedWorker:
         return self.recovery_cleanup_receipts
 
     def _verify_plan_compatibility(self, plan: ActionPlan) -> None:
+        from cops.laboratory.agent_mcp_worker import AGENT_MCP_TOOL, AgentMcpError, validate_agent_mcp_operation
         from cops.web_api.worker_replay import WEB_API_REPLAY_TOOL, WebApiReplayError, validate_web_api_operation
 
         batch = plan.batch
@@ -346,6 +362,10 @@ class IsolatedWorker:
             raise WorkerExecutionError(f"worker lacks approved platform prerequisites: {sorted(missing_capabilities)}")
         for operation in plan.operations:
             tool = operation["tool"]
+            if (
+                tool.startswith("cops.agent-mcp.") and tool != AGENT_MCP_TOOL
+            ) or tool == "foundry-agent-harness/auth-lab":
+                raise WorkerExecutionError("legacy or direct agent/MCP operations are not executable")
             if tool in {"cops.web_api.standard-http-replayer", "cops.web_api.bounded-websocket-replayer"}:
                 raise WorkerExecutionError("legacy Web API replay operations are not executable")
             if tool not in self.config.allowed_tools and tool != "inert":
@@ -370,8 +390,11 @@ class IsolatedWorker:
                     if tool == WEB_API_REPLAY_TOOL:
                         validate_web_api_operation(operation)
                         parameters = {}
+                    elif tool == AGENT_MCP_TOOL:
+                        validate_agent_mcp_operation(operation)
+                        parameters = {}
                     adapter.assemble_command(operation["action"], parameters)
-                except (AdapterError, WebApiReplayError) as err:
+                except (AdapterError, WebApiReplayError, AgentMcpError) as err:
                     raise WorkerExecutionError(
                         f"adapter operation for {tool!r} is incompatible with this worker environment"
                     ) from err
@@ -392,8 +415,9 @@ class IsolatedWorker:
 
     def _preflight_execution_request(
         self, plan: ActionPlan, *, cancel_requested: bool
-    ) -> tuple[HTTPSOperationEgressPolicy | WebApiReplayEnvelope | None, ...]:
+    ) -> tuple[HTTPSOperationEgressPolicy | WebApiReplayEnvelope | AgentMcpEnvelope | None, ...]:
         """Reject immutable request failures before preparing or consuming an approval."""
+        from cops.laboratory.agent_mcp_worker import AGENT_MCP_TOOL, AgentMcpError, validate_agent_mcp_operation
         from cops.web_api.worker_replay import (
             WEB_API_REPLAY_TOOL,
             WebApiReplayEnvelope,
@@ -403,6 +427,31 @@ class IsolatedWorker:
 
         if cancel_requested:
             raise WorkerExecutionError("execution cancelled by operator before start")
+        if any(op["tool"] == AGENT_MCP_TOOL for op in plan.operations):
+            if len(plan.operations) != 1:
+                raise WorkerExecutionError("agent/MCP execution requires exactly one unmixed operation")
+            try:
+                envelope = validate_agent_mcp_operation(plan.operations[0])
+            except AgentMcpError as err:
+                raise WorkerExecutionError("agent/MCP operation is invalid") from err
+            document = envelope.to_dict()
+            if (
+                document["engagement_id"] != plan.engagement_id
+                or document["scenario_id"] != plan.scenario_id
+                or plan.target != document["scenario_id"]
+            ):
+                raise WorkerExecutionError("agent/MCP plan binding mismatch")
+            if document["dispatcher_id"] not in self._agent_mcp_dispatchers:
+                raise WorkerExecutionError("agent/MCP dispatcher is not registered")
+            if plan.credential_references or self.credential_resolver is not None:
+                raise WorkerIsolationError("agent/MCP execution does not accept credentials")
+            if plan.limits.get("egress_allowed") is not False or self.scope_guard is not None:
+                raise WorkerIsolationError("agent/MCP execution does not accept egress or destination scope")
+            if plan.offline_research is not None or plan.operations[0].get("cleanup"):
+                raise WorkerExecutionError("agent/MCP execution owns its laboratory cleanup")
+            if not isinstance(self.sandbox, LinuxBubblewrapSandbox):
+                raise WorkerIsolationError("agent/MCP execution requires the production Linux sandbox")
+            return (envelope,)
         try:
             operation_egress_policies = tuple(
                 validate_web_api_operation(op)
@@ -519,6 +568,8 @@ class IsolatedWorker:
         workspace_stack: ExitStack,
     ) -> AuthorizedExecution:
         """Keep workspace inode references live through execution and cleanup."""
+        from cops.laboratory.agent_mcp_broker import AgentMcpBroker
+        from cops.laboratory.agent_mcp_worker import AgentMcpEnvelope, AgentMcpMediator
         from cops.web_api.worker_broker import (
             DISPATCH_ATTEMPTED_UNCERTAIN,
             DISPATCH_COMPLETED,
@@ -973,7 +1024,7 @@ class IsolatedWorker:
                             cmd = adapter.assemble_command(
                                 action,
                                 {}
-                                if isinstance(operation_egress_policy, WebApiReplayEnvelope)
+                                if isinstance(operation_egress_policy, (WebApiReplayEnvelope, AgentMcpEnvelope))
                                 else op.get("arguments"),
                             )
                             if (
@@ -1062,7 +1113,9 @@ class IsolatedWorker:
                                         redactor=redactor,
                                     )
                                     if self.credential_resolver is not None
-                                    and not isinstance(operation_egress_policy, WebApiReplayEnvelope)
+                                    and not isinstance(
+                                        operation_egress_policy, (WebApiReplayEnvelope, AgentMcpEnvelope)
+                                    )
                                     else {}
                                 )
 
@@ -1120,8 +1173,14 @@ class IsolatedWorker:
                                     proc = run_prepared_adapter(
                                         **({"operation_env": credential_env} if credential_env else {})
                                     )
-                                elif isinstance(operation_egress_policy, WebApiReplayEnvelope):
+                                elif isinstance(operation_egress_policy, (WebApiReplayEnvelope, AgentMcpEnvelope)):
                                     envelope_data = operation_egress_policy.to_dict()
+                                    is_laboratory = isinstance(operation_egress_policy, AgentMcpEnvelope)
+                                    dispatch_error = (
+                                        WorkerAgentMcpDispatchUncertain
+                                        if is_laboratory
+                                        else WorkerReplayDispatchUncertain
+                                    )
 
                                     def resolve_replay(
                                         reference: str,
@@ -1135,18 +1194,28 @@ class IsolatedWorker:
                                             raise WorkerExecutionError("replay credential binding mismatch")
                                         return _values[reference]
 
-                                    replay_mediator = WebApiReplayMediator(
-                                        scope_guard=self.scope_guard,
-                                        envelope=operation_egress_policy,
-                                        plan_digest=receipt.plan_digest,
-                                        approval_digest=receipt.authorization_digest,
-                                        credential_resolver=resolve_replay,
-                                    )
+                                    if is_laboratory:
+                                        replay_mediator = AgentMcpMediator(
+                                            envelope=operation_egress_policy,
+                                            plan_digest=receipt.plan_digest,
+                                            approval_digest=receipt.authorization_digest,
+                                            dispatcher=self._agent_mcp_dispatchers[envelope_data["dispatcher_id"]],
+                                        )
+                                        broker = AgentMcpBroker(replay_mediator)
+                                    else:
+                                        replay_mediator = WebApiReplayMediator(
+                                            scope_guard=self.scope_guard,
+                                            envelope=operation_egress_policy,
+                                            plan_digest=receipt.plan_digest,
+                                            approval_digest=receipt.authorization_digest,
+                                            credential_resolver=resolve_replay,
+                                        )
+                                        broker = WebApiReplayBroker(replay_mediator)
                                     last_replay_started = monotonic()
                                     last_replay_interval = replay_interval
                                     channel = None
                                     try:
-                                        with WebApiReplayBroker(replay_mediator).open_channel(
+                                        with broker.open_channel(
                                             deadline=step_deadline, cancellation_event=cancellation_event
                                         ) as channel:
                                             proc = run_prepared_adapter(
@@ -1167,16 +1236,14 @@ class IsolatedWorker:
                                             channel is not None
                                             and channel.dispatch_state == DISPATCH_ATTEMPTED_UNCERTAIN
                                         ):
-                                            raise WorkerReplayDispatchUncertain(
-                                                "replay dispatch outcome is uncertain"
-                                            ) from None
+                                            raise dispatch_error("mediated dispatch outcome is uncertain") from None
                                         raise
                                     if channel.dispatch_state == DISPATCH_NOT_DISPATCHED:
                                         adapter_dispatched = False
                                     if channel.dispatch_state != DISPATCH_NOT_DISPATCHED:
                                         attempted_operation_ids.append(step_id)
                                     if channel.dispatch_state == DISPATCH_ATTEMPTED_UNCERTAIN:
-                                        raise WorkerReplayDispatchUncertain("replay dispatch outcome is uncertain")
+                                        raise dispatch_error("mediated dispatch outcome is uncertain")
                                     if channel.dispatch_state == DISPATCH_COMPLETED and (
                                         proc is None
                                         or proc.returncode != 0
@@ -1187,9 +1254,7 @@ class IsolatedWorker:
                                         # the isolated adapter did not complete its acknowledgement
                                         # path. Never downgrade that ordering to an ordinary failure
                                         # that a caller could safely retry.
-                                        raise WorkerReplayDispatchUncertain(
-                                            "replay completed before the adapter failed"
-                                        )
+                                        raise dispatch_error("dispatch completed before the adapter failed")
                                     if cancellation_event is not None and cancellation_event.is_set():
                                         raise KeyboardInterrupt
                                     if (
@@ -1231,6 +1296,10 @@ class IsolatedWorker:
                                     timed_out = proc.timed_out
                                     output_limit_exceeded = proc.output_limit_exceeded
                                     exit_code = proc.returncode
+                                    if isinstance(operation_egress_policy, AgentMcpEnvelope):
+                                        # Only the supervisor's digest receipt is laboratory evidence.
+                                        stdout_bytes = b""
+                                        stderr_bytes = b""
                             finally:
                                 try:
                                     prepared.remove()
@@ -1261,6 +1330,13 @@ class IsolatedWorker:
                         status = "failed"
                         status_reason = str(err)
                         overall_exit_code = 126
+                        break
+                    except WorkerAgentMcpDispatchUncertain:
+                        status = "uncertain"
+                        status_reason = (
+                            f"laboratory dispatch outcome is uncertain at step '{step_id}'; automatic repeat disallowed"
+                        )
+                        overall_exit_code = 1
                         break
                     except WorkerReplayDispatchUncertain:
                         status = "uncertain"
