@@ -896,3 +896,13 @@ nonces. The strict container gate supplies network isolation; installer flags an
 version checks alone cannot establish it. Arbitrary package execution, hostile
 interpreters/installers and production registries remain outside this adapter.
 Independent human security review is pending.
+
+### Issue 100: Web API worker qualification boundary
+
+Untrusted descriptions, redirects, DNS answers, session data and remote responses
+can attempt to expand destination scope, substitute identity, leak credentials or
+obscure an uncertain remote effect. The [worker qualification contract](../specs/issue-100-worker-qualification.md)
+requires exact approval and scoped typed egress, post-approval credential resolution,
+independent Linux isolation tests, redacted evidence and cleanup receipts. Its
+integration, production isolation and exact-revision human security review remain
+to be verified; a local loopback result does not establish those boundaries.
