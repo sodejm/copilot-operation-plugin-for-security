@@ -25,12 +25,8 @@ from tests.websocket_testkit import WebSocketTestServer  # noqa: E402
 def test_approved_websocket_role_sessions_and_clean_close(tmp_path, profile, monkeypatch):
     with WebSocketTestServer(mode="authorization", profile=profile) as lab:
         sessions = [
-            SessionContext(
-                session_id="owner-session", role_id="owner"
-            ),
-            SessionContext(
-                session_id="other-session", role_id="other"
-            ),
+            SessionContext(session_id="owner-session", role_id="owner"),
+            SessionContext(session_id="other-session", role_id="other"),
             SessionContext(session_id="anonymous-session", role_id="anonymous"),
         ]
         requests = [
@@ -48,8 +44,10 @@ def test_approved_websocket_role_sessions_and_clean_close(tmp_path, profile, mon
         ]
         destinations = [lab.url.split("/")[2]]
         budget = ReplayBudget(max_requests=3, rate_limit_rps=1000, timeout_seconds=2)
-        bindings = {f"{actor}-session": [{"reference": f"lab-{actor}", "header": "Authorization"}]
-                    for actor in ("owner", "other")}
+        bindings = {
+            f"{actor}-session": [{"reference": f"lab-{actor}", "header": "Authorization"}]
+            for actor in ("owner", "other")
+        }
         plan = build_replay_action_plan(
             plan_id="plan-websocket-roles",
             engagement_id="eng-websocket-roles",
@@ -64,7 +62,10 @@ def test_approved_websocket_role_sessions_and_clean_close(tmp_path, profile, mon
         )
         guard = ScopeGuard(ScopeDefinition(included_ips={ipaddress.ip_address("127.0.0.1")}, egress_allowed=True))
         worker, authorization_id, control = loopback_worker(
-            tmp_path, monkeypatch, plan, guard,
+            tmp_path,
+            monkeypatch,
+            plan,
+            guard,
             {"lab-owner": "Bearer owner-token", "lab-other": "Bearer other-token"},
         )
         report = execute_authorized_replay_session(

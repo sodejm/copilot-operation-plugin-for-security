@@ -140,12 +140,14 @@ def read_frame(client):
 
 
 def upgrade(client, authority):
-    client.sendall((
-        "GET /socket HTTP/1.1\r\n"
-        f"Host: {authority}\r\n"
-        "Upgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Version: 13\r\n"
-        "Sec-WebSocket-Key: MDEyMzQ1Njc4OWFiY2RlZg==\r\nAuthorization: Bearer owner-token\r\n\r\n"
-    ).encode())
+    client.sendall(
+        (
+            "GET /socket HTTP/1.1\r\n"
+            f"Host: {authority}\r\n"
+            "Upgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Version: 13\r\n"
+            "Sec-WebSocket-Key: MDEyMzQ1Njc4OWFiY2RlZg==\r\nAuthorization: Bearer owner-token\r\n\r\n"
+        ).encode()
+    )
     response = bytearray()
     while not response.endswith(b"\r\n\r\n"):
         assert len(response) < 4096

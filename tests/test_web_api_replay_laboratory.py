@@ -48,15 +48,22 @@ def request(lab, protocol, identity="owner", *, session=False, index=0):
         else:
             options["body"] = json.dumps({"query": QUERY, "variables": variables})
     return ReplayRequest(
-        f"request-{index}", "object", method, url, protocol=wire_protocol,
+        f"request-{index}",
+        "object",
+        method,
+        url,
+        protocol=wire_protocol,
         headers={} if session or identity == "anonymous" else {"Authorization": f"Bearer {identity}-token"},
-        session_id=identity if session else None, role_id=identity if session else None, **options,
+        session_id=identity if session else None,
+        role_id=identity if session else None,
+        **options,
     )
 
 
 def transport(lab):
     return StandardHttpReplayer(
-        DestinationGuard([lab.base_url.split("/")[2]]), scope(),
+        DestinationGuard([lab.base_url.split("/")[2]]),
+        scope(),
         **({"tls_context": lab.tls_context} if lab.base_url.startswith("https:") else {}),
     )
 
@@ -94,38 +101,65 @@ def test_real_transport_role_matrix_has_no_session_carryover(profile, tls, proto
 def test_approved_session_batch_exercises_all_plaintext_lab_protocols(tmp_path, monkeypatch, profile):
     # The approved entry point owns its TLS trust store. Disposable custom-CA TLS
     # is exercised above through the verified-context transport API instead.
-    sessions = [SessionContext(
-        identity, identity, auth_mechanism=(AuthenticationMechanism() if identity == "anonymous" else
-            AuthenticationMechanism(auth_type="bearer", token_name="Authorization")),
-    ) for identity in ("owner", "other", "anonymous")]
+    sessions = [
+        SessionContext(
+            identity,
+            identity,
+            auth_mechanism=(
+                AuthenticationMechanism()
+                if identity == "anonymous"
+                else AuthenticationMechanism(auth_type="bearer", token_name="Authorization")
+            ),
+        )
+        for identity in ("owner", "other", "anonymous")
+    ]
     bindings = {
         identity: [{"reference": f"credential-{identity}", "header": "Authorization"}]
         for identity in ("owner", "other")
     }
     credentials = {f"credential-{identity}": f"Bearer {identity}-token" for identity in ("owner", "other")}
     with WebApiAssessmentLaboratory(profile) as lab:
-        protocols = [protocol for protocol in ("rest", "graphql-get", "graphql-post", "websocket")
-                     for _ in IDENTITIES]
+        protocols = [protocol for protocol in ("rest", "graphql-get", "graphql-post", "websocket") for _ in IDENTITIES]
         identities = list(IDENTITIES) * 4
-        requests = [request(lab, protocol, identity, session=True, index=index)
-                    for index, (protocol, identity) in enumerate(zip(protocols, identities, strict=True))]
+        requests = [
+            request(lab, protocol, identity, session=True, index=index)
+            for index, (protocol, identity) in enumerate(zip(protocols, identities, strict=True))
+        ]
         budget = ReplayBudget(max_requests=len(requests), rate_limit_rps=1000)
         destinations = [lab.base_url.split("/")[2]]
         plan = build_replay_action_plan(
-            plan_id="plan-laboratory", engagement_id="eng-laboratory", scenario_id="scen-laboratory",
-            specialist_id="web-api-assessment-workbench", requests=requests, sessions=sessions,
-            allowed_destinations=destinations, budget=budget,
-            session_credential_bindings=bindings, transport="laboratory",
+            plan_id="plan-laboratory",
+            engagement_id="eng-laboratory",
+            scenario_id="scen-laboratory",
+            specialist_id="web-api-assessment-workbench",
+            requests=requests,
+            sessions=sessions,
+            allowed_destinations=destinations,
+            budget=budget,
+            session_credential_bindings=bindings,
+            transport="laboratory",
         )
         guard = scope()
         worker, authorization_id, control = loopback_worker(
-            tmp_path, monkeypatch, plan, guard, credentials=credentials,
+            tmp_path,
+            monkeypatch,
+            plan,
+            guard,
+            credentials=credentials,
         )
         report = execute_authorized_replay_session(
-            requests=requests, sessions=sessions, allowed_destinations=destinations, scope_guard=guard,
-            budget=budget, action_plan=plan, authorization_id=authorization_id,
-            approval_control=control, worker_identity="test-worker-01", worker=worker,
-            session_credential_bindings=bindings, transport="laboratory",
+            requests=requests,
+            sessions=sessions,
+            allowed_destinations=destinations,
+            scope_guard=guard,
+            budget=budget,
+            action_plan=plan,
+            authorization_id=authorization_id,
+            approval_control=control,
+            worker_identity="test-worker-01",
+            worker=worker,
+            session_credential_bindings=bindings,
+            transport="laboratory",
         )
         assert len(report.responses) == len(requests) == lab.request_count
         for response, protocol, identity in zip(report.responses, protocols, identities, strict=True):
@@ -134,9 +168,11 @@ def test_approved_session_batch_exercises_all_plaintext_lab_protocols(tmp_path, 
             if protocol.startswith("graphql"):
                 assert response.observed_graphql_object_access() is allowed
             elif protocol == "websocket":
-                expected = {"id": "owner-object", "owner": "owner", "value": "evidence"} if allowed else {
-                    "error": "authentication required" if identity == "anonymous" else "object access denied"
-                }
+                expected = (
+                    {"id": "owner-object", "owner": "owner", "value": "evidence"}
+                    if allowed
+                    else {"error": "authentication required" if identity == "anonymous" else "object access denied"}
+                )
                 assert response.status_code == 101 and response.websocket_metrics["close_code"] == 1000
                 assert response.websocket_replies == [sanitize_body(json.dumps(expected, sort_keys=True))]
             else:
@@ -173,7 +209,9 @@ def test_deadline_or_cancellation_closes_replay_and_lab_resources(protocol, tls,
         with ThreadPoolExecutor(max_workers=1) as pool:
             started = time.monotonic()
             future = pool.submit(
-                replayer.send, request(lab, protocol), ReplayBudget(timeout_seconds=2 if cancel else 0.2),
+                replayer.send,
+                request(lab, protocol),
+                ReplayBudget(timeout_seconds=2 if cancel else 0.2),
                 cancellation_event=event,
             )
             assert lab.request_received.wait(1)
@@ -200,8 +238,12 @@ def test_replay_request_frame_and_byte_limits_reject_before_dispatch():
                 transport(lab).send(oversized, budget)
         with pytest.raises(ReplayBudgetExceededError, match="request count"):
             build_replay_action_plan(
-                plan_id="bounded", engagement_id="bounded", scenario_id="bounded", specialist_id="bounded",
+                plan_id="bounded",
+                engagement_id="bounded",
+                scenario_id="bounded",
+                specialist_id="bounded",
                 requests=[req, replace(req, request_id="second")],
-                allowed_destinations=[lab.base_url.split("/")[2]], budget=ReplayBudget(max_requests=1),
+                allowed_destinations=[lab.base_url.split("/")[2]],
+                budget=ReplayBudget(max_requests=1),
             )
         assert lab.request_count == 0

@@ -52,12 +52,8 @@ def approved_websocket_replay(websocket_case, monkeypatch):
         ReplayBudget(),
     )
     plan = live_plan(lab, requests, budget, sessions)
-    worker, auth_id, control = loopback_worker(
-        websocket_case["tmp_path"], monkeypatch, plan, scope()
-    )
-    websocket_case["report"] = execute(
-        lab, requests, budget, plan, auth_id, control, sessions, worker=worker
-    )
+    worker, auth_id, control = loopback_worker(websocket_case["tmp_path"], monkeypatch, plan, scope())
+    websocket_case["report"] = execute(lab, requests, budget, plan, auth_id, control, sessions, worker=worker)
     websocket_case["control"] = control
 
 

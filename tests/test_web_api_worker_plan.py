@@ -32,10 +32,14 @@ def request(**changes):
 
 def plan(requests=None, **changes):
     return build_replay_action_plan(
-        plan_id="plan-worker-replay", engagement_id="eng-worker-replay", scenario_id="scen-worker-replay",
-        specialist_id="web-api-assessment-workbench", requests=requests or [request()],
+        plan_id="plan-worker-replay",
+        engagement_id="eng-worker-replay",
+        scenario_id="scen-worker-replay",
+        specialist_id="web-api-assessment-workbench",
+        requests=requests or [request()],
         allowed_destinations=changes.pop("allowed_destinations", ["api.example.test"]),
-        created_at="2026-10-27T00:00:00Z", **changes,
+        created_at="2026-10-27T00:00:00Z",
+        **changes,
     )
 
 
@@ -61,17 +65,28 @@ def test_graphql_forms_compile_to_one_exact_worker_target(method, source):
     else:
         assert json.loads(wire.body) == {"query": query, "variables": variables}
     assert envelope["destination_policy"]["request_urls"] == [wire.url]
-    assert envelope["request_digest"] == digest({key: envelope[key] for key in (
-        "session_id", "role_id", "request", "credential_references",
-    )})
+    assert envelope["request_digest"] == digest(
+        {
+            key: envelope[key]
+            for key in (
+                "session_id",
+                "role_id",
+                "request",
+                "credential_references",
+            )
+        }
+    )
 
 
 def test_session_credentials_bind_explicit_roles_and_references_without_values():
-    sessions = [SessionContext(name, name, AuthenticationMechanism(auth_type="bearer", token_name="Authorization"))
-                for name in ("owner", "unrelated")]
+    sessions = [
+        SessionContext(name, name, AuthenticationMechanism(auth_type="bearer", token_name="Authorization"))
+        for name in ("owner", "unrelated")
+    ]
     requests = [request(request_id=name, session_id=name, role_id=name) for name in ("owner", "unrelated")]
-    bindings = {name: [{"reference": f"credential-{name}", "header": "Authorization"}]
-                for name in ("owner", "unrelated")}
+    bindings = {
+        name: [{"reference": f"credential-{name}", "header": "Authorization"}] for name in ("owner", "unrelated")
+    }
     compiled = plan(requests, sessions=sessions, session_credential_bindings=bindings)
     assert list(compiled.credential_references) == ["credential-owner", "credential-unrelated"]
     for operation in compiled.approved_snapshot()["operations"]:
@@ -85,13 +100,16 @@ def test_session_credentials_bind_explicit_roles_and_references_without_values()
         plan([replace(requests[0], role_id="unrelated")], sessions=sessions, session_credential_bindings=bindings)
 
 
-@pytest.mark.parametrize("url,transport,allowed", [
-    ("http://api.example.test/items", "production", False),
-    ("http://localhost/items", "laboratory", False),
-    ("http://127.0.0.1/items", "laboratory", True),
-    ("ws://127.0.0.1/socket", "laboratory", True),
-    ("wss://api.example.test/socket", "production", True),
-])
+@pytest.mark.parametrize(
+    "url,transport,allowed",
+    [
+        ("http://api.example.test/items", "production", False),
+        ("http://localhost/items", "laboratory", False),
+        ("http://127.0.0.1/items", "laboratory", True),
+        ("ws://127.0.0.1/socket", "laboratory", True),
+        ("wss://api.example.test/socket", "production", True),
+    ],
+)
 def test_plaintext_requires_explicit_literal_loopback_laboratory(url, transport, allowed):
     req = request(url=url, protocol="websocket" if url.startswith(("ws:", "wss:")) else "http")
     kwargs = {"transport": transport, "allowed_destinations": [urlsplit(url).hostname]}
@@ -108,25 +126,56 @@ def execution_case(requests=None, outputs=None, status="success", attempted_ids=
     approval = SimpleNamespace(consume=lambda *_args, **_kwargs: pytest.fail("caller consumed approval"))
     calls = []
     if outputs is None:
-        outputs = {req.request_id: {"request_id": req.request_id, "status": 200, "headers": {}, "body": "ok",
-                                    "redirect_count": 0} for req in requests}
+        outputs = {
+            req.request_id: {
+                "request_id": req.request_id,
+                "status": 200,
+                "headers": {},
+                "body": "ok",
+                "redirect_count": 0,
+            }
+            for req in requests
+        }
     if attempted_ids is None:
         attempted_ids = tuple(req.request_id for req in requests if req.request_id in outputs)
 
     def execute(action_plan, **kwargs):
         calls.append((action_plan, kwargs))
         receipt = ApprovalConsumptionReceipt(
-            "authorization-replay", "a" * 64, action_plan.plan_id, action_plan.plan_digest,
-            action_plan.engagement_id, "worker-replay", action_plan.target,
+            "authorization-replay",
+            "a" * 64,
+            action_plan.plan_id,
+            action_plan.plan_digest,
+            action_plan.engagement_id,
+            "worker-replay",
+            action_plan.target,
         )
         result = RunResult(
-            "cops.run-result/v1", "res-replay", action_plan.plan_id, action_plan.engagement_id,
-            status, "2026-10-27T00:00:00Z", "2026-10-27T00:00:01Z", {"summary": "Replay completed"},
-            ["a" * 64, "b" * 64], [], "completed", "worker-replay",
+            "cops.run-result/v1",
+            "res-replay",
+            action_plan.plan_id,
+            action_plan.engagement_id,
+            status,
+            "2026-10-27T00:00:00Z",
+            "2026-10-27T00:00:01Z",
+            {"summary": "Replay completed"},
+            ["a" * 64, "b" * 64],
+            [],
+            "completed",
+            "worker-replay",
         )
         cleanup = CleanupReceipt(
-            "cops.cleanup-receipt/v1", "cln-replay", action_plan.plan_id, action_plan.engagement_id,
-            "worker-replay", "completed", "2026-10-27T00:00:00Z", "2026-10-27T00:00:01Z", [], [], "b" * 64,
+            "cops.cleanup-receipt/v1",
+            "cln-replay",
+            action_plan.plan_id,
+            action_plan.engagement_id,
+            "worker-replay",
+            "completed",
+            "2026-10-27T00:00:00Z",
+            "2026-10-27T00:00:01Z",
+            [],
+            [],
+            "b" * 64,
         )
         return AuthorizedExecution(result, receipt, cleanup, outputs, attempted_ids)
 
@@ -136,9 +185,18 @@ def execution_case(requests=None, outputs=None, status="success", attempted_ids=
     worker.config = SimpleNamespace(worker_id="worker-replay")
     worker.approval_control, worker.scope_guard = approval, scope
     worker.execute_plan_with_receipt = execute
-    kwargs = dict(requests=requests, sessions=[], allowed_destinations=["api.example.test"], scope_guard=scope,
-                  budget=ReplayBudget(), action_plan=plan(requests), authorization_id="authorization-replay",
-                  approval_control=approval, worker_identity="worker-replay", worker=worker)
+    kwargs = dict(
+        requests=requests,
+        sessions=[],
+        allowed_destinations=["api.example.test"],
+        scope_guard=scope,
+        budget=ReplayBudget(),
+        action_plan=plan(requests),
+        authorization_id="authorization-replay",
+        approval_control=approval,
+        worker_identity="worker-replay",
+        worker=worker,
+    )
     return kwargs, calls
 
 
@@ -146,6 +204,7 @@ def test_executor_delegates_once_and_converts_outputs_in_plan_order(monkeypatch)
     requests = [request(request_id="first"), request(request_id="second")]
     kwargs, calls = execution_case(requests)
     import cops.web_api.replay as replay
+
     monkeypatch.setattr(replay.StandardHttpReplayer, "send", lambda *_args: pytest.fail("caller transport dispatched"))
     cancellation = threading.Event()
     report = execute_authorized_replay_session(**kwargs, cancellation_event=cancellation)
@@ -157,7 +216,9 @@ def test_executor_delegates_once_and_converts_outputs_in_plan_order(monkeypatch)
     assert calls[0][0].operations[0]["arguments"]["envelope"]["budgets"]["rate_limit_rps"] == 10.0
 
 
-@pytest.mark.parametrize("case", ["missing", "extra", "mismatched", "no-worker", "duck-worker", "identity", "control", "scope"])
+@pytest.mark.parametrize(
+    "case", ["missing", "extra", "mismatched", "no-worker", "duck-worker", "identity", "control", "scope"]
+)
 def test_executor_rejects_unbound_worker_or_invalid_outputs(case):
     kwargs, calls = execution_case()
     if case == "missing":
@@ -197,10 +258,22 @@ def test_executor_rejects_reordered_dispatch_evidence():
     assert len(calls) == 1
 
 
-@pytest.mark.parametrize("field", [
-    "authorization_id", "action_plan_id", "plan_digest", "engagement_id", "worker_identity", "target",
-    "authorization_digest", "untyped-execution", "untyped-receipt", "result-plan", "cleanup-worker",
-])
+@pytest.mark.parametrize(
+    "field",
+    [
+        "authorization_id",
+        "action_plan_id",
+        "plan_digest",
+        "engagement_id",
+        "worker_identity",
+        "target",
+        "authorization_digest",
+        "untyped-execution",
+        "untyped-receipt",
+        "result-plan",
+        "cleanup-worker",
+    ],
+)
 def test_executor_rejects_unbound_execution_results_and_receipts(field):
     kwargs, calls = execution_case()
     original = kwargs["worker"].execute_plan_with_receipt
@@ -258,18 +331,26 @@ def test_authorized_report_binds_safe_plan_authority_and_request_evidence(tmp_pa
     assert value["authorization_evidence"]["authorization_digest"] == "a" * 64
     assert value["authorization_evidence"]["plan_id"] == kwargs["action_plan"].plan_id
     assert value["authorization_evidence"]["plan_digest"] == kwargs["action_plan"].plan_digest
-    assert value["request_provenance"] == [{
-        "request_id": "request-one", "session_id": "anonymous", "role_id": "anonymous",
-        "protocol": "http", "method": "GET", "request_digest": envelope.to_dict()["request_digest"],
-        "envelope_digest": envelope.digest,
-    }]
+    assert value["request_provenance"] == [
+        {
+            "request_id": "request-one",
+            "session_id": "anonymous",
+            "role_id": "anonymous",
+            "protocol": "http",
+            "method": "GET",
+            "request_digest": envelope.to_dict()["request_digest"],
+            "envelope_digest": envelope.digest,
+        }
+    ]
     assert value["execution_evidence"]["result_id"] == "res-replay"
     assert value["execution_evidence"]["status"] == "success"
     assert value["execution_evidence"]["evidence_hashes"] == ["a" * 64, "b" * 64]
     assert value["execution_evidence"]["attempted_operation_ids"] == ["request-one"]
     assert "artifacts" not in value["execution_evidence"]
     assert value["replay_limits"] == {
-        "budget": asdict(kwargs["budget"]), "limits": approved["limits"], "batch": approved["batch"],
+        "budget": asdict(kwargs["budget"]),
+        "limits": approved["limits"],
+        "batch": approved["batch"],
     }
     assert value["cleanup_receipt"]["receipt_id"] == "cln-replay"
     assert value["cleanup_receipt"]["status"] == "completed"
@@ -291,15 +372,33 @@ def test_authorized_report_binds_safe_plan_authority_and_request_evidence(tmp_pa
 def test_authorized_report_preserves_final_url_and_digest_only_redirect_decisions():
     initial_url = "https://api.example.test/items"
     final_url = "https://api.example.test/items/final"
-    decisions = [{
-        "status_code": 307, "from_url_digest": digest(initial_url), "to_url_digest": digest(final_url),
-        "cross_origin": False, "method_before": "GET", "method_after": "GET", "body_removed": False,
-        "credentials_removed": False, "headers_removed": [], "decision": "followed",
-    }]
-    kwargs, _calls = execution_case(outputs={"request-one": {
-        "request_id": "request-one", "status": 200, "headers": {}, "body": "ok",
-        "redirect_count": 1, "final_url": final_url, "redirect_decisions": decisions,
-    }})
+    decisions = [
+        {
+            "status_code": 307,
+            "from_url_digest": digest(initial_url),
+            "to_url_digest": digest(final_url),
+            "cross_origin": False,
+            "method_before": "GET",
+            "method_after": "GET",
+            "body_removed": False,
+            "credentials_removed": False,
+            "headers_removed": [],
+            "decision": "followed",
+        }
+    ]
+    kwargs, _calls = execution_case(
+        outputs={
+            "request-one": {
+                "request_id": "request-one",
+                "status": 200,
+                "headers": {},
+                "body": "ok",
+                "redirect_count": 1,
+                "final_url": final_url,
+                "redirect_decisions": decisions,
+            }
+        }
+    )
     kwargs["redirect_targets"] = {"request-one": ["/items/final"]}
     kwargs["action_plan"] = plan(redirect_targets=kwargs["redirect_targets"])
     policy = validate_web_api_operation(kwargs["action_plan"].approved_snapshot()["operations"][0]).to_dict()[
@@ -321,11 +420,15 @@ def test_authorized_report_excludes_payload_credentials_and_raw_cleanup_metadata
     cleanup_canary = "cleanup-resource-canary-for-report"
     kwargs, _calls = execution_case(
         [request(method="POST", body=request_body_canary)],
-        outputs={"request-one": {
-            "request_id": "request-one", "status": 200,
-            "headers": {"Authorization": f"Bearer {credential_canary}", "Set-Cookie": header_canary},
-            "body": response_body_canary, "redirect_count": 0,
-        }},
+        outputs={
+            "request-one": {
+                "request_id": "request-one",
+                "status": 200,
+                "headers": {"Authorization": f"Bearer {credential_canary}", "Set-Cookie": header_canary},
+                "body": response_body_canary,
+                "redirect_count": 0,
+            }
+        },
     )
     original = kwargs["worker"].execute_plan_with_receipt
 
@@ -333,13 +436,27 @@ def test_authorized_report_excludes_payload_credentials_and_raw_cleanup_metadata
         execution = original(*args, **kw)
         return replace(
             execution,
-            result=replace(execution.result, status_details={"summary": cleanup_canary}, artifacts=[{
-                "name": "worker-log", "path": f"/private/{cleanup_canary}", "sha256": "d" * 64,
-            }]),
-            cleanup_receipt=replace(execution.cleanup_receipt, cleaned_effects=[{
-                "target": f"/private/{cleanup_canary}", "resource_type": "temporary_file",
-                "action_taken": "removed",
-            }]),
+            result=replace(
+                execution.result,
+                status_details={"summary": cleanup_canary},
+                artifacts=[
+                    {
+                        "name": "worker-log",
+                        "path": f"/private/{cleanup_canary}",
+                        "sha256": "d" * 64,
+                    }
+                ],
+            ),
+            cleanup_receipt=replace(
+                execution.cleanup_receipt,
+                cleaned_effects=[
+                    {
+                        "target": f"/private/{cleanup_canary}",
+                        "resource_type": "temporary_file",
+                        "action_taken": "removed",
+                    }
+                ],
+            ),
         )
 
     kwargs["worker"].execute_plan_with_receipt = execute
@@ -355,16 +472,28 @@ def test_authorized_report_excludes_payload_credentials_and_raw_cleanup_metadata
 
 def test_historical_report_remains_readable_without_claiming_authorization():
     historical = {
-        "session_id": "historical-replay", "target_hosts": ["api.example.test"],
-        "allowed_destinations": ["api.example.test"], "budget": {"max_requests": 1},
-        "requests": [], "responses": [], "total_dispatched": 0,
+        "session_id": "historical-replay",
+        "target_hosts": ["api.example.test"],
+        "allowed_destinations": ["api.example.test"],
+        "budget": {"max_requests": 1},
+        "requests": [],
+        "responses": [],
+        "total_dispatched": 0,
         "created_at_utc": "2026-10-27T00:00:00Z",
     }
     report = ReplaySessionReport.from_dict(historical)
     value = report.to_dict()
     assert report.session_id == "historical-replay" and report.total_dispatched == 0
-    for field in ("application_context", "request_provenance", "authorization_evidence", "execution_evidence",
-                  "replay_limits", "redirect_decisions", "cleanup_receipt", "unsupported_features"):
+    for field in (
+        "application_context",
+        "request_provenance",
+        "authorization_evidence",
+        "execution_evidence",
+        "replay_limits",
+        "redirect_decisions",
+        "cleanup_receipt",
+        "unsupported_features",
+    ):
         assert not value.get(field)
 
 

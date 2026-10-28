@@ -82,7 +82,7 @@
     },
     {
       "path": "cops/execution/worker.py",
-      "sha256": "1740c72eec5caeb51474aa3836e1a0fdea06bd218d780a063ba7bd79c24d5869",
+      "sha256": "99cf6d2e805428fbcb9367e467017bae3905c69f0c1a0d6f8856740b92d851b1",
       "source": "generated-unavailable-worker"
     },
     {
@@ -107,7 +107,7 @@
     },
     {
       "path": "cops/web_api/laboratory.py",
-      "sha256": "605f43d857648ff0cd44130f715bd7d5c911f7c33b77b1174b60b0df37ee65ec",
+      "sha256": "ded9363037efeb98f9d5ba29bfeb5bb5c77ef88907e22ff8de2b2a140b22005f",
       "source": "cops/web_api/laboratory.py"
     },
     {

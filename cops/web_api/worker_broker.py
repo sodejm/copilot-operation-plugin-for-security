@@ -43,7 +43,10 @@ class WebApiReplayBroker:
 
     @contextmanager
     def open_channel(
-        self, *, deadline: float, cancellation_event: threading.Event | None = None,
+        self,
+        *,
+        deadline: float,
+        cancellation_event: threading.Event | None = None,
     ) -> Iterator[ReplayBrokerChannel]:
         if isinstance(deadline, bool) or not isinstance(deadline, (int, float)) or not math.isfinite(deadline):
             raise WebApiReplayError("invalid replay broker deadline")
@@ -121,8 +124,16 @@ class WebApiReplayBroker:
             if started:
                 process.close()
 
-    def _serve(self, server: socket.socket, client: socket.socket, reader: Any, writer: Any,
-               deadline: float, cancelled: Any, dispatch_attempted: Any) -> None:
+    def _serve(
+        self,
+        server: socket.socket,
+        client: socket.socket,
+        reader: Any,
+        writer: Any,
+        deadline: float,
+        cancelled: Any,
+        dispatch_attempted: Any,
+    ) -> None:
         client.close()
         reader.close()
         try:
@@ -139,8 +150,10 @@ class WebApiReplayBroker:
                 raise WebApiReplayError("invalid dispatch trigger")
             # No child-controlled data enters the mediator call.
             result = self._mediator.dispatch(
-                self._mediator.envelope.to_dict(), plan_digest=self._mediator.plan_digest,
-                approval_digest=self._mediator.approval_digest, cancellation_event=cancelled,
+                self._mediator.envelope.to_dict(),
+                plan_digest=self._mediator.plan_digest,
+                approval_digest=self._mediator.approval_digest,
+                cancellation_event=cancelled,
                 dispatch_observer=dispatch_attempted.set,
             )
             payload = json.dumps(result, ensure_ascii=True, separators=(",", ":")).encode("utf-8")

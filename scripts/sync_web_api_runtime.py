@@ -42,7 +42,7 @@ MINIMAL_INITIALIZERS = (
 MANIFEST = "runtime-provenance.json"
 MARKER = '"""Package marker for the vendored Web API workbench runtime."""\n'
 UNAVAILABLE_WORKER = (
-    '"""The portable package does not include a qualified isolated worker."""\n'
+    '"""The portable package does not include a qualified isolated worker."""\n\n'
     'raise ImportError("live Web API replay requires a separately qualified isolated worker runtime")\n'
 )
 
@@ -63,9 +63,11 @@ def _expected(source_root: Path) -> dict[str, bytes]:
             "path": name,
             "sha256": _digest(content),
             "source": (
-                name if name in RUNTIME_MODULES else
-                "generated-unavailable-worker" if name == "cops/execution/worker.py" else
-                "generated-package-marker"
+                name
+                if name in RUNTIME_MODULES
+                else "generated-unavailable-worker"
+                if name == "cops/execution/worker.py"
+                else "generated-package-marker"
             ),
         }
         for name, content in sorted(files.items())

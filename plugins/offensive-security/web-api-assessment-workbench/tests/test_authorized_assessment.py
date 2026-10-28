@@ -40,8 +40,10 @@ from tests.web_api_worker_testkit import loopback_worker  # noqa: E402
 
 
 def _bindings():
-    return {f"{actor}-session": [{"reference": f"lab-{actor}-session", "header": "Authorization"}]
-            for actor in ("owner", "other")}
+    return {
+        f"{actor}-session": [{"reference": f"lab-{actor}-session", "header": "Authorization"}]
+        for actor in ("owner", "other")
+    }
 
 
 def _authority(tmp_path, plan):
@@ -145,7 +147,10 @@ def _execute(laboratory, requests, tmp_path, monkeypatch, *, plan_id: str):
     )
     guard = _scope_guard()
     worker, authorization_id, approval = loopback_worker(
-        tmp_path, monkeypatch, plan, guard,
+        tmp_path,
+        monkeypatch,
+        plan,
+        guard,
         {"lab-owner-session": "Bearer owner-token", "lab-other-session": "Bearer other-token"},
     )
     report = execute_authorized_replay_session(
@@ -179,7 +184,9 @@ def test_owner_other_and_anonymous_authorization_evidence(profile, expected_verd
         assert preview.total_dispatched == 0
         assert laboratory.request_count == 0
 
-        report, approval, _, _, _ = _execute(laboratory, requests, tmp_path, monkeypatch, plan_id=f"plan-auth-{profile}")
+        report, approval, _, _, _ = _execute(
+            laboratory, requests, tmp_path, monkeypatch, plan_id=f"plan-auth-{profile}"
+        )
         assert laboratory.request_count == 6
         assert approval.ready_workers == ["test-worker-01"]
         assert len(approval.consume_calls) == 1
@@ -224,7 +231,11 @@ def test_bounded_request_rate_evidence(profile, expected_verdict, tmp_path, monk
 def test_rate_limit_requires_enough_evidence(tmp_path, monkeypatch) -> None:
     with WebApiAssessmentLaboratory("corrected") as laboratory:
         report, _, _, _, _ = _execute(
-            laboratory, _rate_requests(laboratory.base_url, count=2), tmp_path, monkeypatch, plan_id="plan-rate-insufficient"
+            laboratory,
+            _rate_requests(laboratory.base_url, count=2),
+            tmp_path,
+            monkeypatch,
+            plan_id="plan-rate-insufficient",
         )
         assessment = assess_rate_limit(report.responses, minimum_attempts=3)
         assert assessment.verdict is AssessmentVerdict.INSUFFICIENT_EVIDENCE

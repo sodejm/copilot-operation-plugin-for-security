@@ -61,7 +61,11 @@ def test_installed_web_api_live_replay_fails_before_approval(tmp_path: Path) -> 
     installed = tmp_path / "installed/vendor"
     shutil.copytree(WEB_API_VENDOR, installed, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
     subprocess.run(
-        [sys.executable, "-I", "-c", '''
+        [
+            sys.executable,
+            "-I",
+            "-c",
+            """
 import sys
 sys.path.insert(0, sys.argv[1])
 from cops.web_api.replay import execute_authorized_replay_session
@@ -81,7 +85,9 @@ for plan in (object(), {"operations": [{"action": "legacy-live-replay"}]}):
         assert "qualified isolated worker" in str(error)
     else:
         raise AssertionError("live replay did not fail closed")
-''', str(installed)],
+""",
+            str(installed),
+        ],
         cwd=tmp_path,
         check=True,
         capture_output=True,

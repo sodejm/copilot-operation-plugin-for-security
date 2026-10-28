@@ -229,9 +229,7 @@ class ScopedCredentialResolver:
         operation_grants = self._matching_grants(plan.plan_id, operation_data, operation_index)
         if not operation_grants:
             if expected_references:
-                raise CredentialResolutionError(
-                    "credential request does not match the approved operation grants"
-                )
+                raise CredentialResolutionError("credential request does not match the approved operation grants")
             # A plan can declare credentials for other operations while this
             # operation is deliberately credential-free.
             return {}

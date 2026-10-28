@@ -88,9 +88,12 @@ def check_prerequisites(root: Path = ROOT) -> bool:
     if errors:
         for error in errors:
             print(f"error: {error}", file=sys.stderr)
-        print("Create and activate a Python 3.11+ virtual environment, then run:\n"
-              "  python -m pip install -r requirements.txt\n"
-              "Offline setup and troubleshooting: CONTRIBUTING.md", file=sys.stderr)
+        print(
+            "Create and activate a Python 3.11+ virtual environment, then run:\n"
+            "  python -m pip install -r requirements.txt\n"
+            "Offline setup and troubleshooting: CONTRIBUTING.md",
+            file=sys.stderr,
+        )
         return False
     print("Test prerequisites are ready; verification did not install dependencies.", flush=True)
     return True

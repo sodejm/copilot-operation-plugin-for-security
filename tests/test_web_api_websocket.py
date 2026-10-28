@@ -68,11 +68,20 @@ def test_websocket_plan_uses_registered_worker_envelope():
     assert envelope["request"]["protocol"] == "websocket"
     assert envelope["request"]["websocket_messages"] == ["hello"]
     assert envelope["destination_policy"] == {
-        "transport": "production", "request_urls": ["wss://example.test/socket"],
+        "transport": "production",
+        "request_urls": ["wss://example.test/socket"],
     }
-    assert envelope["request_digest"] == digest({key: envelope[key] for key in (
-        "session_id", "role_id", "request", "credential_references",
-    )})
+    assert envelope["request_digest"] == digest(
+        {
+            key: envelope[key]
+            for key in (
+                "session_id",
+                "role_id",
+                "request",
+                "credential_references",
+            )
+        }
+    )
 
 
 @pytest.mark.parametrize(
@@ -347,9 +356,7 @@ def live_plan(lab, requests, budget, sessions=None):
 @pytest.mark.parametrize("mutation", ["messages", "protocol", "frames", "bytes", "message_bytes", "session", "url"])
 def test_plan_drift_rejected_before_consumption_or_dispatch(tmp_path, monkeypatch, mutation):
     with WebSocketTestServer() as lab:
-        sessions = [
-            SessionContext(session_id="session-one", role_id="owner", headers={"X-Replay-Variant": "owner"})
-        ]
+        sessions = [SessionContext(session_id="session-one", role_id="owner", headers={"X-Replay-Variant": "owner"})]
         requests = [request(url=lab.url, session_id="session-one", role_id="owner")]
         budget = ReplayBudget()
         action_plan = live_plan(lab, requests, budget, sessions)
@@ -394,7 +401,13 @@ def test_inputs_are_frozen_during_consumption_and_approval_is_single_use(tmp_pat
         monkeypatch.setattr(control, "consume_authorization", original)
         with pytest.raises(CleanupPersistenceError, match="already contains execution run"):
             execute(
-                lab, [request(url=lab.url)], ReplayBudget(), action_plan, auth_id, control, worker=worker,
+                lab,
+                [request(url=lab.url)],
+                ReplayBudget(),
+                action_plan,
+                auth_id,
+                control,
+                worker=worker,
             )
         assert len(control.consume_calls) == 1 and len(lab.handshakes) == 1
 
@@ -408,8 +421,14 @@ def test_cancel_before_approval_has_no_dispatch_or_consumption(tmp_path, monkeyp
         event.set()
         with pytest.raises(ReplayAuthorizationError, match="cancelled"):
             execute(
-                lab, requests, budget, action_plan, auth_id, control,
-                worker=worker, cancellation_event=event,
+                lab,
+                requests,
+                budget,
+                action_plan,
+                auth_id,
+                control,
+                worker=worker,
+                cancellation_event=event,
             )
         assert not control.consume_calls and not lab.handshakes
 
@@ -441,7 +460,8 @@ def test_http_plan_uses_same_worker_contract_and_explicit_byte_budgets():
     assert envelope["budgets"]["max_websocket_bytes"] == budget.max_websocket_bytes
     assert envelope["budgets"]["max_websocket_message_bytes"] == budget.max_websocket_message_bytes
     assert envelope["destination_policy"] == {
-        "transport": "production", "request_urls": ["https://example.test/"],
+        "transport": "production",
+        "request_urls": ["https://example.test/"],
     }
 
 
@@ -475,8 +495,14 @@ def test_cancelled_approved_exchange_releases_receipt_and_recovers_with_fresh_ap
         operator = threading.Thread(target=cancel)
         operator.start()
         report = execute(
-            lab, requests, budget, action_plan, auth_id, control,
-            worker=worker, cancellation_event=event,
+            lab,
+            requests,
+            budget,
+            action_plan,
+            auth_id,
+            control,
+            worker=worker,
+            cancellation_event=event,
         )
         operator.join(timeout=1)
         assert not report.responses[0].replay_success and not control._issued_receipts
@@ -484,10 +510,19 @@ def test_cancelled_approved_exchange_releases_receipt_and_recovers_with_fresh_ap
         lab.mode = "echo"
         fresh = live_plan(lab, requests, budget)
         fresh_worker, fresh_id, fresh_control = loopback_worker(
-            tmp_path / "recovery", monkeypatch, fresh, scope(),
+            tmp_path / "recovery",
+            monkeypatch,
+            fresh,
+            scope(),
         )
         recovered = execute(
-            lab, requests, budget, fresh, fresh_id, fresh_control, worker=fresh_worker,
+            lab,
+            requests,
+            budget,
+            fresh,
+            fresh_id,
+            fresh_control,
+            worker=fresh_worker,
         )
         assert recovered.responses[0].replay_success and not fresh_control._issued_receipts
         assert len(lab.handshakes) == 2
@@ -689,15 +724,27 @@ def test_runtime_egress_is_checked_before_consumption_and_rechecked_before_conne
             guard.scope.egress_allowed = False
         if during_consumption:
             report = execute(
-                lab, requests, budget, action_plan, auth_id, control,
-                worker=worker, scope_guard=guard,
+                lab,
+                requests,
+                budget,
+                action_plan,
+                auth_id,
+                control,
+                worker=worker,
+                scope_guard=guard,
             )
             assert len(report.responses) == 1 and not report.responses[0].replay_success
         else:
             with pytest.raises(ScopeViolationError, match="egress is disabled"):
                 execute(
-                    lab, requests, budget, action_plan, auth_id, control,
-                    worker=worker, scope_guard=guard,
+                    lab,
+                    requests,
+                    budget,
+                    action_plan,
+                    auth_id,
+                    control,
+                    worker=worker,
+                    scope_guard=guard,
                 )
         assert len(control.consume_calls) == int(during_consumption)
         assert not control._issued_receipts and not lab.handshakes

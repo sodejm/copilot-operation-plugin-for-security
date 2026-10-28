@@ -263,9 +263,7 @@ def test_redirect_credentials_cannot_cross_origins(http_lab):
     assert len(seen) == 1
 
 
-def test_scoped_session_credential_is_removed_on_exact_cross_origin_redirect(
-    http_lab, tmp_path, monkeypatch
-):
+def test_scoped_session_credential_is_removed_on_exact_cross_origin_redirect(http_lab, tmp_path, monkeypatch):
     base, seen, server = http_lab
     redirected = []
 
@@ -281,9 +279,7 @@ def test_scoped_session_credential_is_removed_on_exact_cross_origin_redirect(
             self.wfile.write(b"ok")
 
     target = ThreadingHTTPServer(("127.0.0.1", 0), TargetHandler)
-    target_thread = threading.Thread(
-        target=target.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True
-    )
+    target_thread = threading.Thread(target=target.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True)
     target_thread.start()
     target_url = f"http://127.0.0.1:{target.server_port}/200"
     server.redirect_target = target_url
@@ -314,14 +310,21 @@ def test_scoped_session_credential_is_removed_on_exact_cross_origin_redirect(
         transport="laboratory",
         redirect_targets=redirects,
     )
-    worker, auth_id, approval = loopback_worker(
-        tmp_path, monkeypatch, plan, scope_guard, credentials
-    )
+    worker, auth_id, approval = loopback_worker(tmp_path, monkeypatch, plan, scope_guard, credentials)
 
     try:
         report = _execute(
-            plan, auth_id, approval, requests, destinations, budget, sessions, scope_guard,
-            worker=worker, session_credential_bindings=bindings, transport="laboratory",
+            plan,
+            auth_id,
+            approval,
+            requests,
+            destinations,
+            budget,
+            sessions,
+            scope_guard,
+            worker=worker,
+            session_credential_bindings=bindings,
+            transport="laboratory",
             redirect_targets=redirects,
         )
     finally:
@@ -584,13 +587,13 @@ def test_budget_deserialization_does_not_coerce_invalid_types():
 )
 def test_approved_wire_session_and_every_budget_are_bound(tmp_path, change):
     requests = [_request("https://replay.test/200", session_id="owner", role_id="owner")]
-    sessions = [SessionContext(
-        session_id="owner",
-        role_id="owner",
-        auth_mechanism=AuthenticationMechanism(
-            auth_type="bearer", token_name="Authorization", location="header"
-        ),
-    )]
+    sessions = [
+        SessionContext(
+            session_id="owner",
+            role_id="owner",
+            auth_mechanism=AuthenticationMechanism(auth_type="bearer", token_name="Authorization", location="header"),
+        )
+    ]
     bindings = {"owner": [{"reference": "credential-one", "header": "Authorization"}]}
     destinations = ["replay.test", "second.test"]
     budget = ReplayBudget(max_requests=1, timeout_seconds=0.6, rate_limit_rps=100)
@@ -699,9 +702,7 @@ def test_malformed_allowlist_item_fails_before_io_or_approval_consumption(
     assert approval.consume_calls == []
 
 
-def test_caller_mutation_during_approval_consumption_cannot_change_wire_behavior(
-    http_lab, tmp_path, monkeypatch
-):
+def test_caller_mutation_during_approval_consumption_cannot_change_wire_behavior(http_lab, tmp_path, monkeypatch):
     base, seen, _ = http_lab
     request = _request(
         f"{base}/200",

@@ -310,7 +310,8 @@ class WebApiAssessmentLaboratory:
                 try:
                     if (
                         self.headers.get("Upgrade", "").lower() != "websocket"
-                        or "upgrade" not in {value.strip().lower() for value in self.headers.get("Connection", "").split(",")}
+                        or "upgrade"
+                        not in {value.strip().lower() for value in self.headers.get("Connection", "").split(",")}
                         or self.headers.get("Sec-WebSocket-Version") != "13"
                         or len(base64.b64decode(key, validate=True)) != 16
                     ):
