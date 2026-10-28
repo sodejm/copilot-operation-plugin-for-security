@@ -85,10 +85,14 @@ def _worker(tmp_path, monkeypatch, plan, *, dispatcher=None, registry=None, qual
     )
     if qualify:
         monkeypatch.setattr(worker_module, "LinuxBubblewrapSandbox", TestExecutionSandbox)
-    dispatchers = registry if registry is not None else {
-        "agent-mcp-stdio-v1": dispatcher
-        or (lambda *_a, **_kw: {"status": "completed", "cleanup": {"verified": True}})
-    }
+    dispatchers = (
+        registry
+        if registry is not None
+        else {
+            "agent-mcp-stdio-v1": dispatcher
+            or (lambda *_a, **_kw: {"status": "completed", "cleanup": {"verified": True}})
+        }
+    )
     worker = IsolatedWorker(
         worker_inventory_for_plan(plan, worker_identity="test-worker-01"),
         control,

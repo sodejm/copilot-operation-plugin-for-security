@@ -29,8 +29,13 @@ OBSERVATION_VERSION = "cops.agent-mcp-lab-observation/v1"
 _ROOT = Path(__file__).resolve().parent
 _SHA = re.compile(r"[0-9a-f]{64}\Z")
 _STOP_REASONS = frozenset(
-    {"cancelled", "deadline_exhausted", "response_budget_exhausted", "cancellation_check_failed",
-     "cleanup_deadline_exhausted"}
+    {
+        "cancelled",
+        "deadline_exhausted",
+        "response_budget_exhausted",
+        "cancellation_check_failed",
+        "cleanup_deadline_exhausted",
+    }
 )
 _RUNTIME_FILES = ("worker_dispatch.py", "laboratory.py", "bounded_json.py", "fixture_agent.py", "mcp_fixture_server.py")
 
@@ -56,9 +61,7 @@ def _case_bytes(case: lab.LabCase) -> bytes:
     return encoded
 
 
-_CASES = MappingProxyType(
-    {case.case_id: _case_bytes(case) for case in lab.load_lab_cases(_ROOT.parent / "lab_cases")}
-)
+_CASES = MappingProxyType({case.case_id: _case_bytes(case) for case in lab.load_lab_cases(_ROOT.parent / "lab_cases")})
 
 
 def registered_lab_case(case_id: str) -> lab.LabCase:
@@ -124,7 +127,8 @@ def _cleanup(exc: Exception) -> dict[str, Any]:
         for key in ("reset_attempted", "reset_verified", "processes_terminated", "temporary_directory_removed")
     }
     result["verified"] = bool(
-        result["processes_terminated"] and result["temporary_directory_removed"]
+        result["processes_terminated"]
+        and result["temporary_directory_removed"]
         and (not result["reset_attempted"] or result["reset_verified"])
     )
     received = raw.get("response_bytes")
@@ -145,17 +149,29 @@ def _observations(case: lab.LabCase, report: dict[str, Any]) -> tuple[str, dict[
         raise AgentMcpError("unverified laboratory observation")
     attempted, denied, executed = (report.get(key) for key in ("attempted_calls", "denied_calls", "executed_calls"))
     if (
-        type(attempted) is not list or len(attempted) != 1 or type(attempted[0]) is not dict
+        type(attempted) is not list
+        or len(attempted) != 1
+        or type(attempted[0]) is not dict
         or set(attempted[0]) != {"name", "arguments", "origin"}
         or attempted[0]["origin"] not in ("trusted_task", "untrusted_content")
-        or type(denied) is not list or type(executed) is not list
+        or type(denied) is not list
+        or type(executed) is not list
     ):
         raise AgentMcpError("invalid laboratory call observations")
     proposal = {key: attempted[0][key] for key in ("name", "arguments")}
     denial = lab._authorize(case, proposal)
     expected_denied = [{**proposal, "reason": denial}] if denial else []
-    seed = [{"name": "lookup_account", "arguments": {"tenant_id": "tenant-contoso-01", "account_id": "acct-001"},
-             "origin": "trusted_seed_read"}] if case.attack_surface == "tool_response" else []
+    seed = (
+        [
+            {
+                "name": "lookup_account",
+                "arguments": {"tenant_id": "tenant-contoso-01", "account_id": "acct-001"},
+                "origin": "trusted_seed_read",
+            }
+        ]
+        if case.attack_surface == "tool_response"
+        else []
+    )
     expected_executed = seed if denial else [*seed, attempted[0]]
     if denied != expected_denied or executed != expected_executed:
         raise AgentMcpError("laboratory call observation mismatch")
@@ -193,7 +209,10 @@ def dispatch_lab_case(
     document = approved.to_dict()
     case = registered_lab_case(document["case_id"])
     bindings = lab_case_bindings(case)
-    if any(document[key] != bindings[key] for key in ("dispatcher_id", "scenario_id", "tenant_id", "request_digest", "scenario_digest")):
+    if any(
+        document[key] != bindings[key]
+        for key in ("dispatcher_id", "scenario_id", "tenant_id", "request_digest", "scenario_digest")
+    ):
         raise AgentMcpError("fixed laboratory approval binding mismatch")
     if isinstance(deadline, bool) or not isinstance(deadline, (int, float)) or not math.isfinite(deadline):
         raise AgentMcpError("invalid laboratory dispatcher deadline")
@@ -232,7 +251,9 @@ def dispatch_lab_case(
         reason = raw.get("stop_reason") if isinstance(raw, dict) else None
         result["outcome"] = reason if type(reason) is str and reason in _STOP_REASONS else "laboratory_failed"
     if result["status"] == "completed":
-        stopped = "cancelled" if cancellation_event.is_set() else "deadline_exhausted" if monotonic() >= expires else None
+        stopped = (
+            "cancelled" if cancellation_event.is_set() else "deadline_exhausted" if monotonic() >= expires else None
+        )
         if stopped:
             result.update(status="failed", outcome=stopped, observations=None)
     # The same approved cap bounds both private stdio responses and projected JSON.

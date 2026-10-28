@@ -35,13 +35,18 @@ def _trace(terminal="tool_call_denied"):
     evidence = {"decision_digest": "3" * 64}
     if terminal == "tool_effect_executed":
         evidence = {
-            "before_state_digest": "4" * 64, "after_state_digest": "5" * 64,
-            "effect_count": 1, "observer_id": "fixture-observer",
+            "before_state_digest": "4" * 64,
+            "after_state_digest": "5" * 64,
+            "effect_count": 1,
+            "observer_id": "fixture-observer",
         }
     events.append({**common, "sequence": 2, "event_kind": terminal, "request_digest": "2" * 64, **evidence})
     return {
-        "schema_version": "foundry.execution-trace/v1", "trace_id": "trace-1", "bindings": bindings,
-        "limits": {"max_trace_events": 16, "max_trace_bytes": 65_536}, "events": events,
+        "schema_version": "foundry.execution-trace/v1",
+        "trace_id": "trace-1",
+        "bindings": bindings,
+        "limits": {"max_trace_events": 16, "max_trace_bytes": 65_536},
+        "events": events,
         "cleanup": {"verified": True, "before_state_digest": "4" * 64, "after_state_digest": "4" * 64},
     }
 
@@ -64,7 +69,9 @@ def test_v2_contract_is_immutable_and_legacy_remains_readable_only():
         Scenario.from_dict(_scenario())
 
 
-@pytest.mark.parametrize("path", [(), ("execution",), ("execution", "request"), ("bindings",), ("expected_outcome", "effect"), ("cleanup",)])
+@pytest.mark.parametrize(
+    "path", [(), ("execution",), ("execution", "request"), ("bindings",), ("expected_outcome", "effect"), ("cleanup",)]
+)
 def test_executable_contract_rejects_unknown_fields_at_each_boundary(path):
     data = _scenario()
     target = data
@@ -75,7 +82,9 @@ def test_executable_contract_rejects_unknown_fields_at_each_boundary(path):
         ExecutableScenario.from_dict(data)
 
 
-@pytest.mark.parametrize("mutation", ["legacy", "tenant", "envelope", "profile", "credential", "network", "command", "limits"])
+@pytest.mark.parametrize(
+    "mutation", ["legacy", "tenant", "envelope", "profile", "credential", "network", "command", "limits"]
+)
 def test_execution_rejects_stale_bindings_and_unsafe_request_data(mutation):
     data = _scenario()
     if mutation == "legacy":
@@ -89,7 +98,11 @@ def test_execution_rejects_stale_bindings_and_unsafe_request_data(mutation):
     elif mutation == "limits":
         data["execution"]["limits"]["max_duration_seconds"] = 301
     else:
-        arguments = {"credential": {"api_key": "private"}, "network": {"query": "https://example.invalid"}, "command": {"shell": "echo private"}}[mutation]
+        arguments = {
+            "credential": {"api_key": "private"},
+            "network": {"query": "https://example.invalid"},
+            "command": {"shell": "echo private"},
+        }[mutation]
         data["execution"]["request"]["request"]["arguments"] = arguments
         data["bindings"]["envelope_digest"] = contract_digest(data["execution"]["request"])
     with pytest.raises(HarnessError):
@@ -114,14 +127,31 @@ def test_scenario_rejects_boolean_coercion_and_credentials_outside_arguments(fie
 def test_trace_distinguishes_attempts_from_terminal_observations(terminal):
     data = _trace(terminal)
     trace = ExecutionTrace.from_dict(data)
-    assert [item["event_kind"] for item in trace.to_dict()["events"]] == ["model_output", "tool_call_attempted", terminal]
+    assert [item["event_kind"] for item in trace.to_dict()["events"]] == [
+        "model_output",
+        "tool_call_attempted",
+        terminal,
+    ]
     data["bindings"]["session_id"] = "changed"
     assert trace.to_dict()["bindings"]["session_id"] == "fixture-session"
     with pytest.raises(HarnessError):
         ExecutionTrace.from_dict(data)
 
 
-@pytest.mark.parametrize("mutation", ["unknown", "raw_content", "sequence", "request", "observer", "cleanup", "events_budget", "bytes_budget", "after_terminal"])
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "unknown",
+        "raw_content",
+        "sequence",
+        "request",
+        "observer",
+        "cleanup",
+        "events_budget",
+        "bytes_budget",
+        "after_terminal",
+    ],
+)
 def test_trace_rejects_unbound_misclassified_or_unbounded_evidence(mutation):
     data = _trace("tool_effect_executed")
     if mutation == "unknown":
@@ -167,8 +197,14 @@ def test_trace_effect_count_is_an_integer_observation():
 
 def test_unsupported_feature_has_typed_content_free_evidence():
     data = _trace()
-    data["events"] = [{
-        "sequence": 0, "event_kind": "unsupported_feature", "bindings_digest": contract_digest(data["bindings"]),
-        "summary": "Native hosted adapter unavailable", "reason_code": "unsupported-native-hosted-adapter", "decision_digest": "7" * 64,
-    }]
+    data["events"] = [
+        {
+            "sequence": 0,
+            "event_kind": "unsupported_feature",
+            "bindings_digest": contract_digest(data["bindings"]),
+            "summary": "Native hosted adapter unavailable",
+            "reason_code": "unsupported-native-hosted-adapter",
+            "decision_digest": "7" * 64,
+        }
+    ]
     assert ExecutionTrace.from_dict(data).to_dict()["events"][0]["event_kind"] == "unsupported_feature"

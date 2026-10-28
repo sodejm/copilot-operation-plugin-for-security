@@ -34,7 +34,9 @@ def main() -> int:
                 return 2
             marker = "TOOL_CALL:"
             if marker in untrusted_text:
-                proposal = _decoder.decode_json(untrusted_text.split(marker, 1)[1].strip().encode("utf-8"), max_bytes=8192)
+                proposal = _decoder.decode_json(
+                    untrusted_text.split(marker, 1)[1].strip().encode("utf-8"), max_bytes=8192
+                )
                 origin = "untrusted_content"
             else:
                 proposal = request["approved_call"]

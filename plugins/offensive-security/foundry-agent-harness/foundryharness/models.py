@@ -201,7 +201,9 @@ def _check_request_data(value: Any) -> None:
                 raise HarnessError("Executable request contains a forbidden argument field")
             _check_request_data(item)
     elif isinstance(value, str) and (
-        _CREDENTIAL_VALUE.search(value) or redact_text(value) != value or re.search(r"(?i)(?:https?|wss?|tcp|udp)://", value)
+        _CREDENTIAL_VALUE.search(value)
+        or redact_text(value) != value
+        or re.search(r"(?i)(?:https?|wss?|tcp|udp)://", value)
     ):
         raise HarnessError("Executable request contains credentials or a network destination")
 
@@ -328,10 +330,16 @@ class ExecutionTrace:
                 terminal = True
             if kind == "unsupported_feature":
                 terminal = True
-        if value["cleanup"]["verified"] and value["cleanup"]["before_state_digest"] != value["cleanup"]["after_state_digest"]:
+        if (
+            value["cleanup"]["verified"]
+            and value["cleanup"]["before_state_digest"] != value["cleanup"]["after_state_digest"]
+        ):
             raise HarnessError("Verified cleanup requires the original state digest")
         encoded = _contract_json(value)
-        if len(events) > value["limits"]["max_trace_events"] or len(encoded.encode("utf-8")) > value["limits"]["max_trace_bytes"]:
+        if (
+            len(events) > value["limits"]["max_trace_events"]
+            or len(encoded.encode("utf-8")) > value["limits"]["max_trace_bytes"]
+        ):
             raise HarnessError("Execution trace exceeds its evidence budget")
         return _immutable_record(cls, encoded)
 

@@ -379,7 +379,9 @@ def immutable_trace_categories(context):
         assert accepted["bindings"] == bindings
         assert all(event["bindings_digest"] == contract_digest(bindings) for event in accepted["events"])
         assert [event["event_kind"] for event in accepted["events"]] == [
-            "model_output", "tool_call_attempted", terminal,
+            "model_output",
+            "tool_call_attempted",
+            terminal,
         ]
         assert "fixture-private-credential" not in json.dumps(accepted)
         assert "fixture-private-canary" not in json.dumps(accepted)

@@ -413,7 +413,11 @@ class _McpClient:
         self.expected_tool_descriptors = expected_tool_descriptors
         if expected_tool_descriptors is None and expected_tools == FIXTURE_TOOLS and expected_server_info is None:
             self.expected_tool_descriptors = {
-                name: {"name": name, "description": "Synthetic local fixture operation", "inputSchema": {"type": "object"}}
+                name: {
+                    "name": name,
+                    "description": "Synthetic local fixture operation",
+                    "inputSchema": {"type": "object"},
+                }
                 for name in FIXTURE_TOOLS
             }
 

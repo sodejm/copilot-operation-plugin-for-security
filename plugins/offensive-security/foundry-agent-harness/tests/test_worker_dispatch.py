@@ -31,15 +31,20 @@ from cops.laboratory.agent_mcp_worker import (  # noqa: E402
 def _envelope(case_id="authorized-canary-sink", *, limit=65536):
     case = dispatch.registered_lab_case(case_id)
     bindings = dispatch.lab_case_bindings(case)
-    return AgentMcpEnvelope.from_dict({
-        "schema_version": ENVELOPE_VERSION,
-        "engagement_id": "engagement-lab",
-        "session_id": "session-lab",
-        "role_id": "role-lab",
-        "case_id": case_id,
-        **{key: bindings[key] for key in ("dispatcher_id", "scenario_id", "tenant_id", "request_digest", "scenario_digest")},
-        "limits": {"max_duration_seconds": 30, "max_output_bytes": limit},
-    })
+    return AgentMcpEnvelope.from_dict(
+        {
+            "schema_version": ENVELOPE_VERSION,
+            "engagement_id": "engagement-lab",
+            "session_id": "session-lab",
+            "role_id": "role-lab",
+            "case_id": case_id,
+            **{
+                key: bindings[key]
+                for key in ("dispatcher_id", "scenario_id", "tenant_id", "request_digest", "scenario_digest")
+            },
+            "limits": {"max_duration_seconds": 30, "max_output_bytes": limit},
+        }
+    )
 
 
 def _context(envelope):
@@ -60,7 +65,10 @@ def test_fixed_case_snapshots_and_bindings_are_deterministic_and_detached():
     case = dispatch.registered_lab_case("authorized-canary-sink")
     expected = dispatch.lab_case_bindings(case)
     assert expected == dispatch.lab_case_bindings(dispatch.registered_lab_case(case.case_id))
-    assert expected["request_digest"] != dispatch.lab_case_bindings(replace(case, untrusted_text="changed"))["request_digest"]
+    assert (
+        expected["request_digest"]
+        != dispatch.lab_case_bindings(replace(case, untrusted_text="changed"))["request_digest"]
+    )
     case.approved_call["arguments"]["destination"] = "https://example.invalid"
     assert dispatch.lab_case_bindings(dispatch.registered_lab_case(case.case_id)) == expected
     with pytest.raises(TypeError):
@@ -76,12 +84,18 @@ def test_every_registered_case_derives_a_contract_valid_scenario_identity():
         assert _envelope(case_id).to_dict()["scenario_id"] == bindings["scenario_id"]
 
 
-@pytest.mark.parametrize("field,value", [
-    ("case_id", "unknown-case"), ("scenario_id", "unapproved-scenario"),
-    ("scenario_id", "agent-mcp-lab-authorized-canary-sink"),
-    ("tenant_id", "tenant-fabrikam-02"), ("dispatcher_id", "arbitrary-executable"),
-    ("request_digest", "c" * 64), ("scenario_digest", "d" * 64),
-])
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("case_id", "unknown-case"),
+        ("scenario_id", "unapproved-scenario"),
+        ("scenario_id", "agent-mcp-lab-authorized-canary-sink"),
+        ("tenant_id", "tenant-fabrikam-02"),
+        ("dispatcher_id", "arbitrary-executable"),
+        ("request_digest", "c" * 64),
+        ("scenario_digest", "d" * 64),
+    ],
+)
 def test_binding_mismatch_is_rejected_before_execution(monkeypatch, field, value):
     data = _envelope().to_dict()
     data[field] = value
@@ -97,14 +111,22 @@ def test_caller_execution_selectors_are_rejected(monkeypatch, field):
     data[field] = "caller-selected"
     monkeypatch.setattr(lab, "run_lab_case", lambda *args, **kwargs: pytest.fail("must reject before execution"))
     with pytest.raises(AgentMcpError):
-        dispatch.dispatch_lab_case(data, deadline=time.monotonic() + 10, cancellation_event=threading.Event(), dispatch_context=MappingProxyType({}))
+        dispatch.dispatch_lab_case(
+            data,
+            deadline=time.monotonic() + 10,
+            cancellation_event=threading.Event(),
+            dispatch_context=MappingProxyType({}),
+        )
 
 
-@pytest.mark.parametrize("context", [
-    {"plan_digest": "a" * 64, "approval_digest": "b" * 64, "envelope_digest": "c" * 64},
-    MappingProxyType({"plan_digest": "a" * 64, "approval_digest": "b" * 64, "envelope_digest": "c" * 64}),
-    MappingProxyType({"plan_digest": "a" * 64, "approval_digest": "b" * 64}),
-])
+@pytest.mark.parametrize(
+    "context",
+    [
+        {"plan_digest": "a" * 64, "approval_digest": "b" * 64, "envelope_digest": "c" * 64},
+        MappingProxyType({"plan_digest": "a" * 64, "approval_digest": "b" * 64, "envelope_digest": "c" * 64}),
+        MappingProxyType({"plan_digest": "a" * 64, "approval_digest": "b" * 64}),
+    ],
+)
 def test_missing_mutable_or_mismatched_supervisor_context_is_rejected(context):
     with pytest.raises(AgentMcpError):
         _run(_envelope(), dispatch_context=context)
@@ -117,15 +139,18 @@ def test_runtime_drift_fails_before_execution(monkeypatch):
         _run(_envelope())
 
 
-@pytest.mark.parametrize("case_id,outcome,executed,effects", [
-    ("authorized-canary-sink", "executed_effect", 1, 1),
-    ("authorized-state-change", "executed_effect", 1, 1),
-    ("authorized-lookup", "executed_no_effect", 1, 0),
-    ("data-exfiltration", "denied", 0, 0),
-    ("state-change-baseline", "executed_effect", 1, 1),
-    ("state-change-remediated", "denied", 0, 0),
-    ("tool-response-poisoning", "denied", 1, 0),
-])
+@pytest.mark.parametrize(
+    "case_id,outcome,executed,effects",
+    [
+        ("authorized-canary-sink", "executed_effect", 1, 1),
+        ("authorized-state-change", "executed_effect", 1, 1),
+        ("authorized-lookup", "executed_no_effect", 1, 0),
+        ("data-exfiltration", "denied", 0, 0),
+        ("state-change-baseline", "executed_effect", 1, 1),
+        ("state-change-remediated", "denied", 0, 0),
+        ("tool-response-poisoning", "denied", 1, 0),
+    ],
+)
 def test_real_canary_outcomes_are_observed_and_content_free(case_id, outcome, executed, effects):
     envelope = _envelope(case_id)
     result = _run(envelope)
@@ -137,9 +162,22 @@ def test_real_canary_outcomes_are_observed_and_content_free(case_id, outcome, ex
     assert result["cleanup"] == {"verified": True}
     assert result["bindings"]["envelope_digest"] == envelope.digest
     assert result["bindings"]["plan_digest"] == "a" * 64
-    assert result["bindings"]["runtime_digest"] == dispatch.lab_case_bindings(dispatch.registered_lab_case(case_id))["runtime_digest"]
+    assert (
+        result["bindings"]["runtime_digest"]
+        == dispatch.lab_case_bindings(dispatch.registered_lab_case(case_id))["runtime_digest"]
+    )
     encoded = canonical(result).decode()
-    for private in ("CANARY-SYNTHETIC", "arguments", "model_text", "res-faq-storage", "acct-001", "lab://", "https://", "state_before", "state_after"):
+    for private in (
+        "CANARY-SYNTHETIC",
+        "arguments",
+        "model_text",
+        "res-faq-storage",
+        "acct-001",
+        "lab://",
+        "https://",
+        "state_before",
+        "state_after",
+    ):
         assert private not in encoded
     if effects:
         assert result["observations"]["before_state_digest"] != result["observations"]["after_state_digest"]
@@ -152,7 +190,9 @@ def test_expectations_and_model_text_do_not_classify_effects(monkeypatch):
 
     def mislabeled(case, **kwargs):
         report = original(case, **kwargs)
-        report.update(expected_outcome="denied", expectation_met=False, model_text="No effect happened: secret model text")
+        report.update(
+            expected_outcome="denied", expectation_met=False, model_text="No effect happened: secret model text"
+        )
         return report
 
     monkeypatch.setattr(lab, "run_lab_case", mislabeled)
@@ -180,8 +220,12 @@ def test_pre_admission_stop_creates_no_children(monkeypatch, stop):
     event = threading.Event()
     if stop == "cancelled":
         event.set()
-    monkeypatch.setattr(lab, "_JsonLineProcess", lambda *args, **kwargs: pytest.fail("must stop before process creation"))
-    result = _run(_envelope(), cancellation_event=event, deadline=0 if stop == "deadline_exhausted" else time.monotonic() + 10)
+    monkeypatch.setattr(
+        lab, "_JsonLineProcess", lambda *args, **kwargs: pytest.fail("must stop before process creation")
+    )
+    result = _run(
+        _envelope(), cancellation_event=event, deadline=0 if stop == "deadline_exhausted" else time.monotonic() + 10
+    )
     assert result["status"] == "failed" and result["outcome"] == stop
     assert result["observations"] is None and result["cleanup"]["verified"]
     assert result["cleanup"]["response_bytes"] == 0
@@ -214,9 +258,11 @@ def test_stopped_real_run_resets_reachable_state_and_disposes_both_children(monk
     monkeypatch.setattr(lab, "_JsonLineProcess", TrackedProcess)
     if stop != "response_budget_exhausted":
         monkeypatch.setattr(lab._McpClient, "call", stop_after_effect)
-    result = _run(_envelope("state-change-baseline", limit=2300 if stop == "response_budget_exhausted" else 65536),
-                  deadline=101.0 if stop == "deadline_exhausted" else time.monotonic() + 10,
-                  cancellation_event=event)
+    result = _run(
+        _envelope("state-change-baseline", limit=2300 if stop == "response_budget_exhausted" else 65536),
+        deadline=101.0 if stop == "deadline_exhausted" else time.monotonic() + 10,
+        cancellation_event=event,
+    )
     assert result["status"] == "failed" and result["outcome"] == stop
     assert result["observations"] is None
     assert result["cleanup"]["verified"] and result["cleanup"]["reset_verified"]
@@ -284,7 +330,9 @@ def test_response_budget_and_duration_are_capped_by_approved_limits(monkeypatch)
 
 def test_mediator_hashes_approved_fixed_dispatch_result():
     envelope = _envelope()
-    mediator = AgentMcpMediator(envelope=envelope, plan_digest="a" * 64, approval_digest="b" * 64, dispatcher=dispatch.dispatcher)
+    mediator = AgentMcpMediator(
+        envelope=envelope, plan_digest="a" * 64, approval_digest="b" * 64, dispatcher=dispatch.dispatcher
+    )
     result = mediator.dispatch(envelope.to_dict(), plan_digest="a" * 64, approval_digest="b" * 64)
     assert result["status"] == "completed" and result["result_bytes"] > 0
     assert len(result["result_digest"]) == 64
