@@ -68,6 +68,34 @@ def test_graphql_rejects_unsupported_or_unbounded_documents(document):
         assert exchange(lab, "/graphql", method="POST", document=document)[0] == 400
 
 
+@pytest.mark.parametrize(
+    ("query", "supported"),
+    [
+        (QUERY, True),
+        ("query($objectId: ID!) { object(id: $objectId) { id owner } }", True),
+        ("query _Object9($objectId: ID!) { object(id: $objectId) { id owner } }", True),
+        ("query\u2003Object($objectId: ID!) { object(id: $objectId) { id owner } }", True),
+        ("query 9Object($objectId: ID!) { object(id: $objectId) { id owner } }", False),
+        ("query Object-Details($objectId: ID!) { object(id: $objectId) { id owner } }", False),
+        ("query Objeté($objectId: ID!) { object(id: $objectId) { id owner } }", False),
+        ("query Object($objectId: ID!) { object(id: $objectId) { owner id } }", False),
+        (QUERY + " query Extra { object(id: 1) { id } }", False),
+    ],
+)
+def test_graphql_query_shape_recognizer_is_exact(query, supported):
+    assert laboratory_module._is_supported_object_query(query) is supported
+
+
+def test_graphql_rejects_adversarial_repeated_operation_prefix():
+    query = "queryA" * 10_000
+    document = {"query": query, "variables": {"objectId": "owner-object"}}
+    assert len(json.dumps(document).encode("utf-8")) <= laboratory_module._MAX_BODY
+    with WebApiAssessmentLaboratory("corrected") as lab:
+        status, result = exchange(lab, "/graphql", method="POST", document=document)
+    assert status == 400
+    assert result == {"errors": [{"message": "unsupported object query"}]}
+
+
 def test_large_post_rejected_before_body_and_ambiguous_get_rejected():
     with WebApiAssessmentLaboratory("corrected") as lab:
         address = urlsplit(lab.base_url)

@@ -107,7 +107,7 @@
     },
     {
       "path": "cops/web_api/laboratory.py",
-      "sha256": "ded9363037efeb98f9d5ba29bfeb5bb5c77ef88907e22ff8de2b2a140b22005f",
+      "sha256": "be0139f18dd73a555b723dfce5a56782203107faf59d05318ed3e8d3280cdee5",
       "source": "cops/web_api/laboratory.py"
     },
     {

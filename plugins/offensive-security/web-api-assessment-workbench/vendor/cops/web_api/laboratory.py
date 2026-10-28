@@ -6,7 +6,6 @@ import base64
 import hashlib
 import json
 import math
-import re
 import socket
 import ssl
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -19,7 +18,18 @@ from urllib.parse import parse_qs, urlparse
 _MAX_BODY = 65536
 _MAX_FRAMES = 8
 _MAX_CONNECTIONS = 16
-_OBJECT_QUERY = re.compile(r"query(?:[A-Za-z_][A-Za-z0-9_]*)?\(\$objectId:ID!\)\{object\(id:\$objectId\)\{idowner\}\}")
+_OBJECT_QUERY_PREFIX = "query"
+_OBJECT_QUERY_SUFFIX = "($objectId:ID!){object(id:$objectId){idowner}}"
+
+
+def _is_supported_object_query(query: str) -> bool:
+    """Recognize the laboratory's one GraphQL query shape in linear time."""
+
+    compact = "".join(query.split())
+    if not compact.startswith(_OBJECT_QUERY_PREFIX) or not compact.endswith(_OBJECT_QUERY_SUFFIX):
+        return False
+    operation_name = compact[len(_OBJECT_QUERY_PREFIX) : -len(_OBJECT_QUERY_SUFFIX)]
+    return not operation_name or (operation_name.isascii() and operation_name.isidentifier())
 
 
 class _LaboratoryServer(ThreadingHTTPServer):
@@ -278,7 +288,7 @@ class WebApiAssessmentLaboratory:
                 object_id = document["variables"].get("objectId")
                 if (
                     not isinstance(query, str)
-                    or not _OBJECT_QUERY.fullmatch(re.sub(r"\s+", "", query))
+                    or not _is_supported_object_query(query)
                     or not isinstance(object_id, str)
                     or len(object_id) > 128
                 ):

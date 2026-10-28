@@ -685,7 +685,10 @@ Executable laboratory retest evidence adds a narrower authenticated review path;
   Regressions cover corrected access, disclosure alongside errors, malformed error
   codes and repeated redaction. The repository acceptance gate requires all named
   local-service cases without skips; the offline package gate cannot stand in for
-  them. Loopback listeners still do not qualify isolation or production providers.
+  them. The disposable GraphQL fixture recognizes only its exact object-query
+  shape with a linear-time parser after bounded transport parsing; unsupported
+  documents fail closed. Loopback listeners still do not qualify isolation or
+  production providers.
 - WebSocket boundary: An approved version 1 operation binds explicit text messages,
   exact isolated sessions, allowlist and frame/byte/deadline budgets. The existing
   mediator owns resolution, numeric connection and original-host verified TLS;
