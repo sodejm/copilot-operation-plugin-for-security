@@ -19,6 +19,14 @@ regexTarget = "match"
 paths = ['''^tests/step_defs/test_web_api_inventory_replay\.py$''']
 regexes = ['''^fixture-bearer-secret", "Zml4dHVyZTpzZWNyZXQ="$''']
 
+[[rules.allowlists]]
+description = "Synthetic WebSocket handshake nonce in the replay laboratory fixture"
+condition = "AND"
+regexTarget = "match"
+commits = ['''bfbe55e5d68cdb0e35e1c4666b5f6c33052b7a65''']
+paths = ['''^tests/test_web_api_laboratory\.py$''']
+regexes = ['''^Sec-WebSocket-Key: (?:MDEyMzQ1Njc4OWFiY2RlZg==|0123456789abcdef)\\r$''']
+
 [[rules]]
 id = "private-key"
 
