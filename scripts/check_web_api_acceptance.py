@@ -13,6 +13,16 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 TEST_FILE = ROOT / "plugins/offensive-security/web-api-assessment-workbench/tests/test_authorized_assessment.py"
 WS_TEST_FILE = ROOT / "plugins/offensive-security/web-api-assessment-workbench/tests/test_authorized_websocket.py"
+WORKER_TEST_FILES = tuple(
+    ROOT / "tests" / name
+    for name in (
+        "test_web_api_replay_envelope.py",
+        "test_web_api_worker_plan.py",
+        "test_web_api_worker_integration.py",
+        "test_web_api_worker_broker.py",
+        "test_web_api_worker_qualification.py",
+    )
+)
 TIMEOUT_SECONDS = 120
 REQUIRED_CASES = frozenset(
     {
@@ -25,6 +35,17 @@ REQUIRED_CASES = frozenset(
         "test_request_cannot_override_isolated_session_credentials",
         "test_approved_websocket_role_sessions_and_clean_close[vulnerable]",
         "test_approved_websocket_role_sessions_and_clean_close[corrected]",
+        "test_operation_requires_new_envelope_and_matching_policy",
+        "test_operation_requires_explicit_non_idempotent_execution",
+        "test_session_credentials_bind_explicit_roles_and_references_without_values",
+        "test_worker_keeps_credentials_and_body_on_trusted_broker_boundary",
+        "test_fixed_registered_adapter_returns_only_broker_result",
+        "test_completed_dispatch_with_adapter_exit_failure_is_uncertain",
+        "test_worker_rejects_changed_context_before_provider_or_network[session_id]",
+        "test_worker_rejects_changed_context_before_provider_or_network[role_id]",
+        "test_receipt_digests_and_only_broker_capability_reach_worker_dispatch",
+        "test_approval_retries_produce_exactly_one_web_api_exchange[concurrent-double-spend]",
+        "test_approval_retries_produce_exactly_one_web_api_exchange[lost-response-retry]",
     }
 )
 
@@ -54,7 +75,17 @@ def main() -> int:
         with tempfile.TemporaryDirectory(prefix="cops-web-api-acceptance-") as directory:
             report = Path(directory) / "results.xml"
             result = subprocess.run(
-                [sys.executable, "-m", "pytest", str(TEST_FILE), str(WS_TEST_FILE), "-q", "--junitxml", str(report)],
+                [
+                    sys.executable,
+                    "-m",
+                    "pytest",
+                    str(TEST_FILE),
+                    str(WS_TEST_FILE),
+                    *(str(path) for path in WORKER_TEST_FILES),
+                    "-q",
+                    "--junitxml",
+                    str(report),
+                ],
                 cwd=ROOT,
                 check=False,
                 timeout=TIMEOUT_SECONDS,

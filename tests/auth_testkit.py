@@ -162,6 +162,7 @@ class TestExecutionSandbox:
         operation_env: Mapping[str, str] | None = None,
         capability_fds: tuple[int, ...] = (),
         expected_workspace_fd: int | None = None,
+        cancellation_event: Any | None = None,
     ) -> BoundedProcessResult:
         self._verify_workspace(cwd, expected_workspace_fd)
         call = {
@@ -174,6 +175,7 @@ class TestExecutionSandbox:
             "pass_fds": pass_fds,
             "operation_env": dict(operation_env or {}),
             "capability_fds": capability_fds,
+            "cancellation_event": cancellation_event,
         }
         self.run_calls.append(call)
         if self.run_callback is not None:
@@ -187,6 +189,7 @@ class TestExecutionSandbox:
                 pass_fds=pass_fds,
                 operation_env=operation_env,
                 capability_fds=capability_fds,
+                cancellation_event=cancellation_event,
             )
         return self.result
 

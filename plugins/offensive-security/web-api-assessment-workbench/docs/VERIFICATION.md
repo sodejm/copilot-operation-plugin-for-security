@@ -49,12 +49,17 @@ make check-web-api-acceptance
 ```
 
 Use `PYTHON=.venv/bin/python` when needed. This repository development gate invokes
-the package's HTTP and WebSocket pytest acceptance modules, requires every named case, and rejects
+the package's HTTP and WebSocket pytest acceptance modules and portable worker envelope,
+plan, broker, integration and qualification tests, requires every named case, and rejects
 skips, empty or incomplete collection, failed/malformed reports and timeout.
 `make check` includes it; the portable `cops check` package gate remains offline
 and does not execute these real-service cases. Hosts without Make can run
 `python3 scripts/check_web_api_acceptance.py` from the repository root. The final
 summary explicitly reports `scope: loopback-only` and `isolation_qualified: false`.
+The worker qualification uses a patched sandbox. The separate Linux bubblewrap and
+file-descriptor scrubber tests qualify generic sandbox boundaries; they do not prove an
+integrated Web API production worker. Hosted CPython 3.15 checks and human security
+review of the exact integrated revision remain separate closure gates.
 
 The test issues signed authorizations through a persisted one-use approval store,
 verifies consumption and rejects reuse or changed requests, sessions, destinations
@@ -80,8 +85,8 @@ The preview must name exact target and allowed destinations, request and redirec
 - Preview reports the exact destinations, budget, evidence plan, unsupported features, and zero effects without network, approval, worker, session, or file activity.
 - The vulnerable service yields failed object-authorization findings when another user or an anonymous caller reaches a protected REST or GraphQL object. The corrected service permits the owner and denies both non-owner roles.
 - A bounded all-success request sequence yields a failed rate-limit finding; a `429` with retry guidance yields a passed finding; missing attempts or transport/server errors yield `insufficient_evidence`.
-- Approved live HTTP replay rejects action-plan drift, unapproved execution, unready workers, out-of-scope destinations, excess redirects, and exhausted request budgets before further dispatch.
-- Approved live HTTP replay uses owned snapshots after plan verification, verifies the TLS certificate and original hostname, rejects HTTPS downgrade, and refuses cross-origin redirects that retain a body or credential-bearing header.
+- Loopback integration exercises check rejection of action-plan drift, unapproved execution, unready workers, out-of-scope destinations, excess redirects, and exhausted request budgets before further dispatch.
+- Loopback integration exercises check owned snapshots, TLS certificate and hostname verification, HTTPS downgrade rejection, and refusal of cross-origin redirects retaining a body or credential-bearing header. They do not qualify production isolation.
 - Unsupported protocols and missing evidence remain explicit limitations. They never become successful evidence.
 - Response-body serialization retains only opaque digests and an optional Boolean
   GraphQL object-access observation. Explicit denial, object disclosure and unknown
@@ -117,7 +122,7 @@ Promotion requires the baseline commands and local-service acceptance to pass in
 
 ## Issue 100 worker integration
 
-Use the [worker qualification contract](../../../../specs/issue-100-worker-qualification.md)
+Use the [Issue #100 worker qualification contract](https://github.com/sodejm/copilot-operation-plugin-for-security/issues/100)
 to record exact-revision acceptance, Linux isolation, installed/exported package,
 hosted CPython 3.15 and human security review evidence. An unavailable gate remains
 unverified; portable package and loopback results do not qualify production isolation.

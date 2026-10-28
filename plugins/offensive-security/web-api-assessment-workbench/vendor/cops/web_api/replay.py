@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import http.client
 import ipaddress
+import json
 import math
 import re
 import socket
@@ -11,12 +12,13 @@ import ssl
 import threading
 import time
 from abc import ABC, abstractmethod
+from collections.abc import Mapping
 from copy import deepcopy
 from dataclasses import asdict, dataclass, replace
 from typing import Any
 from urllib.parse import urlencode, urljoin, urlparse, urlunparse
 
-from cops.contracts.models import ActionPlan
+from cops.contracts.models import ActionPlan, CleanupReceipt, RunResult
 from cops.evidence.canonical import digest, utc_now
 from cops.execution.control import ApprovalConsumptionReceipt, ApprovalControl
 from cops.execution.scope_guard import ScopeGuard, ScopeViolationError
@@ -30,7 +32,7 @@ from .models import (
     ReplaySessionReport,
     SessionContext,
 )
-from .sanitization import SENSITIVE_FIELD_PATTERNS, authority, sanitize_reference
+from .sanitization import SENSITIVE_FIELD_PATTERNS, authority
 
 
 class DestinationViolationError(Exception):
@@ -609,6 +611,11 @@ def _validate_budget(budget: ReplayBudget) -> None:
         ("max_websocket_frames", 0, 10000),
         ("max_websocket_message_bytes", 1, 65536),
         ("max_websocket_bytes", 1, 1048576),
+        ("max_request_header_bytes", 1, 16384),
+        ("max_request_body_bytes", 0, 1048576),
+        ("max_response_header_bytes", 1, 16384),
+        ("max_response_body_bytes", 0, 1048576),
+        ("max_output_bytes", 1, 2097152),
     ):
         value = getattr(budget, name)
         if type(value) is not int or not low <= value <= high:
@@ -645,6 +652,15 @@ def _report(
     budget: ReplayBudget,
     session_id: str | None,
     violations: int,
+    total_dispatched: int | None = None,
+    application_context: dict[str, Any] | None = None,
+    request_provenance: list[dict[str, Any]] | None = None,
+    authorization_evidence: dict[str, Any] | None = None,
+    execution_evidence: dict[str, Any] | None = None,
+    replay_limits: dict[str, Any] | None = None,
+    redirect_decisions: list[dict[str, Any]] | None = None,
+    cleanup_receipt: dict[str, Any] | None = None,
+    unsupported_features: list[dict[str, Any]] | None = None,
 ) -> ReplaySessionReport:
     targets = sorted({authority(item.url) for item in requests if urlparse(item.url).netloc})
     identifier = (
@@ -658,10 +674,18 @@ def _report(
         budget=budget,
         requests=[_sanitize_request(item) for item in requests],
         responses=[_sanitize_response(item) for item in responses],
-        total_dispatched=len(responses),
+        total_dispatched=len(responses) if total_dispatched is None else total_dispatched,
         total_successful=sum(item.replay_success for item in responses),
         total_failed=sum(not item.replay_success for item in responses),
         destination_violations=violations,
+        application_context=deepcopy(application_context or {}),
+        request_provenance=deepcopy(request_provenance or []),
+        authorization_evidence=deepcopy(authorization_evidence or {}),
+        execution_evidence=deepcopy(execution_evidence or {}),
+        replay_limits=deepcopy(replay_limits or {}),
+        redirect_decisions=deepcopy(redirect_decisions or []),
+        cleanup_receipt=deepcopy(cleanup_receipt),
+        unsupported_features=deepcopy(unsupported_features or []),
     )
 
 
@@ -755,66 +779,194 @@ def _wire_requests(requests: list[ReplayRequest], sessions: list[SessionContext]
 
 
 def _plan_parts(
-    wire_requests: list[_WireRequest],
     source_requests: list[ReplayRequest],
     sessions: list[SessionContext],
     budget: ReplayBudget,
+    session_credential_bindings: dict[str, list[dict[str, str]]],
     allowed_destinations: list[str],
+    transport: str,
+    redirect_targets: dict[str, list[str]],
 ) -> tuple[list[dict[str, Any]], dict[str, Any], dict[str, Any]]:
-    if not wire_requests or len(wire_requests) != len(source_requests):
+    # Local import avoids the transport module's dependency on the legacy
+    # transport classes retained here for direct fixture-level qualification.
+    from .worker_replay import (
+        WEB_API_REPLAY_TOOL,
+        WEB_API_REPLAY_VERSION,
+        WebApiReplayError,
+        _wire_request,
+        validate_web_api_operation,
+    )
+
+    if not source_requests:
         raise ReplayAuthorizationError("live replay requires at least one request")
-    sessions_digest = digest([asdict(session) for session in sessions])
-    http_budget = asdict(budget)
-    http_budget.pop("max_websocket_message_bytes")
-    http_budget.pop("max_websocket_bytes")
-    for item in wire_requests:
-        _validate_websocket_request(item.request, budget)
-    operations = [
-        {
-            "step_id": wire_request.request.request_id,
-            "tool": (
-                "cops.web_api.bounded-websocket-replayer"
-                if wire_request.request.protocol == "websocket"
-                else "cops.web_api.standard-http-replayer"
-            ),
-            "tool_version": "1" if wire_request.request.protocol == "websocket" else "2",
-            "action": "replay_websocket_session"
-            if wire_request.request.protocol == "websocket"
-            else "replay_http_request",
-            "arguments": {
-                "request_digest": digest(asdict(wire_request.request)),
-                "source_request_digest": digest(asdict(source_request)),
-                "sessions_digest": sessions_digest,
-                "budget_digest": digest(
-                    asdict(budget) if wire_request.request.protocol == "websocket" else http_budget
-                ),
-                "destinations_digest": digest(allowed_destinations),
-                "method": wire_request.request.method.upper(),
-                "url": sanitize_reference(wire_request.request.url),
-                "protocol": wire_request.request.protocol,
-                "session_id": wire_request.request.session_id or "",
-            },
-            "timeout_seconds": max(1, math.ceil(budget.timeout_seconds)),
-            "side_effects": ["network_connections"],
-            "cleanup": {"strategy": "none", "resources": []},
-        }
-        for wire_request, source_request in zip(wire_requests, source_requests, strict=True)
-    ]
-    pacing_seconds = (len(wire_requests) - 1) / budget.rate_limit_rps if budget.rate_limit_rps > 0 else 0
+    session_map = {session.session_id: session for session in sessions}
+    if len(session_map) != len(sessions):
+        raise ReplayAuthorizationError("session identifiers must be unique")
+    request_ids = {request.request_id for request in source_requests}
+    if len(request_ids) != len(source_requests):
+        raise ReplayAuthorizationError("request identifiers must be unique")
+    if set(session_credential_bindings) - set(session_map) or set(redirect_targets) - request_ids:
+        raise ReplayAuthorizationError("replay bindings refer to an unknown session or request")
+    for refs in session_credential_bindings.values():
+        if not isinstance(refs, list) or any(
+            not isinstance(ref, dict)
+            or set(ref) != {"reference", "header"}
+            or any(not isinstance(value, str) for value in ref.values())
+            for ref in refs
+        ):
+            raise ReplayAuthorizationError("invalid session credential bindings")
+    envelope_budget = {name: value for name, value in asdict(budget).items() if name != "max_requests"}
+    destination_guard = DestinationGuard(allowed_destinations)
+    operations: list[dict[str, Any]] = []
+    for source in source_requests:
+        _validate_websocket_request(source, budget)
+        request = deepcopy(source)
+        session = session_map.get(request.session_id) if request.session_id is not None else None
+        if request.session_id is not None and session is None:
+            raise ReplayAuthorizationError("request session is not available")
+        if session is None:
+            if request.role_id not in {None, "anonymous"}:
+                raise ReplayAuthorizationError("request role requires an explicit session")
+            session_id, role_id, refs = "anonymous", "anonymous", []
+        else:
+            if session.is_isolated is not True or request.role_id not in {None, session.role_id}:
+                raise ReplayAuthorizationError("request session and role are not isolated and consistent")
+            session_id, role_id = session.session_id, session.role_id
+            refs = deepcopy(session_credential_bindings.get(session_id, []))
+            try:
+                session.auth_mechanism.to_dict()
+            except (TypeError, ValueError):
+                raise ReplayAuthorizationError("invalid session authentication mechanism") from None
+            if session.cookies:
+                raise ReplayAuthorizationError("session cookies require a scoped Cookie credential reference")
+            if session.auth_mechanism.location == "query" or session.auth_mechanism.auth_type == "mtls":
+                raise ReplayAuthorizationError("session authentication requires supported header credential bindings")
+            credential_header = (
+                session.auth_mechanism.token_name.lower() if session.auth_mechanism.location == "header" else "cookie"
+            )
+            if any(
+                SENSITIVE_FIELD_PATTERNS.search(name) or name.lower() == credential_header for name in session.headers
+            ):
+                raise ReplayAuthorizationError("session credentials require scoped credential references")
+            if credential_header and not any(ref.get("header", "").lower() == credential_header for ref in refs):
+                raise ReplayAuthorizationError("session authentication requires an explicit credential binding")
+            headers = dict(session.headers)
+            for name, value in request.headers.items():
+                headers = {key: item for key, item in headers.items() if key.lower() != name.lower()}
+                headers[name] = value
+            request.headers = headers
+        try:
+            query_parameters = dict(request.query_parameters)
+            if request.protocol == ApiProtocol.GRAPHQL.value:
+                # Accept the existing structured body/query-parameter forms while
+                # producing exactly one unambiguous v1 GraphQL representation.
+                payload = json.loads(request.body) if request.body is not None else {}
+                if not isinstance(payload, dict) or set(payload) - {"query", "variables"}:
+                    raise ValueError("invalid GraphQL body")
+                queries = [
+                    value
+                    for value in (request.graphql_query, payload.get("query"), query_parameters.pop("query", None))
+                    if value is not None
+                ]
+                if not queries or any(value != queries[0] for value in queries):
+                    raise ValueError("conflicting GraphQL queries")
+                variables = query_parameters.pop("variables", None)
+                if variables is not None:
+                    variables = json.loads(variables)
+                candidates = [
+                    value
+                    for value in (request.graphql_variables or None, payload.get("variables"), variables)
+                    if value is not None
+                ]
+                if candidates and any(value != candidates[0] for value in candidates):
+                    raise ValueError("conflicting GraphQL variables")
+                request.graphql_query = queries[0]
+                request.graphql_variables = candidates[0] if candidates else {}
+                request.body = None
+            parsed = urlparse(request.url)
+            if query_parameters:
+                request.url = urlunparse(
+                    parsed._replace(
+                        query="&".join(
+                            filter(
+                                None,
+                                (
+                                    parsed.query,
+                                    urlencode(query_parameters),
+                                ),
+                            )
+                        )
+                    )
+                )
+            value = {
+                "schema_version": WEB_API_REPLAY_VERSION,
+                "session_id": session_id,
+                "role_id": role_id,
+                "request": {
+                    name: getattr(request, name)
+                    for name in (
+                        "request_id",
+                        "protocol",
+                        "method",
+                        "url",
+                        "headers",
+                        "body",
+                        "graphql_query",
+                        "graphql_variables",
+                        "websocket_messages",
+                    )
+                },
+                "credential_references": refs,
+                "budgets": deepcopy(envelope_budget),
+            }
+            wire_url = _wire_request(value).url
+            destination_guard.check_destination(wire_url)
+            request_urls = [wire_url]
+            current_url = wire_url
+            for redirect_target in redirect_targets.get(source.request_id, []):
+                if not isinstance(redirect_target, str):
+                    raise ValueError("invalid redirect target")
+                current_url = urljoin(current_url, redirect_target)
+                destination_guard.check_destination(current_url)
+                request_urls.append(current_url)
+            policy = {"transport": transport, "request_urls": request_urls}
+            value["destination_policy"] = policy
+            value["request_digest"] = digest(
+                {
+                    key: value[key]
+                    for key in (
+                        "session_id",
+                        "role_id",
+                        "request",
+                        "credential_references",
+                    )
+                },
+                max_bytes=2097152,
+            )
+            operation = {
+                "step_id": request.request_id,
+                "tool": WEB_API_REPLAY_TOOL,
+                "tool_version": WEB_API_REPLAY_VERSION,
+                "action": "replay",
+                "idempotent": False,
+                "arguments": {"envelope": value},
+                "egress_policy": {"web_api_replay": policy},
+                "timeout_seconds": max(1, math.ceil(budget.timeout_seconds)),
+                "side_effects": ["network_connections"],
+            }
+            validate_web_api_operation(operation)
+        except (WebApiReplayError, TypeError, ValueError, KeyError, UnicodeError):
+            raise ReplayAuthorizationError("request does not satisfy the bounded replay worker contract") from None
+        operations.append(operation)
+    pacing_seconds = (len(operations) - 1) / budget.rate_limit_rps if budget.rate_limit_rps > 0 else 0
     limits = {
-        "max_duration_seconds": max(1, math.ceil(budget.timeout_seconds * len(wire_requests) + pacing_seconds)),
-        "max_output_bytes": max(
-            1,
-            sum(
-                budget.max_websocket_bytes + websocket.MAX_HANDSHAKE_BYTES
-                if item.request.protocol == "websocket"
-                else 2048
-                for item in wire_requests
-            ),
-        ),
+        "max_duration_seconds": max(1, math.ceil(budget.timeout_seconds * len(operations) + pacing_seconds)),
+        "max_output_bytes": budget.max_output_bytes * len(operations),
         "egress_allowed": True,
     }
-    batch = {"mode": "sequential", "max_operations": len(wire_requests), "fail_fast": True}
+    if limits["max_duration_seconds"] > 604800 or limits["max_output_bytes"] > 104857600:
+        raise ReplayBudgetExceededError("aggregate replay budget exceeds worker plan limits")
+    batch = {"mode": "sequential", "max_operations": len(operations), "fail_fast": True}
     return operations, limits, batch
 
 
@@ -830,6 +982,9 @@ def build_replay_action_plan(
     credential_references: list[str] | None = None,
     sessions: list[SessionContext] | None = None,
     created_at: str | None = None,
+    session_credential_bindings: dict[str, list[dict[str, str]]] | None = None,
+    transport: str = "production",
+    redirect_targets: dict[str, list[str]] | None = None,
 ) -> ActionPlan:
     """Build the exact immutable plan which an approval must authorize for live replay."""
     owned_destinations = _snapshot_allowlist(allowed_destinations)
@@ -847,8 +1002,24 @@ def build_replay_action_plan(
         raise ReplayAuthorizationError("request identifiers must be unique")
     for request in owned_requests:
         guard.check_destination(request.url)
-    wire = _wire_requests(owned_requests, owned_sessions)
-    operations, limits, batch = _plan_parts(wire, owned_requests, owned_sessions, active_budget, owned_destinations)
+    operations, limits, batch = _plan_parts(
+        owned_requests,
+        owned_sessions,
+        active_budget,
+        deepcopy(session_credential_bindings or {}),
+        owned_destinations,
+        transport,
+        deepcopy(redirect_targets or {}),
+    )
+    bound_references = list(
+        dict.fromkeys(
+            ref["reference"]
+            for operation in operations
+            for ref in operation["arguments"]["envelope"]["credential_references"]
+        )
+    )
+    if credential_references is not None and set(credential_references) != set(bound_references):
+        raise ReplayAuthorizationError("plan credential references must match the session bindings")
     return ActionPlan.create(
         plan_id=plan_id,
         engagement_id=engagement_id,
@@ -857,7 +1028,7 @@ def build_replay_action_plan(
         specialist_id=specialist_id,
         operations=operations,
         limits=limits,
-        credential_references=list(credential_references or []),
+        credential_references=bound_references,
         created_at=created_at or utc_now(),
         batch=batch,
     )
@@ -923,8 +1094,20 @@ def execute_authorized_replay_session(
     worker_identity: str,
     session_id: str | None = None,
     cancellation_event: threading.Event | None = None,
+    worker: Any | None = None,
+    session_credential_bindings: dict[str, list[dict[str, str]]] | None = None,
+    transport: str = "production",
+    redirect_targets: dict[str, list[str]] | None = None,
 ) -> ReplaySessionReport:
-    """Consume one exact approval, then dispatch the corresponding bounded live replay."""
+    """Delegate one exact approved replay to the injected isolated worker.
+
+    Approval consumption, credential resolution, transport mediation, pacing,
+    cancellation and cleanup belong to that worker, never this caller process.
+    """
+    # The worker imports replay transports while loading its mediator. Delay this
+    # concrete boundary check until execution to avoid a module import cycle.
+    from cops.execution.worker import AuthorizedExecution, IsolatedWorker
+
     if cancellation_event is not None and cancellation_event.is_set():
         raise ReplayAuthorizationError("replay cancelled before approval consumption")
     owned_destinations = _snapshot_allowlist(allowed_destinations)
@@ -937,14 +1120,25 @@ def execute_authorized_replay_session(
     _validate_budget(owned_budget)
     if len(owned_requests) > owned_budget.max_requests:
         raise ReplayBudgetExceededError("request count exceeds max_requests")
-    wire_requests = _wire_requests(owned_requests, owned_sessions)
-    for item in wire_requests:
-        destination_guard.check_destination(item.request.url)
-    if any(item.request.protocol == ApiProtocol.WEBSOCKET.value for item in wire_requests):
-        if scope_guard.scope.egress_allowed is not True:
-            raise ScopeViolationError("WebSocket egress is disabled by the runtime scope")
+    for request in owned_requests:
+        destination_guard.check_destination(request.url)
+    if scope_guard.scope.egress_allowed is not True:
+        raise ScopeViolationError("replay egress is disabled by the runtime scope")
     expected_operations, expected_limits, expected_batch = _plan_parts(
-        wire_requests, owned_requests, owned_sessions, owned_budget, owned_destinations
+        owned_requests,
+        owned_sessions,
+        owned_budget,
+        deepcopy(session_credential_bindings or {}),
+        owned_destinations,
+        transport,
+        deepcopy(redirect_targets or {}),
+    )
+    expected_references = list(
+        dict.fromkeys(
+            ref["reference"]
+            for operation in expected_operations
+            for ref in operation["arguments"]["envelope"]["credential_references"]
+        )
     )
     snapshot = action_plan.approved_snapshot()
     if (
@@ -952,40 +1146,214 @@ def execute_authorized_replay_session(
         or snapshot["operations"] != expected_operations
         or snapshot["limits"] != expected_limits
         or snapshot["batch"] != expected_batch
+        or snapshot["credential_references"] != expected_references
     ):
         raise ReplayAuthorizationError("action plan does not match the requested replay")
-    approval_control.assert_ready(worker_identity)
+    if (
+        not isinstance(worker, IsolatedWorker)
+        or getattr(getattr(worker, "config", None), "worker_id", None) != worker_identity
+        or getattr(worker, "approval_control", None) is not approval_control
+        or getattr(worker, "scope_guard", None) is not scope_guard
+    ):
+        raise ReplayAuthorizationError("replay requires a matching isolated worker, approval control and scope")
     if cancellation_event is not None and cancellation_event.is_set():
         raise ReplayAuthorizationError("replay cancelled before approval consumption")
-    receipt: ApprovalConsumptionReceipt | None = approval_control.consume_authorization(
-        authorization_id, action_plan, worker_identity
+    execution = worker.execute_plan_with_receipt(
+        action_plan,
+        authorization_id=authorization_id,
+        cancellation_event=cancellation_event,
     )
-    try:
-        receipt = approval_control.validate_receipt_provenance(receipt)
-        replayer = StandardHttpReplayer(destination_guard, scope_guard)
-        responses: list[ReplayResponse] = []
-        delay = 1.0 / owned_budget.rate_limit_rps if owned_budget.rate_limit_rps > 0 else 0.0
-        for index, item in enumerate(wire_requests):
-            if index and delay:
-                if cancellation_event is None:
-                    time.sleep(delay)
-                else:
-                    cancellation_event.wait(delay)
-            options: dict[str, Any] = {"credential_header_names": item.credential_header_names}
-            if cancellation_event is not None:
-                options["cancellation_event"] = cancellation_event
-            response = replayer.send(item.request, owned_budget, **options)
-            responses.append(response)
-            if not response.replay_success:
-                break
-        return _report(
-            requests=owned_requests,
-            responses=responses,
-            allowed_destinations=owned_destinations,
-            budget=owned_budget,
-            session_id=session_id,
-            violations=0,
+    if not isinstance(execution, AuthorizedExecution):
+        raise ReplayAuthorizationError("worker returned an invalid authorized execution")
+    receipt, result, cleanup = execution.approval_receipt, execution.result, execution.cleanup_receipt
+    if (
+        not isinstance(receipt, ApprovalConsumptionReceipt)
+        or receipt.authorization_id != authorization_id
+        or receipt.action_plan_id != action_plan.plan_id
+        or receipt.plan_digest != action_plan.plan_digest
+        or receipt.engagement_id != action_plan.engagement_id
+        or receipt.worker_identity != worker_identity
+        or receipt.target != action_plan.target
+        or not isinstance(receipt.authorization_digest, str)
+        or not re.fullmatch(r"[0-9a-f]{64}", receipt.authorization_digest)
+        or not isinstance(result, RunResult)
+        or result.plan_id != action_plan.plan_id
+        or result.engagement_id != action_plan.engagement_id
+        or result.worker_identity != worker_identity
+        or not isinstance(cleanup, CleanupReceipt)
+        or cleanup.plan_id != action_plan.plan_id
+        or cleanup.engagement_id != action_plan.engagement_id
+        or cleanup.worker_identity != worker_identity
+    ):
+        raise ReplayAuthorizationError("worker execution receipts do not match the approved replay")
+    # IsolatedWorker verifies authority provenance before dispatch and releases
+    # it during cleanup; do not consume or re-register that receipt here.
+    outputs = execution.operation_outputs
+    attempted_ids = execution.attempted_operation_ids
+    execution_status = result.status
+    if execution_status not in {"success", "failed", "cancelled", "partial", "uncertain"}:
+        raise ReplayAuthorizationError("worker returned an invalid replay execution status")
+    expected_ids = [request.request_id for request in owned_requests]
+    if not isinstance(outputs, Mapping) or set(outputs) - set(expected_ids):
+        raise ReplayAuthorizationError("worker returned invalid replay operation outputs")
+    if (
+        type(attempted_ids) is not tuple
+        or any(type(request_id) is not str for request_id in attempted_ids)
+        or len(set(attempted_ids)) != len(attempted_ids)
+        or set(attempted_ids) - set(expected_ids)
+        or list(attempted_ids) != expected_ids[: len(attempted_ids)]
+    ):
+        raise ReplayAuthorizationError("worker returned invalid replay dispatch evidence")
+    dispatched_ids = [request_id for request_id in expected_ids if request_id in outputs]
+    if dispatched_ids != expected_ids[: len(dispatched_ids)]:
+        raise ReplayAuthorizationError("worker replay outputs do not form the approved sequential prefix")
+    if set(dispatched_ids) - set(attempted_ids):
+        raise ReplayAuthorizationError("worker replay outputs lack matching dispatch evidence")
+    if execution_status == "success" and (list(attempted_ids) != expected_ids or dispatched_ids != expected_ids):
+        raise ReplayAuthorizationError("successful worker replay is missing dispatch evidence")
+    responses: list[ReplayResponse] = []
+    redirect_decisions: list[dict[str, Any]] = []
+    for request in owned_requests:
+        if request.request_id not in outputs:
+            if execution_status == "success":
+                raise ReplayAuthorizationError("successful worker replay is missing an operation output")
+            responses.append(
+                ReplayResponse(
+                    request_id=request.request_id,
+                    status_code=0,
+                    final_url=request.url,
+                    error_message="isolated worker replay did not complete",
+                    replay_success=False,
+                )
+            )
+            break
+        output = outputs[request.request_id]
+        if not isinstance(output, Mapping) or output.get("request_id") != request.request_id:
+            raise ReplayAuthorizationError("worker replay output does not match the approved request")
+        try:
+            # HTTP mediator results and WebSocket ReplayResponse results share
+            # one public report without persisting their raw payloads.
+            value = dict(output)
+            decisions = value.pop("redirect_decisions", [])
+            if not isinstance(decisions, list):
+                raise ValueError("invalid redirect decisions")
+            for decision in decisions:
+                expected_fields = {
+                    "status_code",
+                    "from_url_digest",
+                    "to_url_digest",
+                    "cross_origin",
+                    "method_before",
+                    "method_after",
+                    "body_removed",
+                    "credentials_removed",
+                    "headers_removed",
+                    "decision",
+                }
+                if not isinstance(decision, Mapping) or set(decision) != expected_fields:
+                    raise ValueError("invalid redirect decision")
+                if (
+                    type(decision["status_code"]) is not int
+                    or decision["status_code"] not in {301, 302, 303, 307, 308}
+                    or not all(
+                        isinstance(decision[name], str) and re.fullmatch(r"[0-9a-f]{64}", decision[name])
+                        for name in ("from_url_digest", "to_url_digest")
+                    )
+                    or type(decision["cross_origin"]) is not bool
+                    or type(decision["body_removed"]) is not bool
+                    or type(decision["credentials_removed"]) is not bool
+                    or decision["method_before"] not in {"GET", "HEAD", "OPTIONS", "POST", "PUT", "PATCH", "DELETE"}
+                    or decision["method_after"] not in {"GET", "HEAD", "OPTIONS", "POST", "PUT", "PATCH", "DELETE"}
+                    or not isinstance(decision["headers_removed"], list)
+                    or any(type(name) is not str or name != name.lower() for name in decision["headers_removed"])
+                    or decision["headers_removed"] != sorted(set(decision["headers_removed"]))
+                    or decision["decision"] != "followed"
+                ):
+                    raise ValueError("invalid redirect decision")
+                redirect_decisions.append(dict(decision))
+            if "status" in value:
+                value["status_code"] = value.pop("status")
+            if "body" in value:
+                value["body_excerpt"] = value.pop("body")
+            value.setdefault("final_url", request.url)
+            response = ReplayResponse.from_dict(value)
+            responses.append(_sanitize_response(response))
+        except (TypeError, ValueError, KeyError, OverflowError):
+            raise ReplayAuthorizationError("worker returned an invalid replay response") from None
+        if not response.replay_success:
+            break
+    if execution_status != "success" and responses and all(response.replay_success for response in responses):
+        responses[-1] = replace(
+            responses[-1],
+            error_message="isolated worker replay did not complete",
+            replay_success=False,
         )
-    finally:
-        if receipt is not None:
-            approval_control.release_receipt_provenance(receipt)
+    request_provenance = []
+    for operation in expected_operations:
+        envelope = operation["arguments"]["envelope"]
+        request_value = envelope["request"]
+        request_provenance.append(
+            {
+                "request_id": request_value["request_id"],
+                "session_id": envelope["session_id"],
+                "role_id": envelope["role_id"],
+                "protocol": request_value["protocol"],
+                "method": request_value["method"],
+                "request_digest": envelope["request_digest"],
+                "envelope_digest": digest(envelope, max_bytes=2097152),
+            }
+        )
+    unsupported_features = [
+        {"protocol": "http", "feature_name": "CONNECT and TRACE", "reason": "methods are forbidden"},
+        {"protocol": "http", "feature_name": "arbitrary TCP and raw sockets", "reason": "typed mediator only"},
+        {"protocol": "http", "feature_name": "unrestricted upgrades", "reason": "HTTP 101 is rejected"},
+        {"protocol": "graphql", "feature_name": "subscriptions", "reason": "not approved by the v1 contract"},
+        {"protocol": "websocket", "feature_name": "binary frames", "reason": "text-only replay"},
+        {"protocol": "websocket", "feature_name": "compression and extensions", "reason": "extensions are forbidden"},
+        {"protocol": "websocket", "feature_name": "fragmentation", "reason": "fragmented frames are forbidden"},
+        {"protocol": "websocket", "feature_name": "arbitrary subprotocols", "reason": "subprotocols are unsupported"},
+    ]
+    return _report(
+        requests=owned_requests,
+        responses=responses,
+        allowed_destinations=owned_destinations,
+        budget=owned_budget,
+        session_id=session_id,
+        violations=0,
+        total_dispatched=len(attempted_ids),
+        application_context={
+            "engagement_id": action_plan.engagement_id,
+            "scenario_id": action_plan.scenario_id,
+            "specialist_id": action_plan.specialist_id,
+            "target": action_plan.target,
+            "worker_identity": worker_identity,
+            "execution_status": execution_status,
+        },
+        request_provenance=request_provenance,
+        authorization_evidence={
+            "authorization_id": receipt.authorization_id,
+            "authorization_digest": receipt.authorization_digest,
+            "plan_id": action_plan.plan_id,
+            "plan_digest": action_plan.plan_digest,
+        },
+        execution_evidence={
+            "result_id": result.result_id,
+            "status": result.status,
+            "evidence_hashes": list(result.evidence_records),
+            "attempted_operation_ids": list(attempted_ids),
+        },
+        replay_limits={
+            "budget": asdict(owned_budget),
+            "limits": deepcopy(snapshot["limits"]),
+            "batch": deepcopy(snapshot["batch"]),
+        },
+        redirect_decisions=redirect_decisions,
+        cleanup_receipt={
+            "receipt_id": cleanup.receipt_id,
+            "status": cleanup.status,
+            "evidence_hash": cleanup.evidence_hash,
+            "cleaned_effect_count": len(cleanup.cleaned_effects),
+            "unresolved_effect_count": len(cleanup.unresolved_effects),
+        },
+        unsupported_features=unsupported_features,
+    )

@@ -28,6 +28,8 @@ def _child(monkeypatch, *, missing=False, outcome=None, returncode=0, report=Tru
     def run(command, **kwargs):
         assert command[:3] == [sys.executable, "-m", "pytest"]
         assert command[3] == str(gate.TEST_FILE)
+        assert command[4] == str(gate.WS_TEST_FILE)
+        assert command[5 : 5 + len(gate.WORKER_TEST_FILES)] == [str(path) for path in gate.WORKER_TEST_FILES]
         assert kwargs["cwd"] == gate.ROOT
         assert kwargs["timeout"] == gate.TIMEOUT_SECONDS
         destination = Path(command[command.index("--junitxml") + 1])
@@ -111,6 +113,7 @@ def test_actual_pytest_failure_is_not_swallowed(monkeypatch, tmp_path):
     failing.write_text("def test_acceptance_canary():\n    assert False, 'acceptance-canary'\n", encoding="utf-8")
     monkeypatch.setattr(gate, "TEST_FILE", failing)
     monkeypatch.setattr(gate, "WS_TEST_FILE", failing)
+    monkeypatch.setattr(gate, "WORKER_TEST_FILES", ())
     assert gate.main() == 1
 
 

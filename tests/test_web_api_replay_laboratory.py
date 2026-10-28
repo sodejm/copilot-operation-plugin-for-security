@@ -12,9 +12,8 @@ from dataclasses import replace
 import pytest
 
 from cops.execution.scope_guard import ScopeDefinition, ScopeGuard
-from cops.execution.store import ApprovalStore
 from cops.web_api.laboratory import WebApiAssessmentLaboratory
-from cops.web_api.models import ReplayBudget, ReplayRequest, SessionContext
+from cops.web_api.models import AuthenticationMechanism, ReplayBudget, ReplayRequest, SessionContext
 from cops.web_api.replay import (
     DestinationGuard,
     ReplayBudgetExceededError,
@@ -23,7 +22,7 @@ from cops.web_api.replay import (
     execute_authorized_replay_session,
 )
 from cops.web_api.sanitization import sanitize_body
-from tests.auth_testkit import TestApprovalControl, authorize_test_plan
+from tests.web_api_worker_testkit import loopback_worker
 
 QUERY = "query Object($objectId: ID!) { object(id: $objectId) { id owner } }"
 IDENTITIES = ("owner", "other", "anonymous", "owner")
@@ -92,12 +91,18 @@ def test_real_transport_role_matrix_has_no_session_carryover(profile, tls, proto
 
 
 @pytest.mark.parametrize("profile", ["vulnerable", "corrected"])
-def test_approved_session_batch_exercises_all_plaintext_lab_protocols(tmp_path, profile):
+def test_approved_session_batch_exercises_all_plaintext_lab_protocols(tmp_path, monkeypatch, profile):
     # The approved entry point owns its TLS trust store. Disposable custom-CA TLS
     # is exercised above through the verified-context transport API instead.
-    sessions = [SessionContext(identity, identity, headers=(
-        {} if identity == "anonymous" else {"Authorization": f"Bearer {identity}-token"}
-    )) for identity in ("owner", "other", "anonymous")]
+    sessions = [SessionContext(
+        identity, identity, auth_mechanism=(AuthenticationMechanism() if identity == "anonymous" else
+            AuthenticationMechanism(auth_type="bearer", token_name="Authorization")),
+    ) for identity in ("owner", "other", "anonymous")]
+    bindings = {
+        identity: [{"reference": f"credential-{identity}", "header": "Authorization"}]
+        for identity in ("owner", "other")
+    }
+    credentials = {f"credential-{identity}": f"Bearer {identity}-token" for identity in ("owner", "other")}
     with WebApiAssessmentLaboratory(profile) as lab:
         protocols = [protocol for protocol in ("rest", "graphql-get", "graphql-post", "websocket")
                      for _ in IDENTITIES]
@@ -110,15 +115,17 @@ def test_approved_session_batch_exercises_all_plaintext_lab_protocols(tmp_path, 
             plan_id="plan-laboratory", engagement_id="eng-laboratory", scenario_id="scen-laboratory",
             specialist_id="web-api-assessment-workbench", requests=requests, sessions=sessions,
             allowed_destinations=destinations, budget=budget,
+            session_credential_bindings=bindings, transport="laboratory",
         )
-        auth, trust, engagement = authorize_test_plan(plan, worker_identity="worker-lab")
-        store = ApprovalStore(tmp_path / "authority" / "approvals.sqlite3")
-        store.store_authorization(auth)
-        control = TestApprovalControl(store, trust, engagement)
+        guard = scope()
+        worker, authorization_id, control = loopback_worker(
+            tmp_path, monkeypatch, plan, guard, credentials=credentials,
+        )
         report = execute_authorized_replay_session(
-            requests=requests, sessions=sessions, allowed_destinations=destinations, scope_guard=scope(),
-            budget=budget, action_plan=plan, authorization_id=auth.authorization_id,
-            approval_control=control, worker_identity="worker-lab",
+            requests=requests, sessions=sessions, allowed_destinations=destinations, scope_guard=guard,
+            budget=budget, action_plan=plan, authorization_id=authorization_id,
+            approval_control=control, worker_identity="test-worker-01", worker=worker,
+            session_credential_bindings=bindings, transport="laboratory",
         )
         assert len(report.responses) == len(requests) == lab.request_count
         for response, protocol, identity in zip(report.responses, protocols, identities, strict=True):

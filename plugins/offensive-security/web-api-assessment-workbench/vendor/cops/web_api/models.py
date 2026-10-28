@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+from copy import deepcopy
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -560,6 +561,11 @@ class ReplayBudget:
     max_websocket_frames: int = 10
     max_websocket_message_bytes: int = 65536
     max_websocket_bytes: int = 1048576
+    max_request_header_bytes: int = 16384
+    max_request_body_bytes: int = 1048576
+    max_response_header_bytes: int = 16384
+    max_response_body_bytes: int = 1048576
+    max_output_bytes: int = 2097152
 
     def to_dict(self) -> dict[str, Any]:
         data = asdict(self)
@@ -579,6 +585,11 @@ class ReplayBudget:
             max_websocket_frames=data.get("max_websocket_frames", 10),
             max_websocket_message_bytes=data.get("max_websocket_message_bytes", 65536),
             max_websocket_bytes=data.get("max_websocket_bytes", 1048576),
+            max_request_header_bytes=data.get("max_request_header_bytes", 16384),
+            max_request_body_bytes=data.get("max_request_body_bytes", 1048576),
+            max_response_header_bytes=data.get("max_response_header_bytes", 16384),
+            max_response_body_bytes=data.get("max_response_body_bytes", 1048576),
+            max_output_bytes=data.get("max_output_bytes", 2097152),
         )
 
 
@@ -598,6 +609,7 @@ class ReplayRequest:
     role_id: str | None = None
     graphql_query: str | None = None
     websocket_messages: list[str] = field(default_factory=list)
+    graphql_variables: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         data = asdict(self)
@@ -624,6 +636,7 @@ class ReplayRequest:
             role_id=data.get("role_id"),
             graphql_query=data.get("graphql_query"),
             websocket_messages=list(data.get("websocket_messages", [])),
+            graphql_variables=deepcopy(data.get("graphql_variables", {})),
         )
 
 
@@ -754,27 +767,47 @@ class ReplaySessionReport:
     total_failed: int = 0
     destination_violations: int = 0
     created_at_utc: str = field(default_factory=utc_now)
+    application_context: dict[str, Any] = field(default_factory=dict)
+    request_provenance: list[dict[str, Any]] = field(default_factory=list)
+    authorization_evidence: dict[str, Any] = field(default_factory=dict)
+    execution_evidence: dict[str, Any] = field(default_factory=dict)
+    replay_limits: dict[str, Any] = field(default_factory=dict)
+    redirect_decisions: list[dict[str, Any]] = field(default_factory=list)
+    cleanup_receipt: dict[str, Any] | None = None
+    unsupported_features: list[dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
-        return sanitize_tree(
-            {
-                "session_id": self.session_id,
-                "target_hosts": self.target_hosts,
-                "allowed_destinations": self.allowed_destinations,
-                "budget": (
-                    asdict(self.budget)
-                    if any(r.protocol == ApiProtocol.WEBSOCKET.value for r in self.requests)
-                    else self.budget.to_dict()
-                ),
-                "requests": [r.to_dict() for r in self.requests],
-                "responses": [r.to_dict() for r in self.responses],
-                "total_dispatched": self.total_dispatched,
-                "total_successful": self.total_successful,
-                "total_failed": self.total_failed,
-                "destination_violations": self.destination_violations,
-                "created_at_utc": self.created_at_utc,
-            }
-        )
+        data = {
+            "session_id": self.session_id,
+            "target_hosts": self.target_hosts,
+            "allowed_destinations": self.allowed_destinations,
+            "budget": (
+                asdict(self.budget)
+                if any(r.protocol == ApiProtocol.WEBSOCKET.value for r in self.requests)
+                else self.budget.to_dict()
+            ),
+            "requests": [r.to_dict() for r in self.requests],
+            "responses": [r.to_dict() for r in self.responses],
+            "total_dispatched": self.total_dispatched,
+            "total_successful": self.total_successful,
+            "total_failed": self.total_failed,
+            "destination_violations": self.destination_violations,
+            "created_at_utc": self.created_at_utc,
+            # An empty sequence is an affirmative audit record that no redirect
+            # transition occurred, rather than missing replay evidence.
+            "redirect_decisions": self.redirect_decisions,
+        }
+        optional = {
+            "application_context": self.application_context,
+            "request_provenance": self.request_provenance,
+            "authorization_evidence": self.authorization_evidence,
+            "execution_evidence": self.execution_evidence,
+            "replay_limits": self.replay_limits,
+            "cleanup_receipt": self.cleanup_receipt,
+            "unsupported_features": self.unsupported_features,
+        }
+        data.update({key: value for key, value in optional.items() if value})
+        return sanitize_tree(data)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> ReplaySessionReport:
@@ -793,6 +826,14 @@ class ReplaySessionReport:
             total_failed=int(data.get("total_failed", 0)),
             destination_violations=int(data.get("destination_violations", 0)),
             created_at_utc=data.get("created_at_utc", utc_now()),
+            application_context=dict(data.get("application_context", {})),
+            request_provenance=list(data.get("request_provenance", [])),
+            authorization_evidence=dict(data.get("authorization_evidence", {})),
+            execution_evidence=dict(data.get("execution_evidence", {})),
+            replay_limits=dict(data.get("replay_limits", {})),
+            redirect_decisions=list(data.get("redirect_decisions", [])),
+            cleanup_receipt=(dict(data["cleanup_receipt"]) if data.get("cleanup_receipt") else None),
+            unsupported_features=list(data.get("unsupported_features", [])),
         )
 
     def save(self, path: Path | str) -> None:

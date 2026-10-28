@@ -16,6 +16,7 @@ import re
 import socket
 import ssl
 import threading
+import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any
@@ -35,21 +36,45 @@ _METHODS = frozenset({"GET", "HEAD", "OPTIONS", "POST", "PUT", "PATCH", "DELETE"
 _SHA256 = re.compile(r"[0-9a-f]{64}\Z")
 _ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:/-]{0,127}\Z")
 _HEADER = re.compile(r"[!#$%&'*+.^_`|~0-9A-Za-z-]+\Z")
-_REQUEST_FIELDS = frozenset({
-    "request_id", "protocol", "method", "url", "headers", "body", "graphql_query", "graphql_variables",
-    "websocket_messages",
-})
+_REQUEST_FIELDS = frozenset(
+    {
+        "request_id",
+        "protocol",
+        "method",
+        "url",
+        "headers",
+        "body",
+        "graphql_query",
+        "graphql_variables",
+        "websocket_messages",
+    }
+)
 _BUDGET_BOUNDS = {
-    "max_request_header_bytes": (1, 16384), "max_request_body_bytes": (0, 1048576),
-    "max_response_header_bytes": (1, 16384), "max_output_bytes": (1, 2097152),
-    "max_response_body_bytes": (0, 1048576), "max_redirect_hops": (0, 10),
-    "max_websocket_frames": (2, 10000), "max_websocket_message_bytes": (1, 65536),
+    "max_request_header_bytes": (1, 16384),
+    "max_request_body_bytes": (0, 1048576),
+    "max_response_header_bytes": (1, 16384),
+    "max_output_bytes": (1, 2097152),
+    "max_response_body_bytes": (0, 1048576),
+    "max_redirect_hops": (0, 10),
+    "max_websocket_frames": (2, 10000),
+    "max_websocket_message_bytes": (1, 65536),
     "max_websocket_bytes": (10, 1048576),
 }
-_TRANSPORT_HEADERS = frozenset({
-    "host", "content-length", "transfer-encoding", "proxy-authorization", "proxy-connection", "connection",
-    "upgrade", "trailer", "expect", "accept-encoding", "te",
-})
+_TRANSPORT_HEADERS = frozenset(
+    {
+        "host",
+        "content-length",
+        "transfer-encoding",
+        "proxy-authorization",
+        "proxy-connection",
+        "connection",
+        "upgrade",
+        "trailer",
+        "expect",
+        "accept-encoding",
+        "te",
+    }
+)
 
 
 class WebApiReplayError(ValueError):
@@ -122,10 +147,7 @@ def _json(value: Any) -> str:
 
 def _address(url: str) -> tuple[str, str, int, str]:
     _text(url, "URL")
-    if (
-        any(ord(char) <= 32 or ord(char) >= 127 for char in url)
-        or "\\" in url or "#" in url
-    ):
+    if any(ord(char) <= 32 or ord(char) >= 127 for char in url) or "\\" in url or "#" in url:
         raise WebApiReplayError("invalid replay URL")
     try:
         parsed = urlsplit(url)
@@ -133,10 +155,17 @@ def _address(url: str) -> tuple[str, str, int, str]:
     except ValueError:
         raise WebApiReplayError("invalid replay URL") from None
     if (
-        parsed.scheme not in {"http", "https", "ws", "wss"} or not host
-        or parsed.username is not None or parsed.password is not None
+        parsed.scheme not in {"http", "https", "ws", "wss"}
+        or not host
+        or parsed.username is not None
+        or parsed.password is not None
     ):
         raise WebApiReplayError("unsupported replay URL")
+    canonical_authority = f"[{host}]" if ":" in host else host
+    if port is not None:
+        canonical_authority = f"{canonical_authority}:{port}"
+    if parsed.netloc != canonical_authority:
+        raise WebApiReplayError("destination host must be canonical")
     if "%" in host or host != host.lower() or host.endswith("."):
         raise WebApiReplayError("destination host must be canonical")
     # Reuse the existing strict host/port grammar, without wildcard destinations.
@@ -170,7 +199,9 @@ def _headers(value: Any, *, credentials: bool = False) -> dict[str, str]:
         _text(item, "request header", maximum=16384)
         lower = key.lower()
         if (
-            lower in seen or lower in _TRANSPORT_HEADERS or lower.startswith("sec-websocket-")
+            lower in seen
+            or lower in _TRANSPORT_HEADERS
+            or lower.startswith("sec-websocket-")
             or any(ord(char) < 32 or ord(char) == 127 for char in item)
             or (not credentials and SENSITIVE_FIELD_PATTERNS.search(key))
         ):
@@ -229,20 +260,43 @@ def _wire_request(value: Mapping[str, Any]) -> ReplayRequest:
             url = urlunsplit(parsed._replace(query="&".join(filter(None, (parsed.query, query)))))
         else:
             body = _json(payload)
-            if any(key.lower() == "content-type" and item.lower() != "application/json" for key, item in headers.items()):
+            if any(
+                key.lower() == "content-type" and item.lower() != "application/json" for key, item in headers.items()
+            ):
                 raise WebApiReplayError("GraphQL POST requires application/json")
             headers = {key: item for key, item in headers.items() if key.lower() != "content-type"}
             headers["Content-Type"] = "application/json"
     return ReplayRequest(
-        request_id=request["request_id"], endpoint_id=request["request_id"], method=request["method"], url=url,
-        headers=headers, body=body, protocol=request["protocol"], session_id=value["session_id"], role_id=value["role_id"],
+        request_id=request["request_id"],
+        endpoint_id=request["request_id"],
+        method=request["method"],
+        url=url,
+        headers=headers,
+        body=body,
+        protocol=request["protocol"],
+        session_id=value["session_id"],
+        role_id=value["role_id"],
         websocket_messages=list(request["websocket_messages"]),
     )
 
 
 def _validate(value: Mapping[str, Any]) -> None:
-    _closed(value, frozenset({"schema_version", "session_id", "role_id", "request_digest", "request",
-                              "credential_references", "destination_policy", "budgets"}), "envelope")
+    _closed(
+        value,
+        frozenset(
+            {
+                "schema_version",
+                "session_id",
+                "role_id",
+                "request_digest",
+                "request",
+                "credential_references",
+                "destination_policy",
+                "budgets",
+            }
+        ),
+        "envelope",
+    )
     if value["schema_version"] != WEB_API_REPLAY_VERSION:
         raise WebApiReplayError("unsupported replay envelope version")
     _identifier(value["session_id"], "session")
@@ -261,8 +315,10 @@ def _validate(value: Mapping[str, Any]) -> None:
             raise WebApiReplayError("GraphQL permits only GET/POST with structured query and variables")
         _graphql_query(request["graphql_query"])
         _json(request["graphql_variables"])
-        if any(name in {"query", "variables", "operationName", "extensions"}
-               for name, _item in parse_qsl(urlsplit(request["url"]).query, keep_blank_values=True)):
+        if any(
+            name in {"query", "variables", "operationName", "extensions"}
+            for name, _item in parse_qsl(urlsplit(request["url"]).query, keep_blank_values=True)
+        ):
             raise WebApiReplayError("GraphQL URL cannot override structured operation fields")
     elif request["graphql_query"] is not None or request["graphql_variables"]:
         raise WebApiReplayError("GraphQL fields require the GraphQL protocol")
@@ -282,58 +338,71 @@ def _validate(value: Mapping[str, Any]) -> None:
             raise WebApiReplayError("invalid credential header")
         lower = name.lower()
         if (
-            lower in header_names or lower in _TRANSPORT_HEADERS or lower.startswith("sec-websocket-")
+            lower in header_names
+            or lower in _TRANSPORT_HEADERS
+            or lower.startswith("sec-websocket-")
             or ref["reference"] in reference_names
         ):
             raise WebApiReplayError("duplicate or transport-controlled credential reference")
         reference_names.add(ref["reference"])
         header_names.add(lower)
     _sha(value["request_digest"], "request")
-    if value["request_digest"] != digest({key: value[key] for key in (
-        "session_id", "role_id", "request", "credential_references",
-    )}, max_bytes=2097152):
+    if value["request_digest"] != digest(
+        {
+            key: value[key]
+            for key in (
+                "session_id",
+                "role_id",
+                "request",
+                "credential_references",
+            )
+        },
+        max_bytes=2097152,
+    ):
         raise WebApiReplayError("request digest does not match replay content")
-    budget = _closed(value["budgets"], set(_BUDGET_BOUNDS) | {"timeout_seconds"}, "budget")
+    budget = _closed(value["budgets"], set(_BUDGET_BOUNDS) | {"timeout_seconds", "rate_limit_rps"}, "budget")
     for key, (low, high) in _BUDGET_BOUNDS.items():
         if type(budget[key]) is not int or not low <= budget[key] <= high:
             raise WebApiReplayError(f"invalid {key} budget")
     timeout = budget["timeout_seconds"]
     if type(timeout) not in {int, float} or not math.isfinite(timeout) or not 0 < timeout <= 60:
         raise WebApiReplayError("invalid timeout budget")
+    rate = budget["rate_limit_rps"]
+    if type(rate) not in {int, float} or not math.isfinite(rate) or (rate != 0 and not 1 / 86400 <= rate <= 1000000):
+        raise WebApiReplayError("invalid rate_limit_rps budget")
     if budget["max_output_bytes"] < budget["max_response_body_bytes"]:
         raise WebApiReplayError("output budget cannot be smaller than response body budget")
-    policy = _closed(value["destination_policy"], {"transport", "origin", "request_targets"}, "destination policy")
-    scheme, host, _port, _target = _address(request["url"])
-    if policy["origin"] != _origin(policy["origin"]) or policy["origin"] != _origin(request["url"]):
-        raise WebApiReplayError("request origin differs from exact approved origin")
-    if _address(policy["origin"])[3] != "/":
-        raise WebApiReplayError("origin must not include a request target")
-    if policy["transport"] == "production":
-        if scheme not in {"https", "wss"}:
-            raise WebApiReplayError("production transport requires TLS")
-    elif policy["transport"] == "laboratory":
-        try:
-            loopback = ipaddress.ip_address(host).is_loopback
-        except ValueError:
-            loopback = False
-        if not loopback:
-            raise WebApiReplayError("laboratory transport requires an explicit loopback IP")
-    else:
-        raise WebApiReplayError("unknown transport policy")
-    targets = policy["request_targets"]
-    if not isinstance(targets, (list, tuple)) or not targets or len(targets) > 11 or len(set(targets)) != len(targets):
-        raise WebApiReplayError("invalid exact request targets")
-    for target in targets:
-        if (
-            type(target) is not str or not target.startswith("/") or target.startswith("//")
-            or _address(policy["origin"] + target)[3] != target
-        ):
-            raise WebApiReplayError("invalid exact request target")
     wire = _wire_request(value)
-    if _address(wire.url)[3] not in targets:
-        raise WebApiReplayError("request target is not approved")
-    if (request["protocol"] == "websocket") != (scheme in {"ws", "wss"}):
-        raise WebApiReplayError("protocol and URL scheme differ")
+    policy = _closed(value["destination_policy"], {"transport", "request_urls"}, "destination policy")
+    urls = policy["request_urls"]
+    if (
+        not isinstance(urls, (list, tuple))
+        or not urls
+        or len(urls) > 11
+        or len(set(urls)) != len(urls)
+        or urls[0] != wire.url
+        or len(urls) - 1 > budget["max_redirect_hops"]
+    ):
+        raise WebApiReplayError("invalid exact request URLs")
+    expected_schemes = {"ws", "wss"} if request["protocol"] == "websocket" else {"http", "https"}
+    for url in urls:
+        scheme, host, _port, _target = _address(url)
+        if scheme not in expected_schemes:
+            raise WebApiReplayError("protocol and URL scheme differ")
+        if policy["transport"] == "production":
+            if scheme not in {"https", "wss"}:
+                raise WebApiReplayError("production transport requires TLS")
+        elif policy["transport"] == "laboratory":
+            try:
+                loopback = ipaddress.ip_address(host).is_loopback
+            except ValueError:
+                loopback = False
+            if not loopback:
+                raise WebApiReplayError("laboratory transport requires an explicit loopback IP")
+        else:
+            raise WebApiReplayError("unknown transport policy")
+    if request["protocol"] == "websocket" and len(urls) != 1:
+        raise WebApiReplayError("WebSocket redirects are unsupported")
     try:
         _validate_wire_request(wire)
         if request["protocol"] == "websocket":
@@ -352,19 +421,32 @@ def _validate(value: Mapping[str, Any]) -> None:
 
 def _websocket_budget(value: Mapping[str, Any]) -> ReplayBudget:
     return ReplayBudget(
-        max_requests=1, timeout_seconds=value["timeout_seconds"], max_redirect_hops=0,
+        max_requests=1,
+        timeout_seconds=value["timeout_seconds"],
+        max_redirect_hops=0,
         max_websocket_frames=value["max_websocket_frames"],
-        max_websocket_message_bytes=value["max_websocket_message_bytes"], max_websocket_bytes=value["max_websocket_bytes"],
+        max_websocket_message_bytes=value["max_websocket_message_bytes"],
+        max_websocket_bytes=value["max_websocket_bytes"],
     )
 
 
 def _request_header_bytes(request: ReplayRequest) -> int:
     if request.protocol == "websocket":
         return len(websocket.handshake_request(request, "A" * 24))
-    _scheme, host, port, target = _address(request.url)
-    return len((f"{request.method} {target} HTTP/1.1\r\nHost: {host}:{port}\r\nConnection: close\r\n"
-                f"Content-Length: {len((request.body or '').encode('utf-8'))}\r\n"
-                + "".join(f"{key}: {item}\r\n" for key, item in request.headers.items()) + "\r\n").encode("latin-1"))
+    scheme, host, port, target = _address(request.url)
+    authority = f"[{host}]" if ":" in host else host
+    if port != (443 if scheme == "https" else 80):
+        authority += f":{port}"
+    body = (request.body or "").encode("utf-8")
+    content_length = f"Content-Length: {len(body)}\r\n" if body else ""
+    return len(
+        (
+            f"{request.method} {target} HTTP/1.1\r\nHost: {authority}\r\nConnection: close\r\n"
+            + content_length
+            + "".join(f"{key}: {item}\r\n" for key, item in request.headers.items())
+            + "\r\n"
+        ).encode("latin-1")
+    )
 
 
 @dataclass(frozen=True)
@@ -402,14 +484,17 @@ class WebApiReplayEnvelope:
 def validate_web_api_operation(operation: Mapping[str, Any]) -> WebApiReplayEnvelope:
     """Validate the registered operation without accepting legacy replay metadata."""
     if (
-        operation.get("tool") != WEB_API_REPLAY_TOOL or operation.get("tool_version") != WEB_API_REPLAY_VERSION
+        operation.get("tool") != WEB_API_REPLAY_TOOL
+        or operation.get("tool_version") != WEB_API_REPLAY_VERSION
         or operation.get("action") != "replay"
     ):
         raise WebApiReplayError("unregistered or legacy Web API executable operation")
+    if operation.get("idempotent") is not False:
+        raise WebApiReplayError("Web API replay operations must be explicitly non-idempotent")
     arguments = _closed(operation.get("arguments"), {"envelope"}, "operation arguments")
     envelope = WebApiReplayEnvelope.from_dict(arguments["envelope"])
     egress = _closed(operation.get("egress_policy"), {"web_api_replay"}, "operation egress policy")
-    if egress["web_api_replay"] != envelope.to_dict()["destination_policy"]:
+    if _json(egress["web_api_replay"]) != _json(envelope.to_dict()["destination_policy"]):
         raise WebApiReplayError("operation egress policy differs from approved envelope")
     return envelope
 
@@ -493,8 +578,12 @@ class WebApiReplayMediator:
     """
 
     def __init__(
-        self, *, scope_guard: ScopeGuard, envelope: WebApiReplayEnvelope,
-        plan_digest: str, approval_digest: str,
+        self,
+        *,
+        scope_guard: ScopeGuard,
+        envelope: WebApiReplayEnvelope,
+        plan_digest: str,
+        approval_digest: str,
         credential_resolver: Callable[[str, str, str], str] | None = None,
         tls_context: ssl.SSLContext | None = None,
     ) -> None:
@@ -506,12 +595,18 @@ class WebApiReplayMediator:
         self._lock = threading.Lock()
 
     def dispatch(
-        self, value: Mapping[str, Any], *, plan_digest: str, approval_digest: str,
+        self,
+        value: Mapping[str, Any],
+        *,
+        plan_digest: str,
+        approval_digest: str,
         cancellation_event: threading.Event | None = None,
+        dispatch_observer: Callable[[], None] | None = None,
     ) -> dict[str, Any]:
         candidate = WebApiReplayEnvelope.from_dict(value)
         if (
-            plan_digest != self.plan_digest or approval_digest != self.approval_digest
+            plan_digest != self.plan_digest
+            or approval_digest != self.approval_digest
             or candidate.digest != self.envelope.digest
         ):
             raise WebApiReplayError("replay request does not match immutable approval/plan binding")
@@ -527,7 +622,7 @@ class WebApiReplayMediator:
         def exchange() -> None:
             try:
                 deadline.remaining()
-                outcome.append(self._exchange(owned, deadline))
+                outcome.append(self._exchange(owned, deadline, dispatch_observer))
             except BaseException as error:
                 outcome.append(error)
             finally:
@@ -544,6 +639,8 @@ class WebApiReplayMediator:
             worker.join(timeout=0.2 if deadline.active_socket is not None else 0)
             raise
         worker.join()
+        if not outcome:
+            raise WebApiReplayError("bounded Web API transport produced no result")
         if isinstance(outcome[0], BaseException):
             if isinstance(outcome[0], WebApiReplayError):
                 raise outcome[0] from None
@@ -553,13 +650,19 @@ class WebApiReplayMediator:
             raise outcome[0]
         return outcome[0]
 
-    def _exchange(self, value: dict[str, Any], deadline: _ReplayDeadline) -> dict[str, Any]:
+    def _exchange(
+        self,
+        value: dict[str, Any],
+        deadline: _ReplayDeadline,
+        dispatch_observer: Callable[[], None] | None,
+    ) -> dict[str, Any]:
         if self.scope_guard is None or self.scope_guard.scope.egress_allowed is not True:
             raise WebApiReplayError("runtime Web API egress is disabled")
+        started = time.monotonic()
         budget, policy = value["budgets"], value["destination_policy"]
         request = _wire_request(value)
-        self.scope_guard.check_destination(request.url)
         secrets = []
+        credential_header_names = {ref["header"].lower() for ref in value["credential_references"]}
         for ref in value["credential_references"]:
             deadline.remaining()
             if self.credential_resolver is None:
@@ -574,47 +677,74 @@ class WebApiReplayMediator:
             secrets.append(secret)
         if _request_header_bytes(request) > budget["max_request_header_bytes"]:
             raise WebApiReplayError("resolved request headers exceed their byte budget")
-        scheme, host, port, _target = _address(request.url)
-        authority = f"[{host}]" if ":" in host else host
-        transport = StandardHttpReplayer(
-            DestinationGuard([f"{authority}:{port}"]), self.scope_guard, tls_context=self.tls_context,
-        )
         if request.protocol == "websocket":
+            self.scope_guard.check_destination(request.url)
+            _scheme, host, port, _target = _address(request.url)
+            authority = f"[{host}]" if ":" in host else host
+            transport = StandardHttpReplayer(
+                DestinationGuard([f"{authority}:{port}"]),
+                self.scope_guard,
+                tls_context=self.tls_context,
+            )
             sock = transport._connect(urlsplit(request.url), deadline)
             try:
+                if dispatch_observer is not None:
+                    dispatch_observer()
                 response = websocket.exchange(
                     _WebSocketSocket(sock, budget["max_response_header_bytes"]),
-                    request, _websocket_budget(budget), deadline,
+                    request,
+                    _websocket_budget(budget),
+                    deadline,
                 )
                 if not response.replay_success:
                     raise WebApiReplayError("WebSocket replay failed its bounded text contract")
-                if sum(len(item.encode("utf-8")) for item in response.websocket_replies) > budget["max_response_body_bytes"]:
+                if (
+                    sum(len(item.encode("utf-8")) for item in response.websocket_replies)
+                    > budget["max_response_body_bytes"]
+                ):
                     raise WebApiReplayError("WebSocket transcript body byte budget exceeded")
                 result = response.to_dict()
+                result["final_url"] = request.url
+                result["latency_ms"] = (time.monotonic() - started) * 1000
             finally:
                 sock.close()
             return self._output(result, budget, secrets)
-        url = request.url
+        approved_urls = policy["request_urls"]
+        url, method = request.url, request.method
+        body = (request.body or "").encode("utf-8")
+        headers = dict(request.headers)
+        redirect_decisions: list[dict[str, Any]] = []
         for hop in range(budget["max_redirect_hops"] + 1):
-            if _origin(url) != policy["origin"] or _address(url)[3] not in policy["request_targets"]:
-                raise WebApiReplayError("unapproved replay origin or request target")
+            if hop >= len(approved_urls) or url != approved_urls[hop]:
+                raise WebApiReplayError("redirect URL differs from exact ordered approval")
+            scheme, host, port, target = _address(url)
+            authority = f"[{host}]" if ":" in host else host
+            transport = StandardHttpReplayer(
+                DestinationGuard([authority + f":{port}"]),
+                self.scope_guard,
+                tls_context=self.tls_context,
+            )
             self.scope_guard.check_destination(url)
             sock = transport._connect(urlsplit(url), deadline)
             try:
-                target = _address(url)[3]
-                body = (request.body or "").encode("utf-8")
-                headers = dict(request.headers)
-                headers["Host"] = authority + (f":{port}" if port != (443 if scheme == "https" else 80) else "")
-                headers["Content-Length"] = str(len(body))
-                headers["Connection"] = "close"
-                encoded = (f"{request.method} {target} HTTP/1.1\r\n"
-                           + "".join(f"{name}: {item}\r\n" for name, item in headers.items()) + "\r\n").encode("latin-1")
+                wire_headers = dict(headers)
+                wire_headers["Host"] = authority + (f":{port}" if port != (443 if scheme == "https" else 80) else "")
+                if body:
+                    wire_headers["Content-Length"] = str(len(body))
+                wire_headers["Connection"] = "close"
+                encoded = (
+                    f"{method} {target} HTTP/1.1\r\n"
+                    + "".join(f"{name}: {item}\r\n" for name, item in wire_headers.items())
+                    + "\r\n"
+                ).encode("latin-1")
                 if len(encoded) > budget["max_request_header_bytes"]:
                     raise WebApiReplayError("redirect request headers exceed their byte budget")
                 sock.settimeout(deadline.remaining())
+                if dispatch_observer is not None:
+                    dispatch_observer()
                 sock.sendall(encoded + body)
                 reader = _ResponseReader(sock, budget["max_response_header_bytes"], deadline)
-                response = http.client.HTTPResponse(_ResponseSocket(reader), method=request.method)
+                response = http.client.HTTPResponse(_ResponseSocket(reader), method=method)
                 try:
                     response.begin()
                     if response.headers.defects or not 200 <= response.status <= 599:
@@ -626,10 +756,54 @@ class WebApiReplayMediator:
                     if response.status in {301, 302, 303, 307, 308}:
                         locations = [item for name, item in response_headers if name.lower() == "location"]
                         if locations:
-                            # Only preserving-method transitions can represent the exact approved request.
-                            if response.status not in {307, 308} or hop == budget["max_redirect_hops"]:
+                            if hop == budget["max_redirect_hops"] or hop + 1 >= len(approved_urls):
                                 raise WebApiReplayError("redirect exceeds the exact approved replay contract")
-                            url = urljoin(url, locations[0])
+                            next_url = urljoin(url, locations[0])
+                            if next_url != approved_urls[hop + 1]:
+                                raise WebApiReplayError("redirect URL differs from exact ordered approval")
+                            next_scheme, _next_host, _next_port, _next_target = _address(next_url)
+                            if scheme in {"https", "wss"} and next_scheme in {"http", "ws"}:
+                                raise WebApiReplayError("TLS redirect downgrade is forbidden")
+                            previous_method = method
+                            previous_headers = {name.lower() for name in headers}
+                            removed: set[str] = set()
+                            body_removed = False
+                            if (response.status == 303 and method != "HEAD") or (
+                                response.status in {301, 302} and method == "POST"
+                            ):
+                                method = "GET"
+                                body_removed = bool(body)
+                                body = b""
+                                for name in list(headers):
+                                    if name.lower().startswith("content-"):
+                                        removed.add(name.lower())
+                                        headers.pop(name)
+                            cross_origin = _origin(url) != _origin(next_url)
+                            if cross_origin and body:
+                                raise WebApiReplayError("cross-origin redirect cannot preserve a request body")
+                            credentials_removed = False
+                            if cross_origin:
+                                removed.update(previous_headers)
+                                credentials_removed = any(
+                                    name in credential_header_names or SENSITIVE_FIELD_PATTERNS.search(name) is not None
+                                    for name in previous_headers
+                                )
+                                headers.clear()
+                            redirect_decisions.append(
+                                {
+                                    "status_code": response.status,
+                                    "from_url_digest": digest(url),
+                                    "to_url_digest": digest(next_url),
+                                    "cross_origin": cross_origin,
+                                    "method_before": previous_method,
+                                    "method_after": method,
+                                    "body_removed": body_removed,
+                                    "credentials_removed": credentials_removed,
+                                    "headers_removed": sorted(removed),
+                                    "decision": "followed",
+                                }
+                            )
+                            url = next_url
                             continue
                     content = bytearray()
                     while len(content) <= budget["max_response_body_bytes"]:
@@ -641,9 +815,16 @@ class WebApiReplayMediator:
                     if len(content) > budget["max_response_body_bytes"]:
                         raise WebApiReplayError("response body byte budget exceeded")
                     deadline.remaining()
-                    result = {"request_id": request.request_id, "status": response.status,
-                              "headers": dict(response_headers), "body": content.decode("utf-8", errors="replace"),
-                              "redirect_count": hop}
+                    result = {
+                        "request_id": request.request_id,
+                        "status": response.status,
+                        "headers": dict(response_headers),
+                        "body": content.decode("utf-8", errors="replace"),
+                        "latency_ms": (time.monotonic() - started) * 1000,
+                        "redirect_count": len(redirect_decisions),
+                        "final_url": url,
+                        "redirect_decisions": redirect_decisions,
+                    }
                     return self._output(result, budget, secrets)
                 finally:
                     response.close()
@@ -675,8 +856,7 @@ class WebApiReplayMediator:
     def _output(result: dict[str, Any], budget: Mapping[str, Any], secrets: list[str]) -> dict[str, Any]:
         # Do not export response credentials, cookies or reflected resolved values.
         result["headers"] = {
-            name: item for name, item in result.get("headers", {}).items()
-            if not SENSITIVE_FIELD_PATTERNS.search(name)
+            name: item for name, item in result.get("headers", {}).items() if not SENSITIVE_FIELD_PATTERNS.search(name)
         }
         reflected = set(secrets)
         reflected.update(_json(secret)[1:-1] for secret in secrets)

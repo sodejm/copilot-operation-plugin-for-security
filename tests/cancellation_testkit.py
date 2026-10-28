@@ -17,6 +17,7 @@ import time
 channel = socket.socket(fileno=int(sys.argv[1]))
 detach = sys.argv[2] == "detach"
 exit_leader = sys.argv[3] == "exit"
+os.write(1, b"sensitive-cancelled-prefix")
 read_fd, write_fd = os.pipe()
 child_pid = os.fork()
 if child_pid == 0:

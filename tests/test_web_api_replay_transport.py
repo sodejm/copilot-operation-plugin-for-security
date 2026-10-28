@@ -28,6 +28,7 @@ from cops.web_api.replay import (
     preview_replay_session,
 )
 from tests.auth_testkit import TestApprovalControl, authorize_test_plan
+from tests.web_api_worker_testkit import loopback_worker
 
 _OVERSIZED_DECIMAL_PORT = "9" * 5_000
 
@@ -118,7 +119,11 @@ def https_lab(tmp_path):
 
 
 def _scope(resolver=None):
-    scope = ScopeDefinition(included_ips=[ipaddress.ip_address("127.0.0.1")], included_domains=["replay.test"])
+    scope = ScopeDefinition(
+        included_ips=[ipaddress.ip_address("127.0.0.1")],
+        included_domains=["replay.test"],
+        egress_allowed=True,
+    )
     return ScopeGuard(scope, resolver=resolver) if resolver else ScopeGuard(scope)
 
 
@@ -126,7 +131,16 @@ def _request(url, method="GET", **kwargs):
     return ReplayRequest(request_id="request-one", endpoint_id="endpoint-one", method=method, url=url, **kwargs)
 
 
-def _plan(requests, destinations, budget, sessions=None):
+def _plan(
+    requests,
+    destinations,
+    budget,
+    sessions=None,
+    *,
+    session_credential_bindings=None,
+    transport="production",
+    redirect_targets=None,
+):
     return build_replay_action_plan(
         plan_id="plan-api-transport",
         engagement_id="eng-api-transport",
@@ -136,6 +150,9 @@ def _plan(requests, destinations, budget, sessions=None):
         allowed_destinations=destinations,
         budget=budget,
         sessions=sessions,
+        session_credential_bindings=session_credential_bindings,
+        transport=transport,
+        redirect_targets=redirect_targets,
         created_at="2026-10-18T00:00:00Z",
     )
 
@@ -147,7 +164,21 @@ def _authority(tmp_path, plan):
     return auth.authorization_id, TestApprovalControl(store, trust, engagement)
 
 
-def _execute(plan, auth_id, approval, requests, destinations, budget, sessions=None, scope=None):
+def _execute(
+    plan,
+    auth_id,
+    approval,
+    requests,
+    destinations,
+    budget,
+    sessions=None,
+    scope=None,
+    *,
+    worker=None,
+    session_credential_bindings=None,
+    transport="production",
+    redirect_targets=None,
+):
     return execute_authorized_replay_session(
         requests=requests,
         sessions=sessions or [],
@@ -157,7 +188,11 @@ def _execute(plan, auth_id, approval, requests, destinations, budget, sessions=N
         action_plan=plan,
         authorization_id=auth_id,
         approval_control=approval,
-        worker_identity="worker-api-transport",
+        worker_identity="test-worker-01" if worker is not None else "worker-api-transport",
+        worker=worker,
+        session_credential_bindings=session_credential_bindings,
+        transport=transport,
+        redirect_targets=redirect_targets,
     )
 
 
@@ -228,10 +263,30 @@ def test_redirect_credentials_cannot_cross_origins(http_lab):
     assert len(seen) == 1
 
 
-def test_custom_session_credential_header_cannot_cross_origins(http_lab, tmp_path):
+def test_scoped_session_credential_is_removed_on_exact_cross_origin_redirect(
+    http_lab, tmp_path, monkeypatch
+):
     base, seen, server = http_lab
-    port = server.server_port
-    server.redirect_target = f"http://replay.test:{port}/200"
+    redirected = []
+
+    class TargetHandler(BaseHTTPRequestHandler):
+        def log_message(self, *_args):
+            pass
+
+        def do_GET(self):
+            redirected.append((self.path, dict(self.headers)))
+            self.send_response(200)
+            self.send_header("Content-Length", "2")
+            self.end_headers()
+            self.wfile.write(b"ok")
+
+    target = ThreadingHTTPServer(("127.0.0.1", 0), TargetHandler)
+    target_thread = threading.Thread(
+        target=target.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True
+    )
+    target_thread.start()
+    target_url = f"http://127.0.0.1:{target.server_port}/200"
+    server.redirect_target = target_url
     requests = [_request(f"{base}/redirect", session_id="owner", role_id="owner")]
     sessions = [
         SessionContext(
@@ -242,29 +297,46 @@ def test_custom_session_credential_header_cannot_cross_origins(http_lab, tmp_pat
                 token_name="X-Identity-Proof",
                 location="header",
             ),
-            headers={"X-Identity-Proof": "synthetic-proof"},
         )
     ]
-    destinations = [base.removeprefix("http://"), f"replay.test:{port}"]
-    budget = ReplayBudget(max_requests=1, timeout_seconds=1, rate_limit_rps=0)
-    plan = _plan(requests, destinations, budget, sessions)
-    auth_id, approval = _authority(tmp_path, plan)
+    bindings = {"owner": [{"reference": "credential-owner", "header": "X-Identity-Proof"}]}
+    credentials = {"credential-owner": "synthetic-proof"}
+    destinations = [base.removeprefix("http://"), target_url.removeprefix("http://").removesuffix("/200")]
+    budget = ReplayBudget(max_requests=1, timeout_seconds=1, rate_limit_rps=0, max_redirect_hops=1)
+    redirects = {"request-one": [target_url]}
+    scope_guard = _scope()
+    plan = _plan(
+        requests,
+        destinations,
+        budget,
+        sessions,
+        session_credential_bindings=bindings,
+        transport="laboratory",
+        redirect_targets=redirects,
+    )
+    worker, auth_id, approval = loopback_worker(
+        tmp_path, monkeypatch, plan, scope_guard, credentials
+    )
 
-    with pytest.raises(DestinationViolationError, match="cross-origin"):
-        _execute(
-            plan,
-            auth_id,
-            approval,
-            requests,
-            destinations,
-            budget,
-            sessions,
-            _scope(lambda _: ["127.0.0.1"]),
+    try:
+        report = _execute(
+            plan, auth_id, approval, requests, destinations, budget, sessions, scope_guard,
+            worker=worker, session_credential_bindings=bindings, transport="laboratory",
+            redirect_targets=redirects,
         )
+    finally:
+        target.shutdown()
+        target.server_close()
+        target_thread.join(timeout=1)
 
-    assert len(seen) == 1
+    assert report.responses[0].replay_success
+    assert len(seen) == len(redirected) == 1
     assert seen[0][0] == "/redirect"
     assert seen[0][1]["X-Identity-Proof"] == "synthetic-proof"
+    assert redirected[0][0] == "/200"
+    assert "X-Identity-Proof" not in redirected[0][1]
+    assert report.redirect_decisions[0]["cross_origin"] is True
+    assert report.redirect_decisions[0]["credentials_removed"] is True
 
 
 def test_cross_origin_redirect_cannot_retain_request_body(http_lab):
@@ -511,23 +583,30 @@ def test_budget_deserialization_does_not_coerce_invalid_types():
     ],
 )
 def test_approved_wire_session_and_every_budget_are_bound(tmp_path, change):
-    requests = [_request("http://replay.test/200", session_id="owner", role_id="owner")]
-    sessions = [SessionContext(session_id="owner", role_id="owner", headers={"Authorization": "Bearer synthetic-one"})]
+    requests = [_request("https://replay.test/200", session_id="owner", role_id="owner")]
+    sessions = [SessionContext(
+        session_id="owner",
+        role_id="owner",
+        auth_mechanism=AuthenticationMechanism(
+            auth_type="bearer", token_name="Authorization", location="header"
+        ),
+    )]
+    bindings = {"owner": [{"reference": "credential-one", "header": "Authorization"}]}
     destinations = ["replay.test", "second.test"]
     budget = ReplayBudget(max_requests=1, timeout_seconds=0.6, rate_limit_rps=100)
-    plan = _plan(requests, destinations, budget, sessions)
+    plan = _plan(requests, destinations, budget, sessions, session_credential_bindings=bindings)
     auth_id, approval = _authority(tmp_path, plan)
     if change == "request":
         requests = [replace(requests[0], query_parameters={"changed": "true"})]
     elif change == "credentials":
-        sessions = [replace(sessions[0], headers={"Authorization": "Bearer synthetic-two"})]
+        bindings = {"owner": [{"reference": "credential-two", "header": "Authorization"}]}
     elif change == "cookies":
         sessions = [replace(sessions[0], cookies={"session": "synthetic-cookie"})]
     elif change == "session_metadata":
         sessions = [
             replace(
                 sessions[0],
-                auth_mechanism=replace(sessions[0].auth_mechanism, credential_hash="changed"),
+                auth_mechanism=replace(sessions[0].auth_mechanism, token_name="X-Authorization"),
             )
         ]
     elif change == "isolation":
@@ -554,6 +633,7 @@ def test_approved_wire_session_and_every_budget_are_bound(tmp_path, change):
             budget,
             sessions,
             _scope(lambda h: resolved.append(h) or ["127.0.0.1"]),
+            session_credential_bindings=bindings,
         )
     assert resolved == [] and approval.consume_calls == []
 
@@ -561,30 +641,30 @@ def test_approved_wire_session_and_every_budget_are_bound(tmp_path, change):
 @pytest.mark.parametrize(
     ("request_url", "destinations", "malformed_destinations"),
     [
-        ("http://other.test/200", ["other.test"], ["alice:password@other.test"]),
+        ("https://other.test/200", ["other.test"], ["alice:password@other.test"]),
         (
-            "http://replay.test/200",
+            "https://replay.test/200",
             ["replay.test"],
             ["replay.test", "alice:password@other.test"],
         ),
-        ("http://other.test/200", ["other.test"], ["[private-token]"]),
-        ("http://replay.test/200", ["replay.test"], ["replay.test", "[private-token]"]),
-        ("http://other.test/200", ["other.test"], ["2130706433"]),
-        ("http://replay.test/200", ["replay.test"], ["replay.test", "2130706433"]),
-        ("http://replay.test/200", ["replay.test"], ["replay.test", "0x7f000001"]),
-        ("http://replay.test/200", ["replay.test"], ["replay.test", "0x7f.0.0.1"]),
+        ("https://other.test/200", ["other.test"], ["[private-token]"]),
+        ("https://replay.test/200", ["replay.test"], ["replay.test", "[private-token]"]),
+        ("https://other.test/200", ["other.test"], ["2130706433"]),
+        ("https://replay.test/200", ["replay.test"], ["replay.test", "2130706433"]),
+        ("https://replay.test/200", ["replay.test"], ["replay.test", "0x7f000001"]),
+        ("https://replay.test/200", ["replay.test"], ["replay.test", "0x7f.0.0.1"]),
         (
-            "http://replay.test/200",
+            "https://replay.test/200",
             ["replay.test"],
             ["replay.test", f"api.example.test:{_OVERSIZED_DECIMAL_PORT}"],
         ),
         (
-            "http://replay.test/200",
+            "https://replay.test/200",
             ["replay.test"],
             ["replay.test", f"127.0.0.1:{_OVERSIZED_DECIMAL_PORT}"],
         ),
         (
-            "http://replay.test/200",
+            "https://replay.test/200",
             ["replay.test"],
             ["replay.test", f"[::1]:{_OVERSIZED_DECIMAL_PORT}"],
         ),
@@ -619,7 +699,9 @@ def test_malformed_allowlist_item_fails_before_io_or_approval_consumption(
     assert approval.consume_calls == []
 
 
-def test_caller_mutation_during_approval_consumption_cannot_change_wire_behavior(http_lab, tmp_path):
+def test_caller_mutation_during_approval_consumption_cannot_change_wire_behavior(
+    http_lab, tmp_path, monkeypatch
+):
     base, seen, _ = http_lab
     request = _request(
         f"{base}/200",
@@ -631,47 +713,122 @@ def test_caller_mutation_during_approval_consumption_cannot_change_wire_behavior
     session = SessionContext(
         session_id="owner",
         role_id="owner",
-        headers={"Authorization": "Bearer synthetic-before"},
+        headers={"X-Context": "before"},
+        auth_mechanism=AuthenticationMechanism(
+            auth_type="bearer",
+            token_name="Authorization",
+            location="header",
+        ),
     )
     requests = [request]
     sessions = [session]
     destinations = [base.removeprefix("http://")]
     budget = ReplayBudget(max_requests=1, timeout_seconds=1, rate_limit_rps=0)
-    plan = _plan(requests, destinations, budget, sessions)
-    auth_id, approval = _authority(tmp_path, plan)
+    bindings = {
+        "owner": [
+            {
+                "reference": "credential-owner",
+                "header": "Authorization",
+            }
+        ]
+    }
+    plan = _plan(
+        requests,
+        destinations,
+        budget,
+        sessions,
+        session_credential_bindings=bindings,
+        transport="laboratory",
+    )
+    scope_guard = _scope()
+    worker, auth_id, approval = loopback_worker(
+        tmp_path,
+        monkeypatch,
+        plan,
+        scope_guard,
+        {"credential-owner": "Bearer synthetic-before"},
+    )
     consume_authorization = approval.consume_authorization
 
     def mutate_then_consume(authorization_id, action_plan, worker_identity):
         request.headers["X-Snapshot"] = "after"
         request.query_parameters["ordinary"] = "after"
-        session.headers["Authorization"] = "Bearer synthetic-after"
+        session.headers["X-Context"] = "after"
+        session.auth_mechanism = AuthenticationMechanism(
+            auth_type="custom",
+            token_name="X-Changed-Token",
+            location="header",
+        )
+        bindings["owner"][0]["reference"] = "credential-after"
         destinations[:] = ["unapproved.test"]
         budget.timeout_seconds = float("nan")
         return consume_authorization(authorization_id, action_plan, worker_identity)
 
     approval.consume_authorization = mutate_then_consume
-    report = _execute(plan, auth_id, approval, requests, destinations, budget, sessions)
+    report = _execute(
+        plan,
+        auth_id,
+        approval,
+        requests,
+        destinations,
+        budget,
+        sessions,
+        scope=scope_guard,
+        worker=worker,
+        session_credential_bindings=bindings,
+        transport="laboratory",
+    )
     assert report.responses[0].replay_success
     assert report.allowed_destinations == [base.removeprefix("http://")]
     assert report.budget.timeout_seconds == 1
     assert seen[0][0] == "/200?ordinary=before"
     assert seen[0][1]["X-Snapshot"] == "before"
+    assert seen[0][1]["X-Context"] == "before"
     assert seen[0][1]["Authorization"] == "Bearer synthetic-before"
 
 
-def test_signed_approval_consumed_once_and_fail_fast_releases_receipt(http_lab, tmp_path):
+def test_signed_approval_consumed_once_and_fail_fast_releases_receipt(http_lab, tmp_path, monkeypatch):
     base, seen, _ = http_lab
     requests = [_request(f"{base}/drop"), replace(_request(f"{base}/200"), request_id="request-two")]
     destinations = [base.removeprefix("http://")]
     budget = ReplayBudget(max_requests=2, timeout_seconds=1, rate_limit_rps=0)
-    plan = _plan(requests, destinations, budget)
-    auth_id, approval = _authority(tmp_path, plan)
-    report = _execute(plan, auth_id, approval, requests, destinations, budget)
+    plan = _plan(requests, destinations, budget, transport="laboratory")
+    scope_guard = _scope()
+    worker, auth_id, approval = loopback_worker(tmp_path, monkeypatch, plan, scope_guard)
+    report = _execute(
+        plan,
+        auth_id,
+        approval,
+        requests,
+        destinations,
+        budget,
+        scope=scope_guard,
+        worker=worker,
+        transport="laboratory",
+    )
+    # A peer drop proves the laboratory received the request. Without an
+    # authenticated result, the worker records an uncertain, non-repeatable
+    # dispatch instead of incorrectly claiming that nothing was sent.
     assert len(seen) == 1 and report.total_dispatched == 1 and report.total_failed == 1
+    assert report.application_context["execution_status"] == "uncertain"
+    assert report.execution_evidence["attempted_operation_ids"] == ["request-one"]
+    assert report.cleanup_receipt and report.cleanup_receipt["status"] == "completed"
     assert not approval._issued_receipts
-    with pytest.raises(Exception, match="consum"):
-        _execute(plan, auth_id, approval, requests, destinations, budget)
+    assert len(approval.consume_calls) == 1
+    with pytest.raises(Exception, match="consum|already contains execution run"):
+        _execute(
+            plan,
+            auth_id,
+            approval,
+            requests,
+            destinations,
+            budget,
+            scope=scope_guard,
+            worker=worker,
+            transport="laboratory",
+        )
     assert len(seen) == 1
+    assert len(approval.consume_calls) == 1
 
 
 @pytest.mark.parametrize(

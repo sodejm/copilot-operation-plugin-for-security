@@ -121,15 +121,13 @@ python3 -m cops web-api replay \
   -o replay_report.json
 ```
 
-The package CLI intentionally supports offline replay only. Live HTTP replay is a Python integration surface that requires a matching `ActionPlan`, approval verification, a ready worker boundary, and a `ScopeGuard` before dispatch:
+The package CLI supports offline replay only and rejects live dispatch. Source-level
+integration exercises use disposable loopback services; qualification of the
+approved isolated worker and production providers remains pending. Live execution
+requires exact approval and the isolated worker and egress controls described in
+the [verification guide](docs/VERIFICATION.md#issue-100-worker-integration).
 
-```python
-from cops.web_api import build_replay_action_plan, execute_authorized_replay_session
-```
-
-Production-provider validation remains incomplete. Live HTTP execution snapshots its requests, isolated sessions, destinations, and complete budget before validating and consuming the exact signed approval. Its transport pins scope-checked numeric addresses, verifies the TLS certificate and original hostname, permits TLS 1.2 or newer only, rejects HTTPS downgrade, and prevents cross-origin redirects from retaining a body or credential-bearing header. Default TLS contexts set the minimum explicitly. Caller-supplied contexts are rejected if they permit older protocols or disable certificate or hostname verification, and are rechecked before use without being changed.
-
-The same approved Python entrypoint supports a [bounded WS/WSS text subset](docs/BOUNDED_WEBSOCKET_REPLAY.md):
+The loopback exercises include a [bounded WS/WSS text subset](docs/BOUNDED_WEBSOCKET_REPLAY.md):
 one fresh connection, exact approved UTF-8 messages, one reply per message and a
 checked close. Counts include control and close frames in both directions;
 `max_websocket_message_bytes` and `max_websocket_bytes` bound payload and aggregate
@@ -191,7 +189,7 @@ environment names are `COPS_WEB_API_BEARER_TOKEN`,
 | :--- | :--- | :--- | :--- | :--- |
 | Sanitized API inventory | Normalized endpoints, protocols, parameters, target hosts, and source references | HAR 1.2, OpenAPI 3.x/Swagger 2.0, Postman 2.0/2.1, or raw HTTP importer | Inspect, preview, and replay preparation | Schema construction, credential redaction, source-format tests, and inventory inspection |
 | Replay preview | Exact request URLs, allowed and target destinations, budget, sanitized evidence, zero effects, and unresolved live observations | `cops web-api replay --dry-run` or `--explain` | Operator and approval planning | Destination and budget validation; tests assert no dispatch, worker, authorization, session, file, or state effects |
-| Replay report | Sanitized response observations and bounded execution totals | Offline synthetic replayer or approved live HTTP Python entry point | Authorization and rate-limit assessors | Request budget, destination guard, redirect bounds, response redaction, and report-schema tests |
+| Replay report | Sanitized response observations and bounded execution totals | Offline synthetic replayer or loopback test integration | Authorization and rate-limit assessors | Request budget, destination guard, redirect bounds, response redaction, and report-schema tests |
 | Authorization/rate assessment | `pass`, `fail`, or `insufficient_evidence` verdict with case evidence | Object-authorization and rate-limit assessors | Reviewer and evidence record | Owner, other-user, and anonymous REST/GraphQL cases plus bounded `429`, all-success, and incomplete sequences |
 
 ## Local Acceptance Fixture
@@ -220,7 +218,7 @@ Path-level OpenAPI/Swagger parameters are inherited by each operation. An operat
 
 ## Worker integration qualification
 
-The [Issue #100 worker qualification contract](../../../specs/issue-100-worker-qualification.md)
+The [Issue #100 worker qualification guidance](docs/VERIFICATION.md#issue-100-worker-integration)
 records the required isolated-worker, approval, egress, evidence and cleanup gates.
 Those requirements must be verified on the integrated revision before claiming
 worker or production qualification; the offline CLI remains non-dispatching.

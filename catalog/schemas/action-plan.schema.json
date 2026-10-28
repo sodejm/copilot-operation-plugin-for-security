@@ -120,7 +120,10 @@
           "egress_policy": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["https_endpoint"],
+            "oneOf": [
+              {"required": ["https_endpoint"]},
+              {"required": ["web_api_replay"]}
+            ],
             "properties": {
               "https_endpoint": {
                 "type": "object",
@@ -148,6 +151,26 @@
                     "minItems": 1,
                     "uniqueItems": true,
                     "items": {"type": "string", "minLength": 1}
+                  }
+                }
+              },
+              "web_api_replay": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["transport", "request_urls"],
+                "properties": {
+                  "transport": {
+                    "enum": ["production", "laboratory"]
+                  },
+                  "request_urls": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 11,
+                    "uniqueItems": true,
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
                   }
                 }
               }

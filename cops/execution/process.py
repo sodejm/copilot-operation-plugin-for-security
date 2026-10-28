@@ -12,6 +12,13 @@ import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Protocol
+
+
+class CancellationSignal(Protocol):
+    """Minimal cancellation contract accepted by bounded child collection."""
+
+    def is_set(self) -> bool: ...
 
 
 @dataclass(frozen=True)
@@ -121,14 +128,17 @@ def run_bounded_process(
     resource_limits: ProcessResourceLimits | None = None,
     defer_process_limit: bool = False,
     on_started: Callable[[subprocess.Popen[bytes], float], None] | None = None,
+    cancellation_event: CancellationSignal | None = None,
 ) -> BoundedProcessResult:
     """Run ``command`` while bounding retained stdout and stderr bytes.
 
     The aggregate limit is applied to raw bytes as pipes are drained.  Timeout
     and overflow terminate the whole process group, then drain/discard any
-    remaining bytes so retained memory never exceeds the approved budget.  A
-    timeout or overflow suppresses every retained byte: an arbitrary prefix may
-    end in the middle of a credential and therefore cannot be redacted safely.
+    remaining bytes so retained memory never exceeds the approved budget.
+    Cancellation follows the same process-group and output-suppression path. A
+    timeout, overflow, or cancellation suppresses every retained byte: an
+    arbitrary prefix may end in the middle of a credential and therefore cannot
+    be redacted safely.
     """
     if os.name != "posix":
         raise RuntimeError("bounded executable collection requires POSIX process-group support")
@@ -138,6 +148,8 @@ def run_bounded_process(
         raise RuntimeError("kernel resource enforcement is supported only on Linux")
     if defer_process_limit and resource_limits is None:
         raise ValueError("a deferred process limit requires resource limits")
+    if cancellation_event is not None and cancellation_event.is_set():
+        raise KeyboardInterrupt
 
     process = subprocess.Popen(
         list(command),
@@ -162,6 +174,7 @@ def run_bounded_process(
     deadline = time.monotonic() + timeout_seconds
     timed_out = False
     overflow = False
+    cancelled = False
     terminated = False
     drain_deadline: float | None = None
 
@@ -174,7 +187,12 @@ def run_bounded_process(
             selector.register(stream, selectors.EVENT_READ, name)
         while selector.get_map():
             remaining_time = deadline - time.monotonic()
-            if not terminated and remaining_time <= 0:
+            if not terminated and cancellation_event is not None and cancellation_event.is_set():
+                cancelled = True
+                terminated = True
+                _terminate_process_group(process, process_group_id)
+                drain_deadline = time.monotonic() + 0.5
+            elif not terminated and remaining_time <= 0:
                 timed_out = True
                 terminated = True
                 _terminate_process_group(process, process_group_id)
@@ -238,8 +256,8 @@ def run_bounded_process(
                 _terminate_process_group(process, process_group_id)
                 process.wait(timeout=2)
 
-    stdout = b"" if timed_out or overflow else bytes(captured["stdout"])
-    stderr = b"" if timed_out or overflow else bytes(captured["stderr"])
+    stdout = b"" if timed_out or overflow or cancelled else bytes(captured["stdout"])
+    stderr = b"" if timed_out or overflow or cancelled else bytes(captured["stderr"])
     return BoundedProcessResult(
         stdout=stdout,
         stderr=stderr,

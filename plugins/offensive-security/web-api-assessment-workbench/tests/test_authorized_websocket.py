@@ -14,23 +14,22 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from cops.execution.scope_guard import ScopeDefinition, ScopeGuard  # noqa: E402
-from cops.execution.store import ApprovalStore  # noqa: E402
 from cops.web_api.models import ReplayBudget, ReplayRequest, SessionContext  # noqa: E402
 from cops.web_api.replay import build_replay_action_plan, execute_authorized_replay_session  # noqa: E402
 from cops.web_api.sanitization import sanitize_body  # noqa: E402
-from tests.auth_testkit import TestApprovalControl, authorize_test_plan  # noqa: E402
+from tests.web_api_worker_testkit import loopback_worker  # noqa: E402
 from tests.websocket_testkit import WebSocketTestServer  # noqa: E402
 
 
 @pytest.mark.parametrize("profile", ["vulnerable", "corrected"])
-def test_approved_websocket_role_sessions_and_clean_close(tmp_path, profile):
+def test_approved_websocket_role_sessions_and_clean_close(tmp_path, profile, monkeypatch):
     with WebSocketTestServer(mode="authorization", profile=profile) as lab:
         sessions = [
             SessionContext(
-                session_id="owner-session", role_id="owner", headers={"Authorization": "Bearer owner-token"}
+                session_id="owner-session", role_id="owner"
             ),
             SessionContext(
-                session_id="other-session", role_id="other", headers={"Authorization": "Bearer other-token"}
+                session_id="other-session", role_id="other"
             ),
             SessionContext(session_id="anonymous-session", role_id="anonymous"),
         ]
@@ -49,6 +48,8 @@ def test_approved_websocket_role_sessions_and_clean_close(tmp_path, profile):
         ]
         destinations = [lab.url.split("/")[2]]
         budget = ReplayBudget(max_requests=3, rate_limit_rps=1000, timeout_seconds=2)
+        bindings = {f"{actor}-session": [{"reference": f"lab-{actor}", "header": "Authorization"}]
+                    for actor in ("owner", "other")}
         plan = build_replay_action_plan(
             plan_id="plan-websocket-roles",
             engagement_id="eng-websocket-roles",
@@ -58,23 +59,27 @@ def test_approved_websocket_role_sessions_and_clean_close(tmp_path, profile):
             sessions=sessions,
             allowed_destinations=destinations,
             budget=budget,
+            session_credential_bindings=bindings,
+            transport="laboratory",
         )
-        auth, trust, engagement = authorize_test_plan(plan, worker_identity="worker-websocket-roles")
-        store = ApprovalStore(tmp_path / "authority" / "approvals.sqlite3")
-        store.store_authorization(auth)
-        control = TestApprovalControl(store, trust, engagement)
+        guard = ScopeGuard(ScopeDefinition(included_ips={ipaddress.ip_address("127.0.0.1")}, egress_allowed=True))
+        worker, authorization_id, control = loopback_worker(
+            tmp_path, monkeypatch, plan, guard,
+            {"lab-owner": "Bearer owner-token", "lab-other": "Bearer other-token"},
+        )
         report = execute_authorized_replay_session(
             requests=requests,
             sessions=sessions,
             allowed_destinations=destinations,
-            scope_guard=ScopeGuard(
-                ScopeDefinition(included_ips={ipaddress.ip_address("127.0.0.1")}, egress_allowed=True)
-            ),
+            scope_guard=guard,
             budget=budget,
             action_plan=plan,
-            authorization_id=auth.authorization_id,
+            authorization_id=authorization_id,
             approval_control=control,
-            worker_identity="worker-websocket-roles",
+            worker_identity="test-worker-01",
+            worker=worker,
+            session_credential_bindings=bindings,
+            transport="laboratory",
         )
         assert len(control.consume_calls) == 1 and not control._issued_receipts
         assert len(lab.handshakes) == 3

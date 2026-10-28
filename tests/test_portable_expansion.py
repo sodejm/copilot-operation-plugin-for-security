@@ -57,6 +57,38 @@ def test_web_api_vendored_runtime_manifest_matches_files() -> None:
     _runtime_manifest(WEB_API_VENDOR)
 
 
+def test_installed_web_api_live_replay_fails_before_approval(tmp_path: Path) -> None:
+    installed = tmp_path / "installed/vendor"
+    shutil.copytree(WEB_API_VENDOR, installed, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+    subprocess.run(
+        [sys.executable, "-I", "-c", '''
+import sys
+sys.path.insert(0, sys.argv[1])
+from cops.web_api.replay import execute_authorized_replay_session
+
+class ApprovalTrap:
+    def __getattr__(self, name):
+        raise AssertionError("approval was accessed: " + name)
+
+for plan in (object(), {"operations": [{"action": "legacy-live-replay"}]}):
+    try:
+        execute_authorized_replay_session(
+            requests=[], sessions=[], allowed_destinations=[], scope_guard=None,
+            budget=None, action_plan=plan, authorization_id="approval",
+            approval_control=ApprovalTrap(), worker_identity="unavailable",
+        )
+    except ImportError as error:
+        assert "qualified isolated worker" in str(error)
+    else:
+        raise AssertionError("live replay did not fail closed")
+''', str(installed)],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+
 def test_portable_export_preserves_expansion_assets_and_runs_installed_demo(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -129,7 +161,10 @@ sys.path.insert(0, str(PACKAGE_ROOT / "vendor"))
 import cops
 from cops.web_api.importer import import_openapi
 from cops.web_api.models import ReplayBudget, ReplayRequest
-from cops.web_api.replay import OfflineSyntheticReplayer, execute_replay_session
+from cops.web_api.replay import (
+    OfflineSyntheticReplayer, build_replay_action_plan,
+    execute_authorized_replay_session, execute_replay_session,
+)
 
 
 inventory = import_openapi(
@@ -148,6 +183,30 @@ report = execute_replay_session(
     replayer=replayer,
     session_id="installed-demo",
 )
+request = ReplayRequest("request-1", inventory.endpoints[0].endpoint_id, "GET", "https://api.example.test/health")
+plan = build_replay_action_plan(
+    plan_id="plan-installed", engagement_id="eng-installed", scenario_id="scen-installed",
+    specialist_id="web-api-assessment-workbench", requests=[request],
+    allowed_destinations=["api.example.test"], created_at="2026-10-27T00:00:00Z",
+)
+assert "envelope" in plan.approved_snapshot()["operations"][0]["arguments"]
+
+class ApprovalTrap:
+    def __getattr__(self, name):
+        raise AssertionError("approval control was accessed: " + name)
+
+for candidate in (plan, {"operations": [{"action": "legacy-live-replay"}]}):
+    try:
+        execute_authorized_replay_session(
+            requests=[request], sessions=[], allowed_destinations=["api.example.test"],
+            scope_guard=None, budget=ReplayBudget(), action_plan=candidate,
+            authorization_id="legacy-or-current", approval_control=ApprovalTrap(),
+            worker_identity="unavailable",
+        )
+    except ImportError as error:
+        assert "qualified isolated worker" in str(error)
+    else:
+        raise AssertionError("installed live replay did not fail closed")
 print(
     json.dumps(
         {
@@ -157,6 +216,7 @@ print(
             "total_successful": report.total_successful,
             "synthetic_requests": len(replayer.requests_sent),
             "network_requests": 0,
+            "live_worker_unavailable": True,
         },
         sort_keys=True,
     )
@@ -205,6 +265,7 @@ print(
     assert result == {
         "endpoint_count": 1,
         "network_requests": 0,
+        "live_worker_unavailable": True,
         "runtime_root": str((destination / "vendor/cops/__init__.py").resolve()),
         "status": "passed",
         "synthetic_requests": 1,
