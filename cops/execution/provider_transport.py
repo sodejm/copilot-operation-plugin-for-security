@@ -334,6 +334,16 @@ class GatewayProviderTransport:
         self.max_response_bytes = max_response_bytes
         self.max_elapsed_ms = max_elapsed_ms
 
+    def validate_endpoint(self, endpoint: GatewayDispatchEndpoint) -> None:
+        """Validate the immutable provider target without resolving credentials.
+
+        Production dispatchers call this during preflight, before consuming the
+        one-use grant or resolving its scoped credential.  ``__call__`` repeats
+        the same validation at the network transition so a preflight result can
+        never authorize a later target mutation.
+        """
+        _target(endpoint, self.provider)
+
     def __call__(
         self, endpoint: GatewayDispatchEndpoint, body: bytes, credential: ResolvedCredential
     ) -> GatewayDispatchResponse:

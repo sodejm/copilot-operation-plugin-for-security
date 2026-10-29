@@ -205,6 +205,19 @@ def test_exact_provider_host_is_required_before_network(provider, host, network)
     assert not network.instances
 
 
+@pytest.mark.parametrize("provider", CREDENTIALS)
+def test_endpoint_preflight_uses_the_same_canonical_target_policy(provider, network):
+    adapter = transport.GatewayProviderTransport(provider)
+    assert adapter.validate_endpoint(endpoint(provider)) is None
+    scoped = replace(
+        endpoint(provider),
+        request_target=endpoint(provider).request_target.replace(HOSTS[provider], HOSTS[provider] + ".evil.test", 1),
+    )
+    with pytest.raises(ValueError):
+        adapter.validate_endpoint(scoped)
+    assert not network.instances
+
+
 @pytest.mark.parametrize("failure,state,attempts", [("connect", "not_sent", 0), ("send", "uncertain", 1)])
 def test_failure_is_sanitized_and_never_retried(failure, state, attempts, network):
     network.failure = failure
