@@ -180,12 +180,14 @@ def test_trace_rejects_unbound_misclassified_or_unbounded_evidence(mutation):
 def test_trace_redacts_secrets_and_canary_values_before_serialization():
     data = _trace()
     data["events"][0]["summary"] = "Bearer sensitivecredential canary-private-value"
+    data["events"][1]["summary"] = "Authorization: Basic dXNlcjpwYXNz"
     result = ExecutionTrace.from_dict(data, redaction_values=("canary-private-value",)).to_dict()
     encoded = json.dumps(result)
     assert "sensitivecredential" not in encoded
+    assert "dXNlcjpwYXNz" not in encoded
     assert "canary-private-value" not in encoded
-    event = result["events"][0]
-    assert TraceEvent.from_dict(event).to_dict() == event
+    for event in result["events"]:
+        assert TraceEvent.from_dict(event).to_dict() == event
 
 
 def test_trace_effect_count_is_an_integer_observation():
