@@ -3,10 +3,12 @@
 import json
 import multiprocessing
 import os
+import signal
 import socket
 import subprocess
 import sys
 import threading
+from pathlib import Path
 from time import monotonic
 from types import MappingProxyType
 
@@ -378,3 +380,173 @@ def test_dispatcher_failure_is_redacted_and_classified_uncertain():
     assert recorder.calls.value == 1
     assert channel.result is None
     assert channel.dispatch_state == DISPATCH_ATTEMPTED_UNCERTAIN
+
+
+def test_cancelled_mediator_waits_for_cooperative_cleanup():
+    event = threading.Event()
+    started = threading.Event()
+    cleaned = threading.Event()
+
+    def cooperative(envelope, *, deadline, cancellation_event, dispatch_context):
+        started.set()
+        cancellation_event.wait(2)
+        threading.Event().wait(0.1)
+        cleaned.set()
+        raise RuntimeError("cancelled")
+
+    def cancel_after_start():
+        assert started.wait(2)
+        event.set()
+
+    timer = threading.Thread(target=cancel_after_start)
+    timer.start()
+    try:
+        with pytest.raises(AgentMcpError, match="cancelled"):
+            dispatch(mediator(cooperative), cancellation_event=event)
+        assert cleaned.is_set()
+    finally:
+        timer.join()
+        cleaned.wait(2)
+
+
+def test_group_disposal_failure_denies_result_and_reaps_broker(monkeypatch, tmp_path):
+    import tempfile
+
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
+    initial_children = {child.pid for child in multiprocessing.active_children()}
+
+    def denied_killpg(*args):
+        raise PermissionError("group disposal unavailable")
+
+    monkeypatch.setattr(os, "killpg", denied_killpg)
+    with pytest.raises(AgentMcpError, match="cleanup failed"):
+        with AgentMcpBroker(mediator()).open_channel(deadline=monotonic() + 3) as channel:
+            with socket.socket(fileno=os.dup(channel.pass_fds[0])) as client:
+                client.settimeout(2)
+                client.sendall(DISPATCH_TRIGGER)
+                assert client.recv(4096) == b'{"status":"completed"}\n'
+    assert channel.result is None
+    assert channel.dispatch_state == DISPATCH_ATTEMPTED_UNCERTAIN
+    assert not list(tmp_path.iterdir())
+    assert {child.pid for child in multiprocessing.active_children()} <= initial_children
+
+
+def test_completed_broker_drains_result_before_stopping_monitor(monkeypatch):
+    release = threading.Event()
+    original_run = threading.Thread.run
+    original_join = threading.Thread.join
+
+    def delayed_run(self):
+        if self.name == "cops-agent-mcp-supervisor":
+            assert release.wait(2)
+        original_run(self)
+
+    def releasing_join(self, *args, **kwargs):
+        if self.name == "cops-agent-mcp-supervisor":
+            release.set()
+        return original_join(self, *args, **kwargs)
+
+    monkeypatch.setattr(threading.Thread, "run", delayed_run)
+    monkeypatch.setattr(threading.Thread, "join", releasing_join)
+    with AgentMcpBroker(mediator()).open_channel(deadline=monotonic() + 3) as channel:
+        with socket.socket(fileno=os.dup(channel.pass_fds[0])) as client:
+            client.settimeout(2)
+            client.sendall(DISPATCH_TRIGGER)
+            assert client.recv(4096) == b'{"status":"completed"}\n'
+        assert channel.result is None
+    assert channel.result is not None
+    assert channel.dispatch_state == DISPATCH_COMPLETED
+
+
+def _process_running(pid):
+    if not pid:
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    # Linux may retain an already-killed orphan until its init process reaps it.
+    stat = Path(f"/proc/{pid}/stat")
+    try:
+        return stat.read_text().rsplit(")", 1)[1].split()[0] != "Z"
+    except FileNotFoundError:
+        return not sys.platform.startswith("linux")
+
+
+@pytest.mark.parametrize("stop", ["cancel", "deadline", "forced"])
+def test_broker_disposes_lab_directory_and_children_after_interruption(monkeypatch, tmp_path, stop):
+    import tempfile
+
+    plugin = Path(__file__).resolve().parents[1] / "plugins/offensive-security/foundry-agent-harness"
+    monkeypatch.syspath_prepend(str(plugin))
+    from foundryharness import laboratory as lab
+    from foundryharness.worker_dispatch import registered_lab_case
+
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
+    context = multiprocessing.get_context("fork")
+    spawned = context.Event()
+    cleaned = context.Event()
+    child_pid = context.Value("i", 0)
+    event = threading.Event()
+    original_init = lab._JsonLineProcess.__init__
+    original_close = lab._JsonLineProcess.close
+
+    def delayed_init(self, *args, **kwargs):
+        original_init(self, *args, **kwargs)
+        child_pid.value = self.process.pid
+        spawned.set()
+        # Deterministically leave the lab thread inside fixture startup when
+        # cancellation arrives, reproducing premature daemon-thread exit.
+        threading.Event().wait(1.2 if stop == "deadline" else 0.3)
+
+    monkeypatch.setattr(lab._JsonLineProcess, "__init__", delayed_init)
+
+    def observed_close(self):
+        result = original_close(self)
+        cleaned.set()
+        return result
+
+    monkeypatch.setattr(lab._JsonLineProcess, "close", observed_close)
+
+    def interrupted_lab(envelope, *, deadline, cancellation_event, dispatch_context):
+        if stop == "forced":
+            with tempfile.TemporaryDirectory(prefix="cops-agent-mcp-lab-"):
+                child = subprocess.Popen([sys.executable, "-I", "-c", "import time; time.sleep(30)"])
+                child_pid.value = child.pid
+                spawned.set()
+                threading.Event().wait(30)
+        else:
+            lab.run_lab_case(
+                registered_lab_case("authorized-canary-sink"),
+                cancellation_check=cancellation_event.is_set,
+                deadline_monotonic=deadline,
+            )
+
+    data = envelope_data()
+    if stop == "deadline":
+        data["limits"]["max_duration_seconds"] = 1
+    deadline = monotonic() + 5
+    try:
+        with AgentMcpBroker(mediator(interrupted_lab, data)).open_channel(
+            deadline=deadline, cancellation_event=event
+        ) as channel:
+            with socket.socket(fileno=os.dup(channel.pass_fds[0])) as client:
+                client.settimeout(3)
+                client.sendall(DISPATCH_TRIGGER)
+                assert spawned.wait(2)
+                if stop != "deadline":
+                    event.set()
+                assert client.recv(4096) in (b"", b'{"error":"laboratory_denied"}\n')
+        assert channel.result is None
+        assert channel.dispatch_state == DISPATCH_ATTEMPTED_UNCERTAIN
+        if stop != "forced":
+            assert cleaned.is_set()
+        assert not list(tmp_path.rglob("cops-agent-mcp-lab-*"))
+        assert not list(tmp_path.rglob("cops-agent-mcp-dispatch-*"))
+        expires = monotonic() + 1
+        while _process_running(child_pid.value) and monotonic() < expires:
+            threading.Event().wait(0.01)
+        assert not _process_running(child_pid.value)
+    finally:
+        if _process_running(child_pid.value):
+            os.kill(child_pid.value, signal.SIGKILL)

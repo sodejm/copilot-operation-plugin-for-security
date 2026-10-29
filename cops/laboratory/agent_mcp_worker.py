@@ -23,6 +23,7 @@ AGENT_MCP_TOOL = "cops.agent-mcp.laboratory-worker"
 AGENT_MCP_VERSION = "1"
 ENVELOPE_VERSION = "cops.agent-mcp-laboratory-envelope/v1"
 RESULT_VERSION = "cops.agent-mcp-laboratory-result/v1"
+DISPATCH_CLEANUP_GRACE_SECONDS = 1.5
 _IDENTIFIER = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\Z")
 _SHA256 = re.compile(r"[0-9a-f]{64}\Z")
 _IDENTITY_FIELDS = frozenset(
@@ -271,3 +272,6 @@ class AgentMcpMediator:
             return outcome[0]
         finally:
             cancelled.set()
+            # Deny interrupted results while allowing the trusted dispatcher to
+            # reset canaries and reap fixtures before its broker exits.
+            thread.join(timeout=DISPATCH_CLEANUP_GRACE_SECONDS)

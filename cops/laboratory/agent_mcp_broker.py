@@ -5,7 +5,10 @@ from __future__ import annotations
 import json
 import math
 import multiprocessing
+import os
+import signal
 import socket
+import tempfile
 import threading
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager, suppress
@@ -16,7 +19,7 @@ from typing import Any
 
 from cops.execution.egress import BROKER_FD_ENV
 
-from .agent_mcp_worker import AgentMcpError, AgentMcpMediator
+from .agent_mcp_worker import DISPATCH_CLEANUP_GRACE_SECONDS, AgentMcpError, AgentMcpMediator
 
 DISPATCH_TRIGGER = b'{"version":"cops.agent-mcp-laboratory/v1","action":"dispatch"}\n'
 MAX_BROKER_RESPONSE_BYTES = 4096
@@ -63,11 +66,25 @@ class AgentMcpBroker:
         reader, writer = context.Pipe(duplex=False)
         cancelled = context.Event()
         attempted = context.Event()
+        isolated = context.Event()
+        finished = context.Event()
         stopped = threading.Event()
+        workdir = tempfile.TemporaryDirectory(prefix="cops-agent-mcp-dispatch-")
         channel = AgentMcpBrokerChannel(MappingProxyType({BROKER_FD_ENV: str(client.fileno())}), (client.fileno(),))
         process = context.Process(
             target=self._serve,
-            args=(server, client, reader, writer, deadline, cancelled, attempted),
+            args=(
+                server,
+                client,
+                reader,
+                writer,
+                deadline,
+                cancelled,
+                attempted,
+                isolated,
+                finished,
+                workdir.name,
+            ),
             daemon=True,
             name="cops-agent-mcp-broker",
         )
@@ -99,26 +116,42 @@ class AgentMcpBroker:
         finally:
             client.close()
             cancelled.set()
-            if started:
-                process.join(timeout=0.2)
-                if process.is_alive():
-                    process.terminate()
-                    process.join(timeout=0.2)
-                if process.is_alive():
-                    process.kill()
-                    process.join()
-                # Reap the process before joining the bounded trusted-pipe reader.
-                monitor.join()
-            stopped.set()
-            if channel.result is not None:
-                channel.dispatch_state = DISPATCH_COMPLETED
-            elif attempted.is_set():
-                channel.dispatch_state = DISPATCH_ATTEMPTED_UNCERTAIN
-            reader.close()
-            writer.close()
-            server.close()
-            if started:
-                process.close()
+            try:
+                if started:
+                    # The child remains its group's leader until disposal, so
+                    # its PID cannot be reused before descendants are killed.
+                    if finished.wait(DISPATCH_CLEANUP_GRACE_SECONDS + 0.25):
+                        # A completed child has closed the pipe. Give its
+                        # bounded result a chance to drain before stopping.
+                        monitor.join(timeout=0.1)
+                    stopped.set()
+                    monitor.join()
+                    try:
+                        try:
+                            if isolated.is_set():
+                                with suppress(ProcessLookupError):
+                                    os.killpg(process.pid, signal.SIGKILL)
+                        finally:
+                            if process.is_alive():
+                                process.kill()
+                            process.join()
+                    except OSError:
+                        channel.result = None
+                        raise AgentMcpError("laboratory broker cleanup failed") from None
+            finally:
+                stopped.set()
+                if channel.result is not None:
+                    channel.dispatch_state = DISPATCH_COMPLETED
+                elif attempted.is_set():
+                    channel.dispatch_state = DISPATCH_ATTEMPTED_UNCERTAIN
+                reader.close()
+                writer.close()
+                server.close()
+                if started:
+                    process.close()
+                # This root belongs to the supervisor, which survives forced
+                # termination. No caller-supplied path reaches its disposal.
+                workdir.cleanup()
 
     def _serve(
         self,
@@ -129,10 +162,18 @@ class AgentMcpBroker:
         deadline: float,
         cancelled: Any,
         attempted: Any,
+        isolated: Any,
+        finished: Any,
+        workdir: str,
     ) -> None:
         client.close()
         reader.close()
         try:
+            # Fixtures inherit this group and private temporary root. Establish
+            # both before admitting the fixed trigger or starting a dispatcher.
+            os.setsid()
+            isolated.set()
+            tempfile.tempdir = workdir
             server.settimeout(max(0.001, deadline - monotonic()))
             request = b""
             while b"\n" not in request:
@@ -164,3 +205,7 @@ class AgentMcpBroker:
         finally:
             writer.close()
             server.close()
+            finished.set()
+            # Keep the session leader alive even after cooperative completion;
+            # the supervisor owns disposal of the entire group and temp root.
+            threading.Event().wait()
