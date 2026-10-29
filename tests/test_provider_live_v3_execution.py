@@ -330,10 +330,28 @@ def test_v3_provider_failure_redacts_private_payload_after_single_send(tmp_path,
         execute_live_case(plan, case, **args)
     assert len(resolved) == len(sent) == 1
     assert "SYNTHETIC_PRIVATE_PROVIDER_PAYLOAD" not in str(caught.value) + caplog.text
-    assert caught.value.__context__ is None or caught.value.__suppress_context__
+    assert caught.value.__context__ is None and caught.value.__cause__ is None
     with pytest.raises(ProviderLiveError, match="dispatch denied"):
         execute_live_case(plan, case, **args)
     assert len(resolved) == len(sent) == 1
+
+
+def test_v3_cleanup_failure_does_not_retain_private_exception_after_single_send(tmp_path, monkeypatch, caplog):
+    plan, case, args, resolved, sent, _ = _production_setup(tmp_path, monkeypatch)
+    cleanup_calls = []
+
+    def cleanup():
+        cleanup_calls.append(True)
+        raise RuntimeError("SYNTHETIC_PRIVATE_CLEANUP_MARKER")
+
+    with pytest.raises(ProviderLiveError, match="dispatch denied") as caught:
+        execute_live_case(plan, case, cleanup=cleanup, **args)
+    assert len(resolved) == len(sent) == len(cleanup_calls) == 1
+    assert "SYNTHETIC_PRIVATE_CLEANUP_MARKER" not in str(caught.value) + caplog.text
+    assert caught.value.__context__ is None and caught.value.__cause__ is None
+    with pytest.raises(ProviderLiveError, match="dispatch denied"):
+        execute_live_case(plan, case, cleanup=cleanup, **args)
+    assert len(resolved) == len(sent) == len(cleanup_calls) == 1
 
 
 def test_v2_signed_evidence_is_ineligible_for_production_dispatch(tmp_path, monkeypatch):

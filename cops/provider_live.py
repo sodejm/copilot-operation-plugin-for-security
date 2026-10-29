@@ -528,6 +528,7 @@ def execute_live_case(
         )
     if dispatch_intent_uncertain:
         return evidence
+    production_failure = False
     try:
         receipt = _dispatch_with_deadline(
             gateway,
@@ -581,8 +582,9 @@ def execute_live_case(
             except Exception:
                 _LOG.warning("provider assessment cleanup did not complete")
         if production_dispatch:
-            raise _deny() from None
-        return evidence
+            production_failure = True
+        else:
+            return evidence
     except BaseException:
         # Cancellation has the same uncertain effect, but callers must still
         # receive the cancellation so that their worker can stop promptly.
@@ -594,3 +596,7 @@ def execute_live_case(
             except Exception:
                 _LOG.warning("provider assessment cleanup did not complete")
         raise
+    if production_failure:
+        # Raise after leaving the handler so private transport, provider, parser,
+        # and cleanup exceptions are not retained through ``__context__``.
+        raise _deny()
