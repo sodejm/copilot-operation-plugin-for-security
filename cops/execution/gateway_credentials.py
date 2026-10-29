@@ -1,8 +1,9 @@
 """Gateway-local credential scope and provider transport boundary.
 
-Only a handler installed behind GatewayDispatchEmulator may use this module.
-The emulator verifies and consumes a signed grant before invoking the handler.
-No resolver, provider transport, or credential is supplied by default.
+Install handlers only behind a dispatcher that verifies and consumes signed
+grants. The emulator remains supported for explicitly supplied fake transports;
+production transport registration requires a production dispatcher. No resolver,
+provider transport, or credential is supplied by default.
 """
 
 from __future__ import annotations
@@ -53,14 +54,60 @@ class GatewayCredentialBinding:
             raise GatewayDispatchError("gateway credential binding is invalid")
 
 
-ProviderTransport = Callable[[GatewayDispatchEndpoint, bytes, str | bytes], GatewayDispatchResponse]
-CredentialResolver = Callable[[str], str | bytes | None]
+def _credential_value(value: str) -> None:
+    if not isinstance(value, str) or not value or len(value) > 8192 or any(
+        ord(ch) < 0x21 or ord(ch) > 0x7E for ch in value
+    ):
+        raise GatewayDispatchError("gateway credential is invalid")
+
+
+@dataclass(frozen=True)
+class OpenAIResponseCredential:
+    api_key: str = field(repr=False)
+
+    def __post_init__(self) -> None:
+        _credential_value(self.api_key)
+
+
+@dataclass(frozen=True)
+class AzureOpenAIResponseCredential:
+    api_key: str = field(repr=False)
+
+    def __post_init__(self) -> None:
+        _credential_value(self.api_key)
+
+
+@dataclass(frozen=True)
+class BedrockCredential:
+    access_key_id: str = field(repr=False)
+    secret_access_key: str = field(repr=False)
+    session_token: str | None = field(default=None, repr=False)
+
+    def __post_init__(self) -> None:
+        _credential_value(self.access_key_id)
+        _credential_value(self.secret_access_key)
+        if self.session_token is not None:
+            _credential_value(self.session_token)
+
+
+@dataclass(frozen=True)
+class VertexCredential:
+    access_token: str = field(repr=False)
+
+    def __post_init__(self) -> None:
+        _credential_value(self.access_token)
+
+
+GatewayCredential = OpenAIResponseCredential | AzureOpenAIResponseCredential | BedrockCredential | VertexCredential
+ResolvedCredential = GatewayCredential | str | bytes
+ProviderTransport = Callable[[GatewayDispatchEndpoint, bytes, ResolvedCredential], GatewayDispatchResponse]
+CredentialResolver = Callable[[str], ResolvedCredential | None]
 
 
 class GatewayScopedProviderHandler:
     """Resolve a gateway-owned credential only for an already verified scope.
 
-    The caller must install this handler behind GatewayDispatchEmulator. A
+    The caller must install this handler behind a verifying dispatcher. A
     transport is operator supplied and may use only the endpoint and credential
     passed here. Production TLS, provider IAM, and retention need separate
     operational verification.
@@ -105,13 +152,16 @@ class GatewayScopedProviderHandler:
         if transport is None:
             raise GatewayDispatchError("gateway provider transport unavailable")
 
-        credential: str | bytes | None = None
+        credential: ResolvedCredential | None = None
         resolution_failed = False
         try:
             credential = self._credential_resolver(binding.credential_ref)
         except Exception:
             resolution_failed = True
-        if resolution_failed or not isinstance(credential, (str, bytes)) or not credential:
+        if resolution_failed or not isinstance(
+            credential,
+            (str, bytes, OpenAIResponseCredential, AzureOpenAIResponseCredential, BedrockCredential, VertexCredential),
+        ) or not credential:
             raise GatewayDispatchError("gateway credential unavailable")
 
         response: GatewayDispatchResponse | None = None
