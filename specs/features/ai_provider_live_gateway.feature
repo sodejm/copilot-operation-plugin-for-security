@@ -1,5 +1,22 @@
-Feature: Opt-in provider gateway emulator
-  A signed one-use dispatch and shared budget constrain synthetic provider requests.
+Feature: Opt-in provider gateway contracts and emulator
+  Versioned signed scope constrains provider requests; emulator results remain local evidence.
+
+  Scenario: The v3 production contract requires complete signed scope
+    Given bounded v3 production plan and cases
+    When the production contract shape is validated
+    Then scoped auth identities, transport, digests, and budgets are mandatory
+    And unknown v3 contract fields are rejected
+
+  Scenario: Historical emulator evidence remains readable without production eligibility
+    Given historical v2 emulator plan and cases
+    When their historical schemas are validated
+    Then the documents remain readable
+    But they cannot satisfy the v3 production contract
+
+  Scenario: Provider endpoint aliases cannot satisfy the v3 contract
+    Given bounded v3 production plan and cases
+    When a provider target contains a normalization alias
+    Then the v3 contract rejects the target
 
   Scenario: Four approved text canaries pass their provider envelopes
     Given approved live emulator cases for OpenAI, Azure, AWS, and GCP

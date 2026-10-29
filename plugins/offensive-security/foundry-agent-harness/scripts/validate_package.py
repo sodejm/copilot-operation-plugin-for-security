@@ -31,6 +31,11 @@ SCHEMA_KEYS = {
     "items",
     "oneOf",
     "anyOf",
+    "allOf",
+    "if",
+    "then",
+    "else",
+    "not",
     "minLength",
     "maxLength",
     "pattern",
@@ -53,6 +58,9 @@ SUPPORTED_PATTERNS = {
     "^[A-Za-z0-9+/]{86}==$",
     "^CANARY_[A-Z0-9_]+$",
     "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+    "^[A-Za-z][A-Za-z0-9._-]{0,127}$",
+    r"/(?:\.|\.\.)(?:/|$)",
+    "^https://[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*(?:/[A-Za-z0-9._~!$&'()*+,;=:@-]+)+$",
     "^fixture-[A-Za-z0-9._-]+$",
     "^synthetic-[A-Za-z0-9._-]+$",
     r"^https://[A-Za-z0-9.-]+\.invalid(?:/[A-Za-z0-9._/-]*)?$",
@@ -185,7 +193,21 @@ def admit_schema(schema):
             not isinstance(node, dict)
             or not node
             or set(node) - SCHEMA_KEYS
-            or not set(node) & {"type", "const", "enum", "properties", "$ref", "oneOf", "anyOf"}
+            or not set(node)
+            & {
+                "type",
+                "const",
+                "enum",
+                "properties",
+                "$ref",
+                "oneOf",
+                "anyOf",
+                "allOf",
+                "if",
+                "not",
+                "pattern",
+                "items",
+            }
             or depth > 40
             or visited > 10000
         ):
@@ -229,11 +251,16 @@ def admit_schema(schema):
                 raise PackageError("Invalid additional properties schema")
         if "items" in node:
             stack.append((node["items"], depth + 1))
-        for key in ("oneOf", "anyOf"):
+        for key in ("oneOf", "anyOf", "allOf"):
             if key in node:
                 if not isinstance(node[key], list) or not node[key]:
                     raise PackageError("Invalid schema alternatives")
                 stack.extend((child, depth + 1) for child in node[key])
+        if ("then" in node or "else" in node) and "if" not in node:
+            raise PackageError("Conditional branch without predicate")
+        for key in ("if", "then", "else", "not"):
+            if key in node:
+                stack.append((node[key], depth + 1))
         if "pattern" in node and (not isinstance(node["pattern"], str) or node["pattern"] not in SUPPORTED_PATTERNS):
             raise PackageError("Unsupported schema string pattern")
         if "format" in node and node["format"] != "date":
@@ -278,7 +305,8 @@ def admit_schema(schema):
         ancestry = (*ancestry, id(node))
         children = list(node.get("properties", {}).values()) + list(node.get("$defs", {}).values())
         children += list(node.get("patternProperties", {}).values())
-        children += node.get("oneOf", []) + node.get("anyOf", [])
+        children += node.get("oneOf", []) + node.get("anyOf", []) + node.get("allOf", [])
+        children += [node[key] for key in ("if", "then", "else", "not") if key in node]
         if "items" in node:
             children.append(node["items"])
         if isinstance(node.get("additionalProperties"), dict):
@@ -294,6 +322,24 @@ def check_schema(value, schema, root=None):
     root = schema if root is None else root
     if "$ref" in schema:
         check_schema(value, root["$defs"][schema["$ref"][8:]], root)
+    for branch in schema.get("allOf", []):
+        check_schema(value, branch, root)
+    if "if" in schema:
+        try:
+            check_schema(value, schema["if"], root)
+        except PackageError:
+            selected = "else"
+        else:
+            selected = "then"
+        if selected in schema:
+            check_schema(value, schema[selected], root)
+    if "not" in schema:
+        try:
+            check_schema(value, schema["not"], root)
+        except PackageError:
+            pass
+        else:
+            raise PackageError("Excluded schema match")
     for keyword in ("oneOf", "anyOf"):
         if keyword not in schema:
             continue
