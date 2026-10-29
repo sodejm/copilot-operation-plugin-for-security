@@ -26,9 +26,16 @@ CREDENTIALS = {
     "bedrock": BedrockCredential("fixture-access-key", SECRET, "fixture-session-token"),
     "vertex": VertexCredential(SECRET),
 }
+HOSTS = {
+    "openai": "api.openai.com",
+    "azure_openai": "fixture-resource.openai.azure.com",
+    "bedrock": "bedrock-runtime.us-east-1.amazonaws.com",
+    "vertex": "us-east1-aiplatform.googleapis.com",
+}
 
 
 def endpoint(provider):
+    region = "us-east-1" if provider == "bedrock" else "us-east1"
     paths = {
         "openai": "/v1/responses",
         "azure_openai": "/openai/v1/responses",
@@ -36,24 +43,39 @@ def endpoint(provider):
         "vertex": "/v1/projects/test-project/locations/us-east1/publishers/google/models/test-model:generateContent",
     }
     return GatewayDispatchEndpoint(
-        gateway_endpoint_id="fixture-endpoint", gateway_identity="spiffe://gateway.test/runtime",
-        endpoint_origin="https://gateway.test", gateway_path="/dispatch", provider=provider,
-        account_or_project_kind="project", account_or_project="test-project", region="us-east1",
-        model="test-model", request_target="https://provider.test" + paths[provider],
+        gateway_endpoint_id="fixture-endpoint",
+        gateway_identity="spiffe://gateway.test/runtime",
+        endpoint_origin="https://gateway.test",
+        gateway_path="/dispatch",
+        provider=provider,
+        account_or_project_kind="project",
+        account_or_project="test-project",
+        region=region,
+        model="test-model",
+        request_target="https://" + HOSTS[provider] + paths[provider],
     )
 
 
 def raw_response(provider):
     if provider in {"openai", "azure_openai"}:
-        return {"id": SECRET, "status": "completed", "output": [
-            {"type": "message", "id": SECRET, "content": [{"type": "output_text", "text": SECRET}]}],
-            "usage": {"input_tokens": 1, "output_tokens": 2, "total_tokens": 3, "extra": SECRET}}
+        return {
+            "id": SECRET,
+            "status": "completed",
+            "output": [{"type": "message", "id": SECRET, "content": [{"type": "output_text", "text": SECRET}]}],
+            "usage": {"input_tokens": 1, "output_tokens": 2, "total_tokens": 3, "extra": SECRET},
+        }
     if provider == "bedrock":
-        return {"stopReason": "end_turn", "output": {"message": {"content": [{"text": SECRET}]}},
-                "usage": {"inputTokens": 1, "outputTokens": 2, "totalTokens": 3}, "trace": SECRET}
-    return {"candidates": [{"finishReason": "STOP", "content": {"parts": [{"text": SECRET}]}}],
-            "usageMetadata": {"promptTokenCount": 1, "candidatesTokenCount": 2, "totalTokenCount": 3},
-            "responseId": SECRET}
+        return {
+            "stopReason": "end_turn",
+            "output": {"message": {"content": [{"text": SECRET}]}},
+            "usage": {"inputTokens": 1, "outputTokens": 2, "totalTokens": 3},
+            "trace": SECRET,
+        }
+    return {
+        "candidates": [{"finishReason": "STOP", "content": {"parts": [{"text": SECRET}]}}],
+        "usageMetadata": {"promptTokenCount": 1, "candidatesTokenCount": 2, "totalTokenCount": 3},
+        "responseId": SECRET,
+    }
 
 
 class FakeSocket:
@@ -127,10 +149,10 @@ def test_registered_adapter_authenticates_once_and_redacts(provider, network, mo
     assert SECRET.encode() not in response.body
     assert b"fixture-session-token" not in response.body
     connection = network.instances[0]
-    assert connection.host == "provider.test"
+    assert connection.host == HOSTS[provider]
     assert connection.closed and len(connection.requests) == 1
     args, kwargs = connection.requests[0]
-    assert args == ("POST", endpoint(provider).request_target.removeprefix("https://provider.test"))
+    assert args == ("POST", endpoint(provider).request_target.removeprefix("https://" + HOSTS[provider]))
     assert kwargs["body"] == b'{"fixture":true}'
     headers = kwargs["headers"]
     if provider in {"openai", "vertex"}:
@@ -155,9 +177,31 @@ def test_wrong_or_ambient_credential_never_opens_connection(provider, network):
 
 @pytest.mark.parametrize("path", ["/v1/other", "/v1/responses/extra", "/v1/%72esponses", "/v1/../responses"])
 def test_exact_path_is_required_before_network(path, network):
-    target = replace(endpoint("openai"), request_target="https://provider.test" + path)
+    target = replace(endpoint("openai"), request_target="https://api.openai.com" + path)
     with pytest.raises(transport.ProviderTransportError):
         transport.GatewayProviderTransport("openai")(target, b"{}", CREDENTIALS["openai"])
+    assert not network.instances
+
+
+@pytest.mark.parametrize(
+    ("provider", "host"),
+    [
+        ("openai", "api.openai.com.evil.test"),
+        ("azure_openai", "openai.azure.com"),
+        ("azure_openai", "fixture-resource.openai.azure.com.evil.test"),
+        ("azure_openai", "fixture-resource.other.azure.com"),
+        ("bedrock", "bedrock-runtime.us-west-2.amazonaws.com"),
+        ("bedrock", "bedrock-runtime.us-east-1.amazonaws.com.evil.test"),
+        ("vertex", "europe-west1-aiplatform.googleapis.com"),
+        ("vertex", "us-east1-aiplatform.googleapis.com.evil.test"),
+    ],
+)
+def test_exact_provider_host_is_required_before_network(provider, host, network):
+    target = endpoint(provider)
+    scoped = replace(target, request_target=target.request_target.replace(HOSTS[provider], host, 1))
+    with pytest.raises(transport.ProviderTransportError) as error:
+        transport.GatewayProviderTransport(provider)(scoped, b"{}", CREDENTIALS[provider])
+    assert error.value.send_state == "not_sent"
     assert not network.instances
 
 
@@ -172,19 +216,22 @@ def test_failure_is_sanitized_and_never_retried(failure, state, attempts, networ
     assert network.instances[0].closed
 
 
-@pytest.mark.parametrize("body,headers,status", [
-    (b"{}", [("Content-Type", "text/html")], 200),
-    (b"{}", [("Content-Type", "application/json"), ("Content-Type", "application/json")], 200),
-    (b"{}", [("Content-Type", "application/json"), ("Content-Encoding", "gzip")], 200),
-    (b"{}", [("Content-Type", "application/json"), ("Content-Length", "2"), ("Transfer-Encoding", "chunked")], 200),
-    (b"{}", [("Content-Type", "application/json"), ("Content-Length", "100")], 200),
-    (b'{"status":"completed","status":"incomplete"}', None, 200),
-    (b'{"status":NaN}', None, 200),
-    (b"\xff", None, 200),
-    (b"{}", None, 302),
-    (b"{}", None, 401),
-    (b"x" * (transport.MAX_RESPONSE_BYTES + 1), None, 200),
-])
+@pytest.mark.parametrize(
+    "body,headers,status",
+    [
+        (b"{}", [("Content-Type", "text/html")], 200),
+        (b"{}", [("Content-Type", "application/json"), ("Content-Type", "application/json")], 200),
+        (b"{}", [("Content-Type", "application/json"), ("Content-Encoding", "gzip")], 200),
+        (b"{}", [("Content-Type", "application/json"), ("Content-Length", "2"), ("Transfer-Encoding", "chunked")], 200),
+        (b"{}", [("Content-Type", "application/json"), ("Content-Length", "100")], 200),
+        (b'{"status":"completed","status":"incomplete"}', None, 200),
+        (b'{"status":NaN}', None, 200),
+        (b"\xff", None, 200),
+        (b"{}", None, 302),
+        (b"{}", None, 401),
+        (b"x" * (transport.MAX_RESPONSE_BYTES + 1), None, 200),
+    ],
+)
 def test_untrusted_response_fails_closed(body, headers, status, network):
     network.response = FakeResponse(body, headers)
     network.response.status = status
@@ -223,13 +270,14 @@ def test_sigv4_signature_matches_independent_canonical_request(monkeypatch):
     digest = hashlib.sha256(body).hexdigest()
     names = "content-type;host;x-amz-content-sha256;x-amz-date"
     request = (
-        "POST\n/model/test-model/converse\n\ncontent-type:application/json\nhost:provider.test\n"
+        "POST\n/model/test-model/converse\n\ncontent-type:application/json\n"
+        "host:bedrock-runtime.us-east-1.amazonaws.com\n"
         f"x-amz-content-sha256:{digest}\nx-amz-date:20260102T030405Z\n\n{names}\n{digest}"
     )
-    scope = "20260102/us-east1/bedrock/aws4_request"
+    scope = "20260102/us-east-1/bedrock/aws4_request"
     signing = f"AWS4-HMAC-SHA256\n20260102T030405Z\n{scope}\n{hashlib.sha256(request.encode()).hexdigest()}"
     key = b"AWS4fixture-secret"
-    for value in ("20260102", "us-east1", "bedrock", "aws4_request"):
+    for value in ("20260102", "us-east-1", "bedrock", "aws4_request"):
         key = hmac.digest(key, value.encode(), "sha256")
     expected = hmac.digest(key, signing.encode(), "sha256").hex()
     assert headers["Authorization"] == (
@@ -237,10 +285,15 @@ def test_sigv4_signature_matches_independent_canonical_request(monkeypatch):
     )
 
 
-@pytest.mark.parametrize("constructor,args", [
-    (OpenAIResponseCredential, ("bad\r\nheader",)), (AzureOpenAIResponseCredential, ("",)),
-    (BedrockCredential, ("id", "secret", "bad token")), (VertexCredential, ("bad\nvalue",)),
-])
+@pytest.mark.parametrize(
+    "constructor,args",
+    [
+        (OpenAIResponseCredential, ("bad\r\nheader",)),
+        (AzureOpenAIResponseCredential, ("",)),
+        (BedrockCredential, ("id", "secret", "bad token")),
+        (VertexCredential, ("bad\nvalue",)),
+    ],
+)
 def test_credential_validation_and_secret_repr(constructor, args):
     with pytest.raises(GatewayDispatchError):
         constructor(*args)
@@ -249,8 +302,11 @@ def test_credential_validation_and_secret_repr(constructor, args):
 
 @pytest.mark.parametrize("address", ["127.0.0.1", "10.1.2.3", "169.254.169.254", "224.0.0.1", "0.0.0.0", "::1"])
 def test_direct_connection_rejects_nonpublic_dns_before_socket(address, monkeypatch):
-    monkeypatch.setattr(transport.socket, "getaddrinfo", lambda *args, **kwargs: [
-        (transport.socket.AF_INET, transport.socket.SOCK_STREAM, 6, "", (address, 443))])
+    monkeypatch.setattr(
+        transport.socket,
+        "getaddrinfo",
+        lambda *args, **kwargs: [(transport.socket.AF_INET, transport.socket.SOCK_STREAM, 6, "", (address, 443))],
+    )
     opened = []
     monkeypatch.setattr(transport.socket, "socket", lambda *args: opened.append(args))
     connection = transport._DirectHTTPSConnection("provider.test")
@@ -271,9 +327,14 @@ def test_direct_connection_pins_peer_and_never_reconnects(monkeypatch):
             self.handshake = True
 
     selected = Socket()
-    monkeypatch.setattr(transport.socket, "getaddrinfo", lambda *args, **kwargs: [
-        (transport.socket.AF_INET, transport.socket.SOCK_STREAM, 6, "", ("8.8.8.8", 443)),
-        (transport.socket.AF_INET, transport.socket.SOCK_STREAM, 6, "", ("1.1.1.1", 443))])
+    monkeypatch.setattr(
+        transport.socket,
+        "getaddrinfo",
+        lambda *args, **kwargs: [
+            (transport.socket.AF_INET, transport.socket.SOCK_STREAM, 6, "", ("8.8.8.8", 443)),
+            (transport.socket.AF_INET, transport.socket.SOCK_STREAM, 6, "", ("1.1.1.1", 443)),
+        ],
+    )
     attempts = []
 
     def new_socket(*args):
@@ -298,10 +359,14 @@ def test_direct_connection_pins_peer_and_never_reconnects(monkeypatch):
 
 
 def test_direct_connection_rejects_peer_mismatch(monkeypatch):
-    selected = SimpleNamespace(settimeout=lambda value: None, connect=lambda address: None,
-                               getpeername=lambda: ("1.1.1.1", 443))
-    monkeypatch.setattr(transport.socket, "getaddrinfo", lambda *args, **kwargs: [
-        (transport.socket.AF_INET, transport.socket.SOCK_STREAM, 6, "", ("8.8.8.8", 443))])
+    selected = SimpleNamespace(
+        settimeout=lambda value: None, connect=lambda address: None, getpeername=lambda: ("1.1.1.1", 443)
+    )
+    monkeypatch.setattr(
+        transport.socket,
+        "getaddrinfo",
+        lambda *args, **kwargs: [(transport.socket.AF_INET, transport.socket.SOCK_STREAM, 6, "", ("8.8.8.8", 443))],
+    )
     monkeypatch.setattr(transport.socket, "socket", lambda *args: selected)
     connection = transport._DirectHTTPSConnection("provider.test")
     with pytest.raises(OSError, match="peer unavailable"):
@@ -348,10 +413,17 @@ def test_usage_cannot_inject_fields_or_impossible_counts(provider):
         transport._project(provider, json.dumps(body).encode())
 
 
-@pytest.mark.parametrize("kwargs", [
-    {"max_response_bytes": 0}, {"max_response_bytes": transport.MAX_RESPONSE_BYTES + 1},
-    {"max_response_bytes": True}, {"max_elapsed_ms": 0}, {"max_elapsed_ms": 30001}, {"max_elapsed_ms": True},
-])
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"max_response_bytes": 0},
+        {"max_response_bytes": transport.MAX_RESPONSE_BYTES + 1},
+        {"max_response_bytes": True},
+        {"max_elapsed_ms": 0},
+        {"max_elapsed_ms": 30001},
+        {"max_elapsed_ms": True},
+    ],
+)
 def test_constructor_limits_cannot_exceed_hard_caps(kwargs):
     with pytest.raises(GatewayDispatchError):
         transport.registered_provider_transports(**kwargs)

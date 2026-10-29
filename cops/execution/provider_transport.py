@@ -138,6 +138,19 @@ def _target(endpoint: GatewayDispatchEndpoint, provider: str) -> tuple[str, str]
     for part in (endpoint.model, endpoint.account_or_project, endpoint.region):
         if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,127}", part):
             raise ValueError("invalid provider scope")
+    hosts = {
+        "openai": "api.openai.com",
+        "bedrock": f"bedrock-runtime.{endpoint.region}.amazonaws.com",
+        "vertex": f"{endpoint.region}-aiplatform.googleapis.com",
+    }
+    if provider == "azure_openai":
+        if not re.fullmatch(
+            r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.openai\.azure\.com",
+            target.hostname,
+        ):
+            raise ValueError("invalid provider host")
+    elif target.hostname != hosts[provider]:
+        raise ValueError("invalid provider host")
     return target.hostname, target.path
 
 
@@ -156,8 +169,12 @@ def _headers(
         moment = datetime.now(UTC)
         stamp, day = moment.strftime("%Y%m%dT%H%M%SZ"), moment.strftime("%Y%m%d")
         payload_hash = hashlib.sha256(body).hexdigest()
-        signed = {"content-type": "application/json", "host": host, "x-amz-content-sha256": payload_hash,
-                  "x-amz-date": stamp}
+        signed = {
+            "content-type": "application/json",
+            "host": host,
+            "x-amz-content-sha256": payload_hash,
+            "x-amz-date": stamp,
+        }
         if credential.session_token is not None:
             signed["x-amz-security-token"] = credential.session_token
         names = ";".join(sorted(signed))
@@ -227,8 +244,10 @@ def _project(provider: str, raw: bytes) -> bytes:
         output = response.get("output")
         message = output.get("message") if type(output) is dict else None
         content = message.get("content") if type(message) is dict else None
-        if type(content) is not list or len(content) > 32 or any(
-            type(item) is not dict or set(item) != {"text"} or type(item["text"]) is not str for item in content
+        if (
+            type(content) is not list
+            or len(content) > 32
+            or any(type(item) is not dict or set(item) != {"text"} or type(item["text"]) is not str for item in content)
         ):
             raise ValueError("unexpected provider output")
         result = {"stopReason": reason, "output": {"message": {"content": []}}}
@@ -241,12 +260,17 @@ def _project(provider: str, raw: bytes) -> bytes:
         reason = candidate.get("finishReason")
         content = candidate.get("content")
         parts = content.get("parts") if type(content) is dict else None
-        if reason not in {"STOP", "MAX_TOKENS"} or type(parts) is not list or len(parts) > 32 or any(
-            type(item) is not dict or set(item) != {"text"} or type(item["text"]) is not str for item in parts
+        if (
+            reason not in {"STOP", "MAX_TOKENS"}
+            or type(parts) is not list
+            or len(parts) > 32
+            or any(type(item) is not dict or set(item) != {"text"} or type(item["text"]) is not str for item in parts)
         ):
             raise ValueError("unexpected provider output")
         result = {"candidates": [{"finishReason": reason, "content": {"parts": []}}]}
-        result.update(_usage(response, "usageMetadata", ("promptTokenCount", "candidatesTokenCount", "totalTokenCount")))
+        result.update(
+            _usage(response, "usageMetadata", ("promptTokenCount", "candidatesTokenCount", "totalTokenCount"))
+        )
     return canonical(result, max_bytes=MAX_RESPONSE_BYTES, max_depth=16)
 
 
@@ -288,8 +312,13 @@ def _read_response(
 class GatewayProviderTransport:
     """One fixed provider protocol with a bounded direct HTTPS exchange."""
 
+    production_only = True
+
     def __init__(
-        self, provider: str, *, max_response_bytes: int = MAX_RESPONSE_BYTES,
+        self,
+        provider: str,
+        *,
+        max_response_bytes: int = MAX_RESPONSE_BYTES,
         max_elapsed_ms: int = int(TOTAL_TIMEOUT_SECONDS * 1000),
     ) -> None:
         if (
@@ -370,7 +399,11 @@ def registered_provider_transports(
     *, max_response_bytes: int = MAX_RESPONSE_BYTES, max_elapsed_ms: int = int(TOTAL_TIMEOUT_SECONDS * 1000)
 ) -> Mapping[str, ProviderTransport]:
     """Return explicit adapters; callers still supply scoped credential resolution."""
-    return MappingProxyType({
-        provider: GatewayProviderTransport(provider, max_response_bytes=max_response_bytes, max_elapsed_ms=max_elapsed_ms)
-        for provider in TRANSPORT_VERSIONS
-    })
+    return MappingProxyType(
+        {
+            provider: GatewayProviderTransport(
+                provider, max_response_bytes=max_response_bytes, max_elapsed_ms=max_elapsed_ms
+            )
+            for provider in TRANSPORT_VERSIONS
+        }
+    )
