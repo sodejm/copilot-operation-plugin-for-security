@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import runpy
 import shutil
 import subprocess
 import sys
@@ -366,3 +367,74 @@ def test_portable_fixture_decoder_bounds_bytes_and_ignores_quoted_braces(monkeyp
     assert decode_json(raw, max_depth=2) == {"text": '[[["{{{', "nested": []}
     with pytest.raises(JSONInputError, match="response_limit"):
         decode_json(raw, max_bytes=len(raw) - 1)
+
+
+@pytest.fixture
+def package_schema_validator():
+    return runpy.run_path(str(PLUGIN / "scripts/validate_package.py"))
+
+
+@pytest.mark.parametrize("version", [2, 3])
+def test_package_validator_preserves_provider_contract_versions(package_schema_validator, version):
+    from test_provider_live_schemas import CASES_SCHEMA_PATH, PLAN_SCHEMA_PATH, _cases, _plan, _v3_documents
+
+    documents = (_plan(), _cases()) if version == 2 else _v3_documents()
+    for path, document in zip((PLAN_SCHEMA_PATH, CASES_SCHEMA_PATH), documents, strict=True):
+        schema = package_schema_validator["admit_schema"](json.loads(path.read_text()))
+        package_schema_validator["check_schema"](document, schema)
+
+
+@pytest.mark.parametrize("defect", ["unknown", "legacy", "transport", "dot", "percent", "query", "missing"])
+def test_package_validator_enforces_v3_branches(package_schema_validator, defect):
+    from test_provider_live_schemas import CASES_SCHEMA_PATH, _v3_documents
+
+    _, document = _v3_documents()
+    case = document["cases"][0]
+    if defect == "unknown":
+        case["unreviewed_override"] = True
+    elif defect == "legacy":
+        document["schema_version"] = "cops.ai-provider-live-assessment-cases/v2"
+    elif defect == "transport":
+        case["transport_version"] = "bedrock-converse/v1"
+    elif defect == "missing":
+        del case["auth_profile_id"]
+    else:
+        case["request_target"] = {
+            "dot": "https://api.openai.com/v1/../responses",
+            "percent": "https://api.openai.com/v1/%72esponses",
+            "query": "https://api.openai.com/v1/responses?unsafe=true",
+        }[defect]
+    schema = package_schema_validator["admit_schema"](json.loads(CASES_SCHEMA_PATH.read_text()))
+    with pytest.raises(package_schema_validator["PackageError"]):
+        package_schema_validator["check_schema"](document, schema)
+
+
+@pytest.mark.parametrize("branch", ["allOf", "if", "then", "else", "not"])
+def test_package_validator_admits_every_conditional_branch(package_schema_validator, branch):
+    schema = {
+        "type": "object",
+        "properties": {"id": {"type": "string"}},
+        "required": ["id"],
+        "additionalProperties": False,
+        "if": {"properties": {"id": {"const": "selected"}}},
+    }
+    unsupported = {"type": "string", "unevaluatedProperties": False}
+    schema[branch] = [unsupported] if branch == "allOf" else unsupported
+    with pytest.raises(package_schema_validator["PackageError"]):
+        package_schema_validator["admit_schema"](schema)
+
+
+@pytest.mark.parametrize("branch", ["allOf", "if", "then", "else", "not"])
+def test_package_validator_rejects_cycles_inside_conditionals(package_schema_validator, branch):
+    schema = {
+        "type": "object",
+        "properties": {"id": {"type": "string"}},
+        "required": ["id"],
+        "additionalProperties": False,
+        "$defs": {"loop": {"$ref": "#/$defs/loop"}},
+        "if": {"properties": {"id": {"const": "selected"}}},
+    }
+    reference = {"$ref": "#/$defs/loop"}
+    schema[branch] = [reference] if branch == "allOf" else reference
+    with pytest.raises(package_schema_validator["PackageError"]):
+        package_schema_validator["admit_schema"](schema)

@@ -1,4 +1,4 @@
-"""Executable acceptance scenarios for the local provider gateway emulator."""
+"""Executable acceptance scenarios for provider gateway contracts and boundaries."""
 
 import json
 from concurrent.futures import ThreadPoolExecutor
@@ -6,8 +6,20 @@ from copy import deepcopy
 from dataclasses import replace
 
 import pytest
+from jsonschema import Draft202012Validator
+from jsonschema.exceptions import ValidationError
 from pytest_bdd import given, scenarios, then, when
 from test_provider_live_execution import _setup
+from test_provider_live_schemas import (
+    CASES_SCHEMA,
+    CASES_VALIDATOR,
+    PLAN_SCHEMA,
+    PLAN_VALIDATOR,
+    V3_SCOPE,
+    _cases,
+    _plan,
+    _v3_documents,
+)
 
 from cops.assessment_budget import AttemptRequest
 from cops.evidence.canonical import canonical
@@ -20,6 +32,95 @@ scenarios("../specs/features/ai_provider_live_gateway.feature")
 @pytest.fixture
 def context(tmp_path):
     return {"path": tmp_path}
+
+
+@given("bounded v3 production plan and cases")
+def v3_contracts(context):
+    context["contract_documents"] = _v3_documents()
+
+
+@when("the production contract shape is validated")
+def validate_v3_contracts(context):
+    for validator, document in zip((PLAN_VALIDATOR, CASES_VALIDATOR), context["contract_documents"], strict=True):
+        validator.validate(document)
+
+
+@then("scoped auth identities, transport, digests, and budgets are mandatory")
+def required_v3_scope(context):
+    for validator, document, collection in zip(
+        (PLAN_VALIDATOR, CASES_VALIDATOR), context["contract_documents"], ("environments", "cases"), strict=True
+    ):
+        for field in V3_SCOPE:
+            invalid = deepcopy(document)
+            del invalid[collection][0][field]
+            with pytest.raises(ValidationError):
+                validator.validate(invalid)
+        for field in ("max_output_tokens", "max_response_bytes", "max_elapsed_ms"):
+            invalid = deepcopy(document)
+            scope = invalid[collection][0]
+            grant = (
+                scope["approved_requests"][0]["dispatch_grant"]
+                if collection == "environments"
+                else scope["dispatch_grant"]
+            )
+            del grant[field]
+            with pytest.raises(ValidationError):
+                validator.validate(invalid)
+
+
+@then("unknown v3 contract fields are rejected")
+def reject_unknown_v3_fields(context):
+    for validator, document in zip((PLAN_VALIDATOR, CASES_VALIDATOR), context["contract_documents"], strict=True):
+        invalid = deepcopy(document)
+        invalid["unapproved_auth_override"] = "opaque-override"
+        with pytest.raises(ValidationError):
+            validator.validate(invalid)
+
+
+@given("historical v2 emulator plan and cases")
+def historical_contracts(context):
+    context["contract_documents"] = (_plan(), _cases())
+
+
+@when("their historical schemas are validated")
+def validate_historical_contracts(context):
+    validate_v3_contracts(context)
+    context["historical_readable"] = True
+
+
+@then("the documents remain readable")
+def historical_readable(context):
+    assert context["historical_readable"] is True
+
+
+@then("they cannot satisfy the v3 production contract")
+def historical_not_production(context):
+    for schema, document in zip((PLAN_SCHEMA, CASES_SCHEMA), context["contract_documents"], strict=True):
+        production_schema = deepcopy(schema)
+        production_schema["properties"]["schema_version"] = {"const": document["schema_version"].replace("/v2", "/v3")}
+        with pytest.raises(ValidationError):
+            Draft202012Validator(production_schema).validate(document)
+
+
+@when("a provider target contains a normalization alias")
+def aliased_v3_targets(context):
+    context["aliased_targets"] = (
+        "https://api.openai.com/v1/%72esponses",
+        "https://api.openai.com/v1/../responses",
+        "https://api.openai.com/v1/responses?api-version=preview",
+    )
+
+
+@then("the v3 contract rejects the target")
+def reject_aliased_v3_targets(context):
+    for validator, document, collection in zip(
+        (PLAN_VALIDATOR, CASES_VALIDATOR), context["contract_documents"], ("environments", "cases"), strict=True
+    ):
+        for target in context["aliased_targets"]:
+            invalid = deepcopy(document)
+            invalid[collection][0]["request_target"] = target
+            with pytest.raises(ValidationError):
+                validator.validate(invalid)
 
 
 @given("approved live emulator cases for OpenAI, Azure, AWS, and GCP")
