@@ -15,8 +15,11 @@ from types import MappingProxyType
 from .gateway_dispatch import (
     GatewayDispatchEndpoint,
     GatewayDispatchError,
+    GatewayDispatchGrant,
     GatewayDispatchInvocation,
     GatewayDispatchResponse,
+    GatewayProductionEndpoint,
+    GatewayProductionInvocation,
 )
 
 SUPPORTED_GATEWAY_PROVIDERS = frozenset({"openai", "azure_openai", "bedrock", "vertex"})
@@ -131,7 +134,7 @@ class GatewayScopedProviderHandler:
             checked_bindings[endpoint_id] = binding
         checked_transports: dict[str, ProviderTransport] = {}
         for provider, transport in transports.items():
-            if provider not in SUPPORTED_GATEWAY_PROVIDERS or not callable(transport):
+            if provider not in SUPPORTED_GATEWAY_PROVIDERS or not callable(transport) or getattr(transport, "production_only", False):
                 raise GatewayDispatchError("gateway credential configuration is invalid")
             checked_transports[provider] = transport
         self._bindings = MappingProxyType(checked_bindings)
@@ -139,7 +142,7 @@ class GatewayScopedProviderHandler:
         self._transports = MappingProxyType(checked_transports)
 
     def __call__(self, invocation: GatewayDispatchInvocation) -> GatewayDispatchResponse:
-        if not isinstance(invocation, GatewayDispatchInvocation):
+        if not isinstance(invocation, GatewayDispatchInvocation) or isinstance(invocation, GatewayProductionInvocation):
             raise GatewayDispatchError("gateway credential scope unavailable")
         binding = self._bindings.get(invocation.gateway_endpoint_id)
         if (
@@ -171,5 +174,101 @@ class GatewayScopedProviderHandler:
         except Exception:
             transport_failed = True
         if transport_failed or not isinstance(response, GatewayDispatchResponse):
+            raise GatewayDispatchError("gateway provider transport failed")
+        return response
+
+
+class GatewayProductionProviderHandler:
+    """Gateway-owned registry with typed credentials and immutable v3 bindings.
+
+    Install only in GatewayProductionDispatcher. The dispatcher consumes the
+    signed one-use grant before this handler may resolve its opaque reference.
+    """
+
+    production_only = True
+
+    def __init__(
+        self, *, bindings: Mapping[str, GatewayCredentialBinding], credential_resolver: CredentialResolver,
+    ) -> None:
+        if not isinstance(bindings, Mapping) or not bindings or not callable(credential_resolver):
+            raise GatewayDispatchError("gateway credential configuration is invalid")
+        checked = {}
+        for endpoint_id, binding in bindings.items():
+            if (
+                not isinstance(binding, GatewayCredentialBinding)
+                or not isinstance(binding.endpoint, GatewayProductionEndpoint)
+                or endpoint_id != binding.endpoint.gateway_endpoint_id
+                or binding.credential_ref != binding.endpoint.credential_reference_id
+            ):
+                raise GatewayDispatchError("gateway credential configuration is invalid")
+            checked[endpoint_id] = binding
+        self._bindings = MappingProxyType(checked)
+        self._credential_resolver = credential_resolver
+
+    def preflight(self, endpoint: GatewayProductionEndpoint, grant: GatewayDispatchGrant) -> None:
+        binding = self._bindings.get(endpoint.gateway_endpoint_id)
+        if binding is None or binding.endpoint != endpoint or binding.credential_ref != grant.credential_reference_id:
+            raise GatewayDispatchError("gateway credential scope unavailable")
+        self._transport(endpoint)
+
+    @staticmethod
+    def _transport(endpoint: GatewayProductionEndpoint) -> ProviderTransport:
+        from .provider_transport import registered_provider_transports
+
+        transport = registered_provider_transports(
+            max_response_bytes=endpoint.max_response_bytes, max_elapsed_ms=endpoint.max_elapsed_ms,
+        ).get(LIVE_PROVIDER_TRANSPORT[endpoint.provider])
+        validate = getattr(transport, "validate_endpoint", None)
+        if (
+            not callable(transport) or getattr(transport, "production_only", False) is not True
+            or getattr(transport, "transport_version", None) != endpoint.transport_version or not callable(validate)
+        ):
+            raise GatewayDispatchError("gateway provider transport unavailable")
+        failed = False
+        try:
+            validate(endpoint)
+        except Exception:
+            failed = True
+        if failed:
+            raise GatewayDispatchError("gateway provider endpoint unavailable")
+        return transport
+
+    def __call__(self, invocation: GatewayDispatchInvocation) -> GatewayDispatchResponse:
+        if not isinstance(invocation, GatewayProductionInvocation):
+            raise GatewayDispatchError("gateway credential scope unavailable")
+        binding = self._bindings.get(invocation.gateway_endpoint_id)
+        if (
+            binding is None or binding.endpoint != invocation.endpoint
+            or invocation.gateway_identity != binding.endpoint.gateway_identity
+        ):
+            raise GatewayDispatchError("gateway credential scope unavailable")
+        endpoint = binding.endpoint
+        for name in (
+            "auth_profile_id", "credential_reference_id", "transport_version", "endpoint_policy_digest",
+            "worker_evidence_digest", "max_output_tokens", "max_response_bytes", "max_elapsed_ms",
+        ):
+            if getattr(invocation, name) != getattr(endpoint, name):
+                raise GatewayDispatchError("gateway credential scope unavailable")
+        transport = self._transport(endpoint)
+        provider = LIVE_PROVIDER_TRANSPORT[endpoint.provider]
+        credential = None
+        failed = False
+        try:
+            credential = self._credential_resolver(binding.credential_ref)
+        except Exception:
+            failed = True
+        expected = {
+            "openai": OpenAIResponseCredential, "azure_openai": AzureOpenAIResponseCredential,
+            "bedrock": BedrockCredential, "vertex": VertexCredential,
+        }[provider]
+        if failed or type(credential) is not expected:
+            raise GatewayDispatchError("gateway credential unavailable")
+        response = None
+        failed = False
+        try:
+            response = transport(endpoint, invocation.body, credential)
+        except Exception:
+            failed = True
+        if failed or not isinstance(response, GatewayDispatchResponse) or len(response.body) > invocation.max_response_bytes:
             raise GatewayDispatchError("gateway provider transport failed")
         return response
