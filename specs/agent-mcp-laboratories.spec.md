@@ -45,6 +45,53 @@ Untrusted content can claim higher priority, impersonate a peer, request cross-t
 
 ## Offline stdio profile conformance (#149)
 
+### Executable scenario and evidence contracts
+
+`foundry.scenario/v1` remains readable by the offline simulator and inventory
+tools. It cannot request executable laboratory dispatch. Only
+`foundry.scenario/v2`, validated against `scenario-v2.schema.json`, describes an
+executable scenario. The v2 parser rejects unknown fields at every defined
+boundary, unsupported versions, credentials, arbitrary executable or shell
+fields, network destinations, and over-budget values before dispatch. The
+bounded MCP argument map contains inert scalar data; the registered profile and
+existing stdio compiler remain the authority for its exact keys and values.
+
+The v2 execution object pins adapter ID/version and profile ID/digest, contains
+the existing `cops.agent-mcp-stdio-envelope/v1` request, and supplies explicit
+duration, output, event-count, and trace-byte limits. It adds no command-line or
+transport override. Engagement, session, role, tenant, and scenario identities
+are bound with immutable plan, approval, and envelope digests. The envelope
+digest and scenario/profile identities must agree with the contained request.
+Parsing this contract does not grant execution authorization or verify that a
+profile, approval, or executable exists.
+
+Expected terminal decisions are `denied`, `executed`, or `unsupported`. Canary
+observation and an expected effect count of zero or one are explicit assertions;
+denied and unsupported cases require zero effects and no observed canary. Effect
+classifications are limited to `read_only` and `reversible_canary`. Cleanup is
+required and names the expected restored-state digest. The bundled executable
+scenario uses illustrative fixture digests, so it is a contract example rather
+than a signed approval or runnable authorization.
+
+`foundry.execution-trace/v1`, validated against `execution-trace.schema.json`,
+records ordered `model_output`, `tool_call_attempted`, `tool_call_denied`, and
+`tool_effect_executed` events separately. An `unsupported_feature` event records
+a typed reason and decision digest when an adapter capability is unavailable.
+Every event binds the same immutable identity/approval context. Attempts carry a
+request digest; denials carry a decision digest for that same request. Executed
+effects require before/after state digests and an independent observer identity.
+A model statement or attempted call is never an executed-effect event. The
+contract validates evidence structure; it does not establish that an observer
+actually ran or that an effect occurred.
+
+Trace summaries are redacted before serialization, including caller-supplied
+canary values. Raw hostile content, credentials, and raw tool output have no
+trace field. Evidence is represented by digests and bounded redacted summaries.
+Trace limits are enforced after redaction, events cannot follow a terminal
+decision, and verified cleanup requires matching initial/restored state digests.
+The immutable typed records keep canonical JSON internally and return detached
+copies, preventing later caller mutation from altering accepted bindings.
+
 A trusted, versioned profile pins one registered adapter action, supported
 environments, provenance source, license, and revision, executable verification
 arguments, version pattern, digest, and size cap, the complete action command
@@ -59,10 +106,23 @@ worker may consider execution. Unknown fields, changed arguments or adapter
 execution-contract fields, recognizable credentials, prerequisites, or egress
 allowance fail closed.
 
-This module only compiles and validates data. It starts no process and confers no
-execution authorization or OS network isolation. Native worker, independent
-observer, no-egress, approval, canary, effect, and cleanup acceptance remains open
-until a disposable Linux laboratory is available.
+Compilation and validation alone start no process and confer no authorization or
+OS network isolation. The separate worker path accepts one unmixed operation in
+a typed envelope, requires the production `LinuxBubblewrapSandbox`, rejects
+egress and destination scope, and uses a registered stdio-only dispatcher. A
+one-shot mediator binds dispatch to the plan, consumed approval, and envelope.
+The fixed dispatcher runs a disposable synthetic canary case and verifies its
+cleanup; its supervisor receipt contains digests and bounded status, not raw model
+text, arguments, canary values, or state. The mediator emits completion only for
+an exact `completed` receipt with `cleanup.verified` set to true. A malformed,
+failed, unverified-cleanup, cancelled, timed-out, or unacknowledged dispatch is
+attempted with an uncertain effect, is not automatically repeated, and must be
+reconciled before a new approval.
+
+Local fixture and macOS test results do not establish actual Linux bubblewrap
+isolation, independently administered observation, provider behavior, or hosted
+acceptance. The hosted matrix includes Python 3.15; an exact-revision hosted
+result and human review require separate evidence.
 
 ## Agent delegation and MCP authorization boundary extension (issue 236)
 

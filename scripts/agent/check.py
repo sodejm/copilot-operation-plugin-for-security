@@ -52,6 +52,7 @@ def main() -> int:
         run([sys.executable, "-m", "cops", "coverage", "--check"]),
         run([sys.executable, "-m", "cops", "check"]),
         run([sys.executable, "scripts/check_web_api_acceptance.py"]),
+        run([sys.executable, "scripts/check_agent_mcp_acceptance.py"]),
     ]
     if (ROOT / "tests").is_dir():
         checks.append(run([sys.executable, "-m", "pytest", "tests", "-q"]))

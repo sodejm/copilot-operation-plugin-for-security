@@ -1,5 +1,19 @@
 # Expansion acceptance record
 
+## Agent/MCP execution acceptance boundary
+
+For the agent/MCP worker path, data-only inventory, evaluation, and package
+validation are separate from execution evidence. Run `make check-ai-agent-acceptance`
+and `make check` on the revision being qualified. Record the actual results,
+including skips and blockers, instead of carrying a prior revision's pass forward.
+Acceptance requires an approved exact plan and registered adapter, verified
+worker isolation, independent effect observation, and verified cleanup. Preserve
+distinct vulnerable-effect, negative-control, and remediated-case observations;
+unsupported protocol features require explicit rejection evidence. Missing
+observation or cleanup is inconclusive. Local disposable JSONL and MCP stdio
+fixtures do not establish hosted, provider-backed, production, or independent
+human-review coverage. Those gates require separate evidence.
+
 The implemented offline and isolated-laboratory scopes passed the checks below.
 Native worker/filesystem checks and production integrations have separate gaps;
 they are not promoted by these results. An unavailable required check leaves its

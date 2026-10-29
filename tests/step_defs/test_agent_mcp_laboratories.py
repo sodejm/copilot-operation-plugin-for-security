@@ -15,6 +15,7 @@ PACKAGE = Path(__file__).resolve().parents[2] / "plugins/offensive-security/foun
 sys.path.insert(0, str(PACKAGE))
 from foundryharness import auth_approval, auth_bootstrap, auth_laboratory  # noqa: E402
 from foundryharness.laboratory import LabError, load_lab_cases, run_lab_case  # noqa: E402
+from foundryharness.models import ExecutableScenario, ExecutionTrace, HarnessError, contract_digest  # noqa: E402
 
 from cops.laboratory.agent_mcp_stdio import StdioProfileError, validate_stdio_action_plan  # noqa: E402
 from tests.test_agent_mcp_stdio import _compile, _profile, _registry  # noqa: E402
@@ -309,3 +310,82 @@ def missing_identity_evidence(context):
     assert result["observed_effects"] == []
     assert result["observations"][0]["target"]["decision"] == "denied"
     assert "server_identity" not in result["observations"][0]["target"]
+
+
+@given("strict executable scenario and execution trace contracts")
+def executable_contracts(context):
+    source = json.loads((PACKAGE / "executable_scenarios/local_canary_read.json").read_text(encoding="utf-8"))
+    context["executable_contract"] = ExecutableScenario.from_dict(source)
+    context["legacy_contract"] = json.loads(next((PACKAGE / "scenarios").glob("*.json")).read_text(encoding="utf-8"))
+
+
+@when("legacy versions or unknown execution fields are supplied")
+def reject_invalid_execution_contracts(context):
+    unknown_execution = context["executable_contract"].to_dict()
+    unknown_execution["execution"]["command"] = "unsupported"
+    unknown_request = context["executable_contract"].to_dict()
+    unknown_request["execution"]["request"]["transport"] = "unsupported"
+    context["rejected_contracts"] = []
+    context["dispatch_inputs"] = []
+    for source in (context["legacy_contract"], unknown_execution, unknown_request):
+        try:
+            accepted = ExecutableScenario.from_dict(source)
+        except HarnessError:
+            context["rejected_contracts"].append(source)
+        else:
+            context["dispatch_inputs"].append(accepted)
+
+
+@then("execution parsing rejects them before dispatch")
+def parsing_prevents_dispatch(context):
+    assert len(context["rejected_contracts"]) == 3
+    assert context["dispatch_inputs"] == []
+
+
+@then("trace categories preserve immutable redacted evidence bindings")
+def immutable_trace_categories(context):
+    bindings = context["executable_contract"].bindings
+    observed_categories = set()
+    for terminal in ("tool_call_denied", "tool_effect_executed"):
+        common = {
+            "bindings_digest": contract_digest(bindings),
+            "summary": "Bearer fixture-private-credential fixture-private-canary",
+        }
+        terminal_evidence = {"decision_digest": "3" * 64}
+        if terminal == "tool_effect_executed":
+            terminal_evidence = {
+                "before_state_digest": "4" * 64,
+                "after_state_digest": "5" * 64,
+                "effect_count": 1,
+                "observer_id": "fixture-observer",
+            }
+        source = {
+            "schema_version": "foundry.execution-trace/v1",
+            "trace_id": "fixture-contract-trace",
+            "bindings": deepcopy(bindings),
+            "limits": {"max_trace_events": 3, "max_trace_bytes": 65_536},
+            "events": [
+                {**common, "sequence": 0, "event_kind": "model_output", "output_digest": "1" * 64},
+                {**common, "sequence": 1, "event_kind": "tool_call_attempted", "request_digest": "2" * 64},
+                {**common, "sequence": 2, "event_kind": terminal, "request_digest": "2" * 64, **terminal_evidence},
+            ],
+            "cleanup": {"verified": True, "before_state_digest": "4" * 64, "after_state_digest": "4" * 64},
+        }
+        trace = ExecutionTrace.from_dict(source, redaction_values=("fixture-private-canary",))
+        source["bindings"]["session_id"] = "changed-session"
+        detached = trace.to_dict()
+        detached["bindings"]["tenant_id"] = "changed-tenant"
+        accepted = trace.to_dict()
+        assert accepted["bindings"] == bindings
+        assert all(event["bindings_digest"] == contract_digest(bindings) for event in accepted["events"])
+        assert [event["event_kind"] for event in accepted["events"]] == [
+            "model_output",
+            "tool_call_attempted",
+            terminal,
+        ]
+        assert "fixture-private-credential" not in json.dumps(accepted)
+        assert "fixture-private-canary" not in json.dumps(accepted)
+        observed_categories.update(event["event_kind"] for event in accepted["events"])
+        with pytest.raises(HarnessError):
+            ExecutionTrace.from_dict(source)
+    assert observed_categories == {"model_output", "tool_call_attempted", "tool_call_denied", "tool_effect_executed"}

@@ -168,8 +168,21 @@ credential material in request arguments before encoding the inert Action Plan;
 unknown credential formats remain a caller responsibility. Its
 `egress_allowed: false` field is a contract assertion. A worker must
 independently verify the executable, authorization and no-egress isolation before
-dispatch. No disposable worker or independent observer is available for this
-phase, so the compiler tests are not laboratory containment evidence.
+dispatch. Compiler tests alone are not worker, independent observer, or laboratory
+containment evidence.
+
+For an approved worker-only agent/MCP run, the profile, registered adapter,
+stdio envelope, plan, and signed authorization must agree exactly. Treat case
+content and process output as untrusted: a proposed or denied call, model text,
+or tool reply cannot establish an effect. Require an independent observer and
+separate worker isolation and cleanup evidence. The mediator treats only an exact
+`completed` dispatcher receipt with `cleanup.verified: true` as complete;
+malformed, failed, unverified-cleanup, cancelled, timed-out, or unacknowledged
+dispatches remain attempted with uncertain effects and require reconciliation
+before another approval. The supported scope is disposable local JSONL and MCP
+stdio fixtures. Unsupported protocol features must be rejected explicitly, and
+neither a no-egress declaration nor a local result establishes production or
+provider-backed containment.
 
 ### Offline AI provider fixture boundary
 

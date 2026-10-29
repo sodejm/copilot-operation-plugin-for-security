@@ -181,12 +181,25 @@ for local execution accounting and input-based forecasts. It reuses session audi
 request normalization. Keep private ledgers outside Git, and keep development costs
 separate from plugin executions. Synthetic examples are not production benchmarks.
 
-### EVTX correction evidence
+### Agent and MCP laboratory evidence
+
+For agent/MCP laboratory changes, run `make check-agent-mcp-acceptance` and
+`python3 -m cops check foundry-agent-harness`, followed by `make check`. Keep
+data-only inventory and evaluation checks separate from approved worker execution,
+independent effects, and cleanup evidence. Cover vulnerable, negative-control,
+and remediated cases independently, and require explicit rejection for unsupported
+protocol behavior. Local disposable fixture results do not establish hosted,
+provider-backed, or production acceptance; qualify those separately on the
+delivered revision.
+
+### Shared service laboratory evidence
 
 For shared laboratory HTTP changes, run
 `python -m pytest tests/test_laboratory_http_client.py tests/test_service_laboratory.py tests/test_integrated_service_laboratory.py`.
 Verify destination rejection, proxy and redirect refusal, bounded responses, and
 actual service correction outcomes before the full repository and laboratory gates.
+
+### EVTX correction evidence
 
 Run `python -m pytest tests/test_evtx_import.py tests/test_check_laboratory.py`
 after importer changes. `python scripts/build_evtx_fixtures.py` regenerates the

@@ -65,6 +65,42 @@ def test_source_package_validator_does_not_require_repository_imports(tmp_path):
     assert result.returncode == 0, result.stdout + result.stderr
 
 
+def test_exported_harness_preserves_executable_contract_assets(tmp_path):
+    repository = tmp_path / "repository"
+    package = repository / "foundry-agent-harness"
+    shutil.copytree(PLUGIN, package, ignore=shutil.ignore_patterns("__pycache__", ".pytest_cache"))
+    subprocess.run(["git", "init", "-q", str(repository)], check=True)
+    subprocess.run(["git", "-C", str(repository), "add", "--", package.name], check=True)
+    unreviewed = package / "executable_scenarios/unreviewed.json"
+    unreviewed.write_text("{}", encoding="utf-8")
+    exported = tmp_path / "portable" / package.name
+    export_portable_package(package, exported)
+    for relative in (
+        "executable_scenarios/local_canary_read.json",
+        "schemas/scenario-v2.schema.json",
+        "schemas/execution-trace.schema.json",
+    ):
+        assert (exported / relative).read_bytes() == (package / relative).read_bytes()
+    assert not (exported / unreviewed.relative_to(package)).exists()
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-I",
+            "-c",
+            "import json, sys; from pathlib import Path; package = Path(sys.argv[1]); "
+            "sys.path.insert(0, str(package)); from foundryharness.models import ExecutableScenario; "
+            "source = json.loads((package / 'executable_scenarios/local_canary_read.json').read_text()); "
+            "assert ExecutableScenario.from_dict(source).to_dict()['schema_version'] == 'foundry.scenario/v2'",
+            str(exported),
+        ],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
 @pytest.mark.parametrize("defect", ["missing_case", "changed_contract", "missing_matrix"])
 def test_package_gate_rejects_missing_required_auth_coverage(tmp_path, defect):
     copied = tmp_path / "plugin"

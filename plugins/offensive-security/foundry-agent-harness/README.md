@@ -11,6 +11,21 @@ The package has four workflows:
 | Delegation authorization laboratory | `auth-plan`, `auth-lab` | One signed batch approval binds a fixed peer and MCP target fixture. The runner correlates forwarded requests, target decisions, and a separately read canary effect ledger written by a local observer process. |
 | AI provider assessment | `python scripts/run_provider_assessment.py` (from the package directory) | Fixed OpenAI, Azure OpenAI, AWS Bedrock, and GCP Vertex shaped response fixtures pass through exact plan binding, post-gate provider-envelope validation, normalization, and the shared assessment budget ledger. No request leaves the host. |
 
+Inventory, data validation, and evaluation do not authorize or prove execution.
+Approved isolated execution has separate plan, authorization, worker, observation,
+and cleanup gates. There is no general live-agent or live-MCP execution CLI in
+this package. A local fixture result is not hosted, provider-backed, production,
+or independent human-review evidence.
+
+The worker-only laboratory contract requires registered, versioned adapters and an exact
+approval bound to the plan, profile, and `cops.agent-mcp-stdio-envelope/v1`
+request. It is limited to local disposable JSONL and MCP stdio fixtures; it is
+not a general interface to real endpoints. Unsupported protocol features must be
+explicitly rejected. The `foundry.scenario/v2` and
+`foundry.execution-trace/v1` contracts distinguish `model_output`,
+`tool_call_attempted`, `tool_call_denied`, and `tool_effect_executed`.
+Only an independently observed effect supports the last class.
+
 ## Design and data flow
 
 Each workflow accepts a versioned synthetic input, applies an authorization or normalization boundary, and emits evidence that distinguishes proposed calls from calls actually forwarded and effects actually observed.

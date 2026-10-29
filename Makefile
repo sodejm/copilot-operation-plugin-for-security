@@ -4,7 +4,7 @@ LABORATORY_ARGS ?=
 .PHONY: doctor list-plugins validate-packages check-packages generate-marketplaces \
 	check-marketplaces validate-contract check-docs sync-agent-adapters check-agent-adapters \
 	check-prerequisites check-issue-coverage setup-hooks generate-playbooks check-playbooks check-laboratory \
-	check-web-api-acceptance check
+	check-web-api-acceptance check-agent-mcp-acceptance check
 
 check-docs:
 	"$(PYTHON)" scripts/agent/validate_docs.py
@@ -12,6 +12,10 @@ check-docs:
 # Real disposable loopback services; distinct from offline package checks and isolation qualification.
 check-web-api-acceptance:
 	"$(PYTHON)" scripts/check_web_api_acceptance.py
+
+# Disposable stdio laboratories and the approved isolated-worker path; no hosted provider claims.
+check-agent-mcp-acceptance:
+	"$(PYTHON)" scripts/check_agent_mcp_acceptance.py
 
 generate-playbooks:
 	"$(PYTHON)" scripts/generate_plugin_playbooks.py
