@@ -1,12 +1,12 @@
 # Operator provider gateway boundary
 
-The provider gateway is the only approved boundary for the versioned live assessment plan. The current repository implementation exercises that boundary with synthetic provider envelopes, a signed one-use gateway emulator, and a broker-backed transport adapter tested without a network. It does not call a provider, use provider credentials, or establish production readiness. The existing offline assessment command and schema remain unchanged.
+The provider gateway is the only approved boundary for the versioned live assessment plan. The repository includes synthetic provider envelopes, a signed one-use gateway emulator, a broker-backed worker transport, and endpoint-independent provider adapter components. These components do not establish production readiness or authorize a live call. The existing offline assessment command and schema remain unchanged.
 
 ## Opt-in live contract and synthetic validation
 
 The live plan is a separate, versioned contract and must be explicitly enabled. Its paid-execution opt-in records operator intent; it does not by itself authorize production dispatch. The plan pins the gateway HTTPS origin and path independently of the provider request target. Synthetic validation accepts only approved request bodies and bounded responses for the four supported provider envelope shapes.
 
-The live runner must fail closed when the plan, request, signed grant, shared budget, configured gateway origin and path, gateway endpoint, or worker identity is missing or inconsistent. Tests and operator demonstrations must use the gateway emulator or a broker test double with no external route. No real provider request, credential lookup, or paid call is permitted in this phase.
+The live runner must fail closed when the plan, request, signed grant, shared budget, configured gateway origin and path, gateway endpoint, or worker identity is missing or inconsistent. Disposable tests use controlled endpoints and credentials, not real provider accounts. A paid call requires separate engagement authorization and the production evidence below.
 
 The emulator accepts a deliberately narrow, text-only request shape. OpenAI and Azure use the Responses endpoint with `model`, string `input`, the approved `max_output_tokens`, `store: false`, and `stream: false`. Bedrock Converse uses one user text message and `inferenceConfig.maxTokens`; Vertex `generateContent` uses one user text part and `generationConfig.maxOutputTokens`. The model and, for Vertex, project and region must also match the exact endpoint path. Extra request keys, including provider tool declarations or remote attachment references, are denied even when their body digest is approved. Provider tool output remains an inert proposal for separate authorization.
 
@@ -23,7 +23,7 @@ Each dispatch requires a short-lived, signed, one-use grant issued outside the w
 - canonical request-body SHA-256 digest and byte length; and
 - grant issuance and expiry bounds.
 
-Expected values must come from the approved plan and request, never from the grant being checked. The gateway independently verifies the signature, trusted endpoint policy, expiry, and replay state. It durably consumes the authorization before invoking the emulator handler. A consumed, dispatched, settled, released, or uncertain attempt cannot trigger another dispatch. Timeouts and ambiguous outcomes are never replayed automatically.
+Expected values must come from the approved plan and request, never from the grant being checked. The gateway independently verifies the signature, trusted endpoint policy, expiry, and replay state. It durably consumes the authorization before invoking the configured handler. A consumed, dispatched, settled, released, or uncertain attempt cannot trigger another dispatch. Timeouts and ambiguous outcomes are never replayed automatically.
 
 The operator keeps the signing key outside the worker and equips the gateway with an owner-protected public-key trust store and durable replay store. The replay store must enforce uniqueness for both dispatch and authorization IDs; legacy stores without the authorization ID column fail closed until migrated with their consumption history intact. An unavailable replay store denies dispatch.
 
@@ -33,7 +33,22 @@ The provider request target is authorization data for the gateway. It is distinc
 
 The configured gateway origin and path are the worker's only network destination for this flow. The v2 broker carries one bounded POST body to that endpoint and rejects redirects, automatic retries, and direct provider destinations. Production transport must authenticate the worker with mTLS and SPIFFE and enforce these restrictions outside the same-authority test process. The worker must not retry a dispatch automatically.
 
-The gateway owns provider credential resolution and limits credentials to the approved provider scope. Plans, grants, request fixtures, reports, and logs must not contain provider secrets. By default the emulator has no credential resolver or provider transport. An operator may install the local `GatewayScopedProviderHandler` with an exact endpoint-to-credential-reference binding, resolver, and synthetic transport. It resolves the credential after scope verification and one-use grant consumption. Its supplied transport still needs its own TLS, IAM, and destination enforcement before production use. Keep retained bodies and resolver failures out of logs and assessment evidence.
+The gateway owns provider credential resolution and limits credentials to the approved provider scope. Operators provision credential profiles outside the worker, map an opaque credential reference to the exact approved provider, account or project, region, model, and HTTPS endpoint, and protect the profile and secret store under gateway control. References identify credentials; they are not credentials and must not be treated as authorization. Resolve them only after the gateway verifies scope and consumes the one-use grant. Gateway integration supplies credentials explicitly; there is no ambient credential lookup or automatic refresh. Do not fall back to environment credentials, cloud instance identities, developer login state, or default credential chains. Plans, grants, request fixtures, reports, and logs must not contain provider secrets. Keep retained bodies and resolver failures out of logs and assessment evidence.
+
+## Provider adapter setup and limits
+
+An operator must provision a separately authorized gateway and a credential profile for each approved scope before configuring a provider adapter. Bind the exact canonical HTTPS provider target, including its path; user information, query strings, fragments, percent escapes, and dot segments are rejected, to the profile and the signed request; an origin or hostname match alone is insufficient. The provider target is independent of the gateway endpoint. Never derive a provider destination or credential reference from untrusted provider output. The adapter uses direct HTTPS with certificate and hostname validation; operators must also enforce the approved endpoint policy and gateway egress controls. Requests do not follow redirects, use ambient proxies, or retry automatically.
+
+| Provider | Request mapping |
+| --- | --- |
+| OpenAI | Responses: text `input`, approved `model` and `max_output_tokens`, with `store: false` and `stream: false`. |
+| Azure OpenAI | Responses: the same bounded text shape against the approved Azure deployment endpoint. |
+| AWS Bedrock | Converse: one user text message and `inferenceConfig.maxTokens`. |
+| Google Vertex AI | `generateContent`: one user text part and `generationConfig.maxOutputTokens`; project and region are bound to the target. |
+
+Use only the supported text request and response shapes. Streaming, remote attachments, provider tool declarations, automatic tool execution, redirects, proxies, and automatic retries are unsupported. Extra request keys are denied even if a digest was approved. Requests and responses are bounded by the approved plan and gateway limits; the gateway response ceiling is 1 MiB, and transport deadlines bound connection, read, and total time. A limit violation or malformed response after a send does not establish that no provider work occurred.
+
+To roll back, disable or remove the gateway's provider adapter and its endpoint-to-profile binding, revoke or rotate the affected scoped credential, and block gateway egress to that target. Preserve the replay store and shared budget ledger, including uncertain attempts, for reconciliation. Local rollback cannot cancel an already sent provider request or prove remote deletion; verify those outcomes independently.
 
 ## Budget, cancellation, and cleanup
 
@@ -84,6 +99,6 @@ Production dispatch remains disabled until evidence for the exact deployed revis
 - verified provider scope, residency, retention, deletion, redaction, and independent billing reconciliation; and
 - engagement approval for the exact plan, request digests, tool allowlist, budget, worker, gateway, and provider scope.
 
-The emulator can prove protocol validation, replay handling, conservative accounting, and redacted evidence. It cannot prove that a production worker, gateway, credential resolver, provider, or billing system satisfies these controls. No real provider calls are part of this increment.
+Disposable endpoint-independent tests can exercise adapter mapping and transport behavior; emulator tests exercise protocol validation, replay handling, conservative accounting, and redacted evidence. Neither proves that a production worker, gateway, credential resolver, provider, or billing system satisfies these controls. Live provider qualification remains blocked without real authorized endpoints and accounts. These tests do not close Issue #150 or Epic #77.
 
 The existing worker supervisor documents a deployed `GET`/`HEAD` operation path. The v2 broker-backed POST adapter is validated with synthetic transports, but it has not been exercised on a production worker or gateway. Review and verify that integration at its exact deployed revision before enabling a real canary. Verify the intended worker's SSH host key, isolation, authority service, egress policy, and gateway identity independently.
