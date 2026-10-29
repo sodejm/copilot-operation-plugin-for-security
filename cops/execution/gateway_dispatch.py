@@ -40,15 +40,23 @@ _TOKEN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}\Z")
 _HASH = re.compile(r"[0-9a-f]{64}\Z")
 _SIGNATURE = re.compile(r"[0-9a-f]{128}\Z")
 _OPAQUE = re.compile(r"[A-Za-z][A-Za-z0-9._-]{0,127}\Z")
-_PRODUCTION_VERSIONS = MappingProxyType({
-    "openai": "openai-responses/v1", "azure": "azure-openai-responses/v1",
-    "aws": "bedrock-converse/v1", "gcp": "vertex-generate-content/v1",
-})
+_PRODUCTION_VERSIONS = MappingProxyType(
+    {
+        "openai": "openai-responses/v1",
+        "azure": "azure-openai-responses/v1",
+        "aws": "bedrock-converse/v1",
+        "gcp": "vertex-generate-content/v1",
+    }
+)
 
 
 def _production_budget(output: object, response: object, elapsed: object, body: object) -> None:
-    for value, maximum in ((output, 1_000_000), (response, MAX_GATEWAY_RESPONSE_BYTES),
-                           (elapsed, 30_000), (body, 262_144)):
+    for value, maximum in (
+        (output, 1_000_000),
+        (response, MAX_GATEWAY_RESPONSE_BYTES),
+        (elapsed, 30_000),
+        (body, 262_144),
+    ):
         if type(value) is not int or not 1 <= value <= maximum:
             raise _deny()
 
@@ -56,7 +64,9 @@ def _production_budget(output: object, response: object, elapsed: object, body: 
 def _production_binding(value: object) -> None:
     if getattr(value, "execution_class", "production") != "production":
         raise _deny()
-    if getattr(value, "provider", None) not in _PRODUCTION_VERSIONS or getattr(value, "transport_version", None) != _PRODUCTION_VERSIONS.get(getattr(value, "provider", None)):
+    if getattr(value, "provider", None) not in _PRODUCTION_VERSIONS or getattr(
+        value, "transport_version", None
+    ) != _PRODUCTION_VERSIONS.get(getattr(value, "provider", None)):
         raise _deny()
     for name in ("auth_profile_id", "credential_reference_id"):
         token = getattr(value, name, None)
@@ -269,8 +279,15 @@ class GatewayDispatchGrant:
         "signature",
     )
     _PRODUCTION_FIELDS = (
-        "execution_class", "auth_profile_id", "credential_reference_id", "transport_version",
-        "endpoint_policy_digest", "worker_evidence_digest", "max_output_tokens", "max_response_bytes", "max_elapsed_ms",
+        "execution_class",
+        "auth_profile_id",
+        "credential_reference_id",
+        "transport_version",
+        "endpoint_policy_digest",
+        "worker_evidence_digest",
+        "max_output_tokens",
+        "max_response_bytes",
+        "max_elapsed_ms",
     )
 
     def unsigned_dict(self) -> dict[str, object]:
@@ -279,12 +296,17 @@ class GatewayDispatchGrant:
         return result
 
     def to_dict(self) -> dict[str, object]:
-        fields = self._FIELDS + (self._PRODUCTION_FIELDS if self.schema_version == GATEWAY_PRODUCTION_DISPATCH_SCHEMA else ())
+        fields = self._FIELDS + (
+            self._PRODUCTION_FIELDS if self.schema_version == GATEWAY_PRODUCTION_DISPATCH_SCHEMA else ()
+        )
         return {field: getattr(self, field) for field in fields}
 
     def validate(self, *, require_signature: bool = True) -> None:
         production = self.schema_version == GATEWAY_PRODUCTION_DISPATCH_SCHEMA
-        if self.schema_version not in {GATEWAY_DISPATCH_SCHEMA, GATEWAY_PRODUCTION_DISPATCH_SCHEMA} or self.algorithm != GATEWAY_DISPATCH_ALGORITHM:
+        if (
+            self.schema_version not in {GATEWAY_DISPATCH_SCHEMA, GATEWAY_PRODUCTION_DISPATCH_SCHEMA}
+            or self.algorithm != GATEWAY_DISPATCH_ALGORITHM
+        ):
             raise _deny()
         if production:
             _production_binding(self)
@@ -305,7 +327,9 @@ class GatewayDispatchGrant:
             self.key_id,
         ):
             _require_token(field)
-        if self.account_or_project_kind not in ({"account", "tenant", "project", "subscription"} if production else {"account", "project"}):
+        if self.account_or_project_kind not in (
+            {"account", "tenant", "project", "subscription"} if production else {"account", "project"}
+        ):
             raise _deny()
         _require_hash(self.plan_digest)
         _require_spiffe(self.worker_spiffe_id)
@@ -327,7 +351,9 @@ class GatewayDispatchGrant:
     def from_dict(cls, value: object) -> GatewayDispatchGrant:
         if not isinstance(value, dict):
             raise _deny()
-        fields = cls._FIELDS + (cls._PRODUCTION_FIELDS if value.get("schema_version") == GATEWAY_PRODUCTION_DISPATCH_SCHEMA else ())
+        fields = cls._FIELDS + (
+            cls._PRODUCTION_FIELDS if value.get("schema_version") == GATEWAY_PRODUCTION_DISPATCH_SCHEMA else ()
+        )
         if set(value) != set(fields):
             raise _deny()
         try:
@@ -741,13 +767,21 @@ class GatewayDispatchEmulator:
         if grant.schema_version != GATEWAY_DISPATCH_SCHEMA:
             raise _deny()
         return self._verify_endpoint(
-            grant=grant, presented_worker_spiffe_id=presented_worker_spiffe_id,
-            request_target=request_target, body=body, current_time_iso=current_time_iso,
+            grant=grant,
+            presented_worker_spiffe_id=presented_worker_spiffe_id,
+            request_target=request_target,
+            body=body,
+            current_time_iso=current_time_iso,
         )
 
     def _verify_endpoint(
-        self, *, grant: GatewayDispatchGrant, presented_worker_spiffe_id: str,
-        request_target: str, body: bytes, current_time_iso: str | None,
+        self,
+        *,
+        grant: GatewayDispatchGrant,
+        presented_worker_spiffe_id: str,
+        request_target: str,
+        body: bytes,
+        current_time_iso: str | None,
     ) -> GatewayDispatchEndpoint:
         endpoint = self._authorizer.verify_for_transport(
             grant=grant,
@@ -769,15 +803,24 @@ class GatewayDispatchEmulator:
         return endpoint
 
     def _invocation(
-        self, grant: GatewayDispatchGrant, endpoint: GatewayDispatchEndpoint,
-        descriptor_digest: str, body: bytes,
+        self,
+        grant: GatewayDispatchGrant,
+        endpoint: GatewayDispatchEndpoint,
+        descriptor_digest: str,
+        body: bytes,
     ) -> GatewayDispatchInvocation:
         return GatewayDispatchInvocation(
-            dispatch_id=grant.dispatch_id, authorization_id=grant.authorization_id,
-            action_plan_id=grant.action_plan_id, plan_digest=grant.plan_digest,
-            gateway_endpoint_id=endpoint.gateway_endpoint_id, gateway_identity=endpoint.gateway_identity,
-            descriptor_digest=descriptor_digest, body_sha256=grant.body_sha256,
-            body_bytes=grant.body_bytes, body=body, endpoint=endpoint,
+            dispatch_id=grant.dispatch_id,
+            authorization_id=grant.authorization_id,
+            action_plan_id=grant.action_plan_id,
+            plan_digest=grant.plan_digest,
+            gateway_endpoint_id=endpoint.gateway_endpoint_id,
+            gateway_identity=endpoint.gateway_identity,
+            descriptor_digest=descriptor_digest,
+            body_sha256=grant.body_sha256,
+            body_bytes=grant.body_bytes,
+            body=body,
+            endpoint=endpoint,
         )
 
     def dispatch(
@@ -855,19 +898,38 @@ class GatewayProductionDispatcher(GatewayDispatchEmulator):
         super().__init__(handler=handler, **kwargs)
 
     def preflight(
-        self, *, grant: GatewayDispatchGrant, presented_worker_spiffe_id: str,
-        request_target: str, body: bytes, current_time_iso: str | None = None,
+        self,
+        *,
+        grant: GatewayDispatchGrant,
+        presented_worker_spiffe_id: str,
+        request_target: str,
+        body: bytes,
+        current_time_iso: str | None = None,
     ) -> GatewayProductionEndpoint:
+        # Emulator callers may inject a clock for deterministic fixtures, but a
+        # production caller must never choose the instant used to verify grant
+        # validity.  Reject the inherited test seam instead of silently
+        # accepting a timestamp that could revive an expired authorization.
+        if current_time_iso is not None:
+            raise _deny()
         if not isinstance(grant, GatewayDispatchGrant) or grant.schema_version != GATEWAY_PRODUCTION_DISPATCH_SCHEMA:
             raise _deny()
         endpoint = self._verify_endpoint(
-            grant=grant, presented_worker_spiffe_id=presented_worker_spiffe_id,
-            request_target=request_target, body=body, current_time_iso=current_time_iso,
+            grant=grant,
+            presented_worker_spiffe_id=presented_worker_spiffe_id,
+            request_target=request_target,
+            body=body,
+            current_time_iso=None,
         )
         if not isinstance(endpoint, GatewayProductionEndpoint):
             raise _deny()
-        for name in ("auth_profile_id", "credential_reference_id", "transport_version",
-                     "endpoint_policy_digest", "worker_evidence_digest"):
+        for name in (
+            "auth_profile_id",
+            "credential_reference_id",
+            "transport_version",
+            "endpoint_policy_digest",
+            "worker_evidence_digest",
+        ):
             if getattr(grant, name) != getattr(endpoint, name):
                 raise _deny()
         for name in ("max_output_tokens", "max_response_bytes", "max_elapsed_ms"):
@@ -881,13 +943,21 @@ class GatewayProductionDispatcher(GatewayDispatchEmulator):
         return endpoint
 
     def _invocation(
-        self, grant: GatewayDispatchGrant, endpoint: GatewayDispatchEndpoint,
-        descriptor_digest: str, body: bytes,
+        self,
+        grant: GatewayDispatchGrant,
+        endpoint: GatewayDispatchEndpoint,
+        descriptor_digest: str,
+        body: bytes,
     ) -> GatewayProductionInvocation:
         values = vars(super()._invocation(grant, endpoint, descriptor_digest, body))
-        return GatewayProductionInvocation(**values, **{
-            name: getattr(grant, name) for name in GatewayDispatchGrant._PRODUCTION_FIELDS if name != "execution_class"
-        })
+        return GatewayProductionInvocation(
+            **values,
+            **{
+                name: getattr(grant, name)
+                for name in GatewayDispatchGrant._PRODUCTION_FIELDS
+                if name != "execution_class"
+            },
+        )
 
 
 def _validate_production_body(endpoint: GatewayProductionEndpoint, grant: GatewayDispatchGrant, body: bytes) -> None:
@@ -916,7 +986,13 @@ def _validate_production_body(endpoint: GatewayProductionEndpoint, grant: Gatewa
             if messages[0]["role"] != "user":
                 raise _deny()
             content = messages[0]["content"]
-            if not isinstance(content, list) or len(content) != 1 or set(content[0]) != {"text"} or not isinstance(content[0]["text"], str) or not content[0]["text"].strip():
+            if (
+                not isinstance(content, list)
+                or len(content) != 1
+                or set(content[0]) != {"text"}
+                or not isinstance(content[0]["text"], str)
+                or not content[0]["text"].strip()
+            ):
                 raise _deny()
         else:
             if set(value) != {"contents", "generationConfig"} or not isinstance(value["generationConfig"], dict):
@@ -930,7 +1006,13 @@ def _validate_production_body(endpoint: GatewayProductionEndpoint, grant: Gatewa
             if messages[0]["role"] != "user":
                 raise _deny()
             content = messages[0]["parts"]
-            if not isinstance(content, list) or len(content) != 1 or set(content[0]) != {"text"} or not isinstance(content[0]["text"], str) or not content[0]["text"].strip():
+            if (
+                not isinstance(content, list)
+                or len(content) != 1
+                or set(content[0]) != {"text"}
+                or not isinstance(content[0]["text"], str)
+                or not content[0]["text"].strip()
+            ):
                 raise _deny()
         if type(limit) is not int or limit != grant.max_output_tokens:
             raise _deny()
@@ -950,7 +1032,9 @@ def encode_gateway_dispatch_envelope(*, grant: GatewayDispatchGrant, body: bytes
         raise _deny()
     return canonical(
         {
-            "schema_version": GATEWAY_PRODUCTION_DISPATCH_ENVELOPE_SCHEMA if grant.schema_version == GATEWAY_PRODUCTION_DISPATCH_SCHEMA else GATEWAY_DISPATCH_ENVELOPE_SCHEMA,
+            "schema_version": GATEWAY_PRODUCTION_DISPATCH_ENVELOPE_SCHEMA
+            if grant.schema_version == GATEWAY_PRODUCTION_DISPATCH_SCHEMA
+            else GATEWAY_DISPATCH_ENVELOPE_SCHEMA,
             "grant": grant.to_dict(),
             "body_base64": base64.b64encode(body).decode("ascii"),
             "body_sha256": grant.body_sha256,
@@ -968,11 +1052,14 @@ def decode_gateway_dispatch_envelope(value: bytes) -> tuple[GatewayDispatchGrant
         if (
             not isinstance(parsed, dict)
             or set(parsed) != {"schema_version", "grant", "body_base64", "body_sha256", "body_bytes"}
-            or parsed["schema_version"] not in {GATEWAY_DISPATCH_ENVELOPE_SCHEMA, GATEWAY_PRODUCTION_DISPATCH_ENVELOPE_SCHEMA}
+            or parsed["schema_version"]
+            not in {GATEWAY_DISPATCH_ENVELOPE_SCHEMA, GATEWAY_PRODUCTION_DISPATCH_ENVELOPE_SCHEMA}
         ):
             raise _deny()
         grant = GatewayDispatchGrant.from_dict(parsed["grant"])
-        if (parsed["schema_version"] == GATEWAY_PRODUCTION_DISPATCH_ENVELOPE_SCHEMA) != (grant.schema_version == GATEWAY_PRODUCTION_DISPATCH_SCHEMA):
+        if (parsed["schema_version"] == GATEWAY_PRODUCTION_DISPATCH_ENVELOPE_SCHEMA) != (
+            grant.schema_version == GATEWAY_PRODUCTION_DISPATCH_SCHEMA
+        ):
             raise _deny()
         if (
             not isinstance(parsed["body_base64"], str)

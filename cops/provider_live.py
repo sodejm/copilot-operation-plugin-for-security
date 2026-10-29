@@ -1,7 +1,8 @@
-"""Opt-in provider assessment through a signed operator gateway emulator.
+"""Opt-in provider assessment through a signed operator gateway boundary.
 
-This module has no provider client, network transport, or credential access. A
-production worker must supply its own independently reviewed gateway boundary.
+Historical v2 evidence remains executable only through the local emulator. The
+v3 contract can dispatch only through the production gateway, which owns typed
+credential resolution and the registered provider transports.
 """
 
 from __future__ import annotations
@@ -25,10 +26,14 @@ from cops.assessment_budget import (
 )
 from cops.evidence.canonical import EvidenceError, canonical, decode_json
 from cops.execution.gateway_dispatch import (
+    GATEWAY_DISPATCH_SCHEMA,
+    GATEWAY_PRODUCTION_DISPATCH_SCHEMA,
     MAX_GATEWAY_RESPONSE_BYTES,
     GatewayDispatchEmulator,
     GatewayDispatchError,
     GatewayDispatchGrant,
+    GatewayProductionDispatcher,
+    gateway_dispatch_descriptor_digest,
 )
 from cops.provider_assessment import (
     ProviderAssessmentError,
@@ -40,13 +45,16 @@ from cops.provider_assessment import (
 
 _PLAN_SCHEMA = "provider-live-plan.schema.json"
 _CASES_SCHEMA = "provider-live-cases.schema.json"
-_CASES_VERSION = "cops.ai-provider-live-assessment-cases/v2"
+_PLAN_V2 = "cops.ai-provider-live-assessment-plan/v2"
+_PLAN_V3 = "cops.ai-provider-live-assessment-plan/v3"
+_CASES_V2 = "cops.ai-provider-live-assessment-cases/v2"
+_CASES_V3 = "cops.ai-provider-live-assessment-cases/v3"
 _DENIED = "live provider dispatch denied"
 _LOG = logging.getLogger(__name__)
 
 
 class ProviderLiveError(ValueError):
-    """A live request failed closed before any gateway dispatch."""
+    """A live request failed closed without exposing private provider data."""
 
 
 def _deny() -> ProviderLiveError:
@@ -85,8 +93,10 @@ def _redacted_evidence(case: dict[str, Any], estimate: dict[str, int], ledger_st
     }
 
 
-def _dispatch_with_deadline(gateway: GatewayDispatchEmulator, *, timeout_ms: int, **kwargs: Any) -> Any:
-    """Bound the local emulator wait without replaying an ambiguous dispatch."""
+def _dispatch_with_deadline(
+    gateway: GatewayDispatchEmulator | GatewayProductionDispatcher, *, timeout_ms: int, **kwargs: Any
+) -> Any:
+    """Bound the gateway wait without replaying an ambiguous dispatch."""
     if timeout_ms <= 0:
         raise TimeoutError("provider dispatch deadline expired")
     result: Queue[tuple[bool, Any]] = Queue(maxsize=1)
@@ -145,7 +155,7 @@ def _approved_request(plan: dict[str, Any], case: dict[str, Any]) -> tuple[dict[
     environment = next((item for item in environments if item["environment_id"] == case["environment_id"]), None)
     if environment is None:
         raise _deny()
-    scope = (
+    scope = [
         "provider",
         "account_or_project_kind",
         "account_or_project",
@@ -156,7 +166,18 @@ def _approved_request(plan: dict[str, Any], case: dict[str, Any]) -> tuple[dict[
         "gateway_path",
         "gateway_endpoint_id",
         "gateway_spiffe_id",
-    )
+    ]
+    if plan.get("schema_version") == _PLAN_V3:
+        scope.extend(
+            (
+                "execution_class",
+                "auth_profile_id",
+                "credential_reference_id",
+                "transport_version",
+                "endpoint_policy_digest",
+                "worker_evidence_digest",
+            )
+        )
     if any(case[key] != environment[key] for key in scope):
         raise _deny()
     if not set(case["requested_tools"]).issubset(environment["allowed_tools"]):
@@ -293,7 +314,7 @@ def execute_live_case(
     plan: dict[str, Any],
     case: dict[str, Any],
     *,
-    gateway: GatewayDispatchEmulator,
+    gateway: GatewayDispatchEmulator | GatewayProductionDispatcher,
     ledger: AssessmentBudgetLedger,
     trusted_gateway_origin: str,
     trusted_gateway_identity: str,
@@ -312,6 +333,7 @@ def execute_live_case(
     cleanup_attempted = False
     dispatch_intent_uncertain = False
     intent_ledger_state = "unknown"
+    production_dispatch = False
     denied = False
     try:
         if not isinstance(gateway, GatewayDispatchEmulator) or not isinstance(ledger, AssessmentBudgetLedger):
@@ -319,7 +341,21 @@ def execute_live_case(
         _bounded(plan)
         _bounded(case)
         _validate(plan, _PLAN_SCHEMA)
-        _validate({"schema_version": _CASES_VERSION, "cases": [case]}, _CASES_SCHEMA)
+        plan_version = plan["schema_version"]
+        if plan_version == _PLAN_V2:
+            if isinstance(gateway, GatewayProductionDispatcher):
+                raise _deny()
+            cases_version = _CASES_V2
+            expected_grant_version = GATEWAY_DISPATCH_SCHEMA
+        elif plan_version == _PLAN_V3:
+            if not isinstance(gateway, GatewayProductionDispatcher):
+                raise _deny()
+            production_dispatch = True
+            cases_version = _CASES_V3
+            expected_grant_version = GATEWAY_PRODUCTION_DISPATCH_SCHEMA
+        else:
+            raise _deny()
+        _validate({"schema_version": cases_version, "cases": [case]}, _CASES_SCHEMA)
         environment, approved = _approved_request(plan, case)
         provider_host = urlsplit(case["request_target"]).hostname
         gateway_host = urlsplit(trusted_gateway_origin).hostname
@@ -349,7 +385,8 @@ def execute_live_case(
             "gateway_endpoint_id",
         )
         if (
-            grant.action_plan_id != plan["action_plan_id"]
+            grant.schema_version != expected_grant_version
+            or grant.action_plan_id != plan["action_plan_id"]
             or grant.plan_digest != digest
             or grant.worker_spiffe_id != worker_spiffe_id
             or grant.body_sha256 != case["request"]["body_sha256"]
@@ -357,6 +394,23 @@ def execute_live_case(
             or any(getattr(grant, key) != case[key] for key in scope)
         ):
             raise _deny()
+        if production_dispatch:
+            production_scope = (
+                "execution_class",
+                "auth_profile_id",
+                "credential_reference_id",
+                "transport_version",
+                "endpoint_policy_digest",
+                "worker_evidence_digest",
+            )
+            if (
+                grant.execution_class != "production"
+                or any(getattr(grant, key) != case[key] for key in production_scope)
+                or grant.max_output_tokens != case["request"]["max_output_tokens"]
+                or grant.max_response_bytes != case["estimate"]["response_bytes"]
+                or grant.max_elapsed_ms != case["estimate"]["elapsed_ms"]
+            ):
+                raise _deny()
         endpoint = gateway.preflight(
             grant=grant,
             presented_worker_spiffe_id=worker_spiffe_id,
@@ -405,6 +459,16 @@ def execute_live_case(
             "gateway_identity": trusted_gateway_identity,
             "currency": plan["shared_budget"]["currency"],
         }
+        if production_dispatch:
+            intent.update(
+                approval_digest=gateway_dispatch_descriptor_digest(grant),
+                endpoint_policy_digest=grant.endpoint_policy_digest,
+                worker_evidence_digest=grant.worker_evidence_digest,
+                transport_version=grant.transport_version,
+                max_output_tokens=grant.max_output_tokens,
+                max_response_bytes=grant.max_response_bytes,
+                max_elapsed_ms=grant.max_elapsed_ms,
+            )
         try:
             ledger.mark_dispatched(
                 attempt_id,
@@ -449,6 +513,19 @@ def execute_live_case(
         raise _deny()
 
     evidence = _redacted_evidence(case, estimate, intent_ledger_state if dispatch_intent_uncertain else "dispatched")
+    if production_dispatch:
+        evidence.update(
+            plan_digest=digest,
+            approval_digest=gateway_dispatch_descriptor_digest(grant),
+            endpoint_policy_digest=grant.endpoint_policy_digest,
+            worker_evidence_digest=grant.worker_evidence_digest,
+            transport_version=grant.transport_version,
+            replay_limits={
+                "max_output_tokens": grant.max_output_tokens,
+                "max_response_bytes": grant.max_response_bytes,
+                "max_elapsed_ms": grant.max_elapsed_ms,
+            },
+        )
     if dispatch_intent_uncertain:
         return evidence
     try:
@@ -503,6 +580,8 @@ def execute_live_case(
                 cleanup()
             except Exception:
                 _LOG.warning("provider assessment cleanup did not complete")
+        if production_dispatch:
+            raise _deny() from None
         return evidence
     except BaseException:
         # Cancellation has the same uncertain effect, but callers must still

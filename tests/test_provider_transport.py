@@ -4,8 +4,10 @@ import hashlib
 import hmac
 import io
 import json
+import threading
 from dataclasses import replace
 from datetime import UTC, datetime
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from types import SimpleNamespace
 
 import pytest
@@ -18,6 +20,7 @@ from cops.execution.gateway_credentials import (
     VertexCredential,
 )
 from cops.execution.gateway_dispatch import GatewayDispatchEndpoint, GatewayDispatchError
+from cops.laboratory.service_tls import _certificate_material
 
 SECRET = "synthetic-private-canary"
 CREDENTIALS = {
@@ -164,6 +167,66 @@ def test_registered_adapter_authenticates_once_and_redacts(provider, network, mo
         assert headers["x-amz-security-token"] == "fixture-session-token"
     assert connection.options["context"].check_hostname
     assert connection.options["context"].verify_mode == transport.ssl.CERT_REQUIRED
+
+
+@pytest.mark.parametrize("provider", CREDENTIALS)
+def test_registered_adapter_crosses_disposable_tls_laboratory(provider, tmp_path, monkeypatch):
+    material = _certificate_material(tmp_path, server_dns_names=tuple(HOSTS.values()))
+    requests = []
+
+    class ProviderHandler(BaseHTTPRequestHandler):
+        protocol_version = "HTTP/1.1"
+
+        def do_POST(self):  # noqa: N802 - BaseHTTPRequestHandler API
+            length = int(self.headers.get("Content-Length", "-1"))
+            received = self.rfile.read(length)
+            requests.append((self.path, {name.lower(): value for name, value in self.headers.items()}, received))
+            response = json.dumps(raw_response(provider)).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(response)))
+            self.send_header("Connection", "close")
+            self.end_headers()
+            self.wfile.write(response)
+
+        def log_message(self, _format, *_args):
+            return
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), ProviderHandler)
+    server.daemon_threads = True
+    server_context = transport.ssl.SSLContext(transport.ssl.PROTOCOL_TLS_SERVER)
+    server_context.minimum_version = transport.ssl.TLSVersion.TLSv1_2
+    server_context.load_cert_chain(str(material["server_cert"]), str(material["server_key"]))
+    server.socket = server_context.wrap_socket(server.socket, server_side=True)
+    client_context = transport.ssl.create_default_context(cafile=str(material["ca"]))
+    client_context.minimum_version = transport.ssl.TLSVersion.TLSv1_2
+    thread = threading.Thread(target=server.serve_forever, name=f"provider-{provider}-tls-lab", daemon=True)
+
+    class LaboratoryConnection(transport.http.client.HTTPSConnection):
+        def connect(self):
+            if getattr(self, "_connect_attempted", False):
+                raise OSError("laboratory reconnect prohibited")
+            self._connect_attempted = True
+            raw = transport.socket.create_connection(("127.0.0.1", server.server_port), timeout=self.timeout)
+            self.sock = self._context.wrap_socket(raw, server_hostname=self.host)
+
+    monkeypatch.setattr(transport, "_DirectHTTPSConnection", LaboratoryConnection)
+    monkeypatch.setattr(transport.ssl, "create_default_context", lambda: client_context)
+    thread.start()
+    try:
+        body = b'{"fixture":true}'
+        response = transport.registered_provider_transports()[provider](endpoint(provider), body, CREDENTIALS[provider])
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=3)
+
+    assert response.status_code == 200 and SECRET.encode() not in response.body
+    assert len(requests) == 1
+    path, headers, received = requests[0]
+    assert path == endpoint(provider).request_target.removeprefix("https://" + HOSTS[provider])
+    assert headers["host"] == HOSTS[provider] and received == body
+    assert not thread.is_alive() and server.socket.fileno() == -1
 
 
 @pytest.mark.parametrize("provider", CREDENTIALS)

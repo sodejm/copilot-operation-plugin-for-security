@@ -44,6 +44,15 @@ def _documents(provider="openai"):
     environment = plan["environments"][0]
     approved = environment["approved_requests"][0]
     sample, body = _case(provider)
+    sample["request_target"] = {
+        "openai": "https://api.openai.com/v1/responses",
+        "azure": "https://cops-test.openai.azure.com/openai/v1/responses",
+        "aws": "https://bedrock-runtime.us-east1.amazonaws.com/model/test-model/converse",
+        "gcp": (
+            "https://us-east1-aiplatform.googleapis.com/v1/projects/test-project/locations/us-east1/"
+            "publishers/google/models/test-model:generateContent"
+        ),
+    }[provider]
     transport_versions = {
         "openai": "openai-responses/v1",
         "azure": "azure-openai-responses/v1",

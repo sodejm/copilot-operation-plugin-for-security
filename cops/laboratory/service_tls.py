@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import ipaddress
+import re
 import ssl
 import tempfile
 import threading
@@ -58,7 +59,21 @@ class _HealthHandler(BaseHTTPRequestHandler):
         return
 
 
-def _certificate_material(directory: Path) -> dict[str, Path]:
+def _certificate_material(directory: Path, *, server_dns_names: tuple[str, ...] = ()) -> dict[str, Path]:
+    if (
+        type(server_dns_names) is not tuple
+        or len(set(server_dns_names)) != len(server_dns_names)
+        or any(
+            type(name) is not str
+            or not re.fullmatch(
+                r"(?=.{1,253}\Z)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+"
+                r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?",
+                name,
+            )
+            for name in server_dns_names
+        )
+    ):
+        raise ValueError("invalid laboratory server DNS name")
     try:
         from cryptography import x509
         from cryptography.hazmat.primitives import hashes, serialization
@@ -165,7 +180,10 @@ def _certificate_material(directory: Path) -> dict[str, Path]:
         )
         if usage == ExtendedKeyUsageOID.SERVER_AUTH:
             builder = builder.add_extension(
-                x509.SubjectAlternativeName([x509.IPAddress(ipaddress.ip_address("127.0.0.1"))]),
+                x509.SubjectAlternativeName(
+                    [x509.IPAddress(ipaddress.ip_address("127.0.0.1"))]
+                    + [x509.DNSName(hostname) for hostname in server_dns_names]
+                ),
                 critical=False,
             )
         else:

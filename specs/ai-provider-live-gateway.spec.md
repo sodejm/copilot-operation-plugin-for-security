@@ -1,4 +1,4 @@
-# Opt-in provider gateway contracts and emulator (E16.02)
+# Opt-in provider gateway contracts and adapters (E16.02)
 
 ## Scope and prerequisites
 
@@ -6,10 +6,11 @@ The separately versioned live plan requires explicit paid-execution opt-in,
 an engagement budget, an approved canary and canonical request digest, exact
 provider identity, region, endpoint and model, a tool allowlist, a configured
 gateway HTTPS origin and path, SPIFFE worker identity, and a signed one-use
-dispatch grant. The executable emulator scenarios exercise a local gateway,
-a broker-backed synthetic transport, and four provider-shaped synthetic
-envelopes without provider calls or credentials. The existing offline fixture
-command and schema remain unchanged.
+dispatch grant. The executable scenarios exercise a local emulator, a
+broker-backed synthetic transport, the production dispatcher and registered
+provider adapters against controlled transports, and four provider-shaped
+synthetic envelopes without provider calls or real credentials. The existing
+offline fixture command and schema remain unchanged.
 
 Live plans use the existing provider IDs `openai`, `azure`, `aws`, and `gcp`.
 The gateway credential handler maps those IDs to its configured transport
@@ -78,8 +79,9 @@ cross-document equality, evidence freshness, or execution authorization.
    gateway origin cannot satisfy this check.
 3. Atomically reserve the approved worst-case amount in the shared
    `AssessmentBudgetLedger`, then mark the attempt dispatched immediately
-   before consuming its one-use grant and invoking the emulator. A failed
-   preflight does not reserve or send. An exhausted budget does not send.
+   before consuming its one-use grant and invoking the approved gateway
+   handler. A failed preflight does not reserve or send. An exhausted budget
+   does not send.
 4. A consumed grant cannot be replayed. Ambiguous send, timeout, disconnect,
    cancellation, malformed or partial response, and unavailable usage retain
    a conservative uncertain reservation. Gateway responses are capped at 1 MiB;
@@ -88,7 +90,9 @@ cross-document equality, evidence freshness, or execution authorization.
 
 ## Results and operational limit
 
-Provider tool-use output is a proposal only and is never executed. Public
+V2 emulator tool-use output is a proposal only and is never executed. V3
+production adapters reject tool-use, non-text, and unknown output rather than
+returning a proposal. Public
 evidence contains normalized outcome, state, pseudonymous case reference,
 digest and estimated cost; it excludes prompt, response content, tool
 arguments, account, endpoint, canary, and credentials. Gateway or provider
@@ -99,7 +103,7 @@ Production use requires exact-revision evidence for an isolated worker,
 gateway-only egress, mTLS/SPIFFE identity, protected grant signer and durable
 replay state, gateway-owned scoped credentials, residency and retention,
 independent billing reconciliation, and separate engagement authorization.
-The emulator does not establish these properties.
+The emulator and controlled adapter tests do not establish these properties.
 
 ## Acceptance scenarios
 
@@ -107,10 +111,12 @@ The executable scenarios in
 [`features/ai_provider_live_gateway.feature`](features/ai_provider_live_gateway.feature)
 cover v3 required scope and budgets, unknown-field rejection, historical v2
 readability and production-contract ineligibility, endpoint aliases, four
-emulator provider envelopes, changed scope or identity, grant replay,
-direct egress denial, budget exhaustion, uncertain and partial results,
-cancellation, cleanup, tool proposals, and evidence redaction. Focused tests,
-package validation, and `make check` run in the repository virtual environment.
+emulator provider envelopes, changed scope or identity, grant replay, direct
+egress denial, budget exhaustion, uncertain and partial results, cancellation,
+cleanup, tool proposals, and evidence redaction. Focused transport tests cover
+the four registered production adapter mappings and controlled HTTPS endpoint
+laboratories. Package validation and `make check` run in the repository virtual
+environment.
 Schema scenarios establish contract eligibility only. Production dispatch
 tests must separately establish fail-closed version admission, signature and
 scope matching, and enforcement of each transport budget before any live
@@ -124,5 +130,5 @@ provider-hosted tool or attachment, understate the estimate, or omit usage
 after a possible send. Exact plan/grant binding, independent gateway state,
 narrow request shapes, shared budget admission and conservative uncertainty
 limit those paths. A modified same-authority checkout or missing production
-network controls can bypass the emulator; no real containment claim follows
-from these local tests.
+network controls can bypass the local boundary implementations; no real
+containment claim follows from these local tests.

@@ -1,5 +1,5 @@
-Feature: Opt-in provider gateway contracts and emulator
-  Versioned signed scope constrains provider requests; emulator results remain local evidence.
+Feature: Opt-in provider gateway contracts and adapters
+  Versioned signed scope constrains provider requests; controlled results remain local evidence.
 
   Scenario: The v3 production contract requires complete signed scope
     Given bounded v3 production plan and cases

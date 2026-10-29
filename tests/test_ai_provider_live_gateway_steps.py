@@ -1,4 +1,4 @@
-"""Executable acceptance scenarios for provider contracts and the local emulator."""
+"""Executable acceptance scenarios for provider gateway contracts and boundaries."""
 
 import json
 from concurrent.futures import ThreadPoolExecutor
