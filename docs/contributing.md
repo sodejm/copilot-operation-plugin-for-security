@@ -195,6 +195,14 @@ creation on a shared runner.
 
 Security lint exceptions must describe the concrete reason at the narrowest applicable scope. Offline tests use synthetic credentials and noncryptographic seeded fuzzing; standalone scripts may set up the repository import path before imports. Public string-enum behavior is preserved rather than migrated solely to satisfy a style rule. Production authorization storage errors must propagate, and XML imports must reject entity declarations before parsing imported data.
 
+### Publishing documentation
+
+The GitHub Pages workflow validates documentation, builds the `docs/` site with
+Jekyll, prepares its index and redirect files, uploads the generated `./_site`
+directory with `actions/upload-pages-artifact@v5`, and deploys that artifact.
+Pushes to `main` that change `docs/` or the workflow trigger publication; the
+workflow can also be started manually.
+
 ### Issue Documentation & Test Coverage Requirements
 Every branch addressing an issue or feature must include:
 1. **Documentation**: Updated or newly created markdown files in `docs/`, `specs/`, or root guides.
