@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "COPS AI Provider Live Assessment Cases v2",
+  "title": "COPS AI Provider Live Assessment Cases v2 and v3",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -9,15 +9,15 @@
   ],
   "properties": {
     "schema_version": {
-      "const": "cops.ai-provider-live-assessment-cases/v2"
+      "enum": [
+        "cops.ai-provider-live-assessment-cases/v2",
+        "cops.ai-provider-live-assessment-cases/v3"
+      ]
     },
     "cases": {
       "type": "array",
       "minItems": 1,
-      "maxItems": 64,
-      "items": {
-        "$ref": "#/$defs/case"
-      }
+      "maxItems": 64
     }
   },
   "$defs": {
@@ -27,7 +27,10 @@
     },
     "account_or_project_kind": {
       "type": "string",
-      "enum": ["account", "project"]
+      "enum": [
+        "account",
+        "project"
+      ]
     },
     "sha256": {
       "type": "string",
@@ -324,6 +327,436 @@
           "$ref": "#/$defs/dispatch_grant"
         }
       }
+    },
+    "opaque_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9._-]{0,127}$",
+      "description": "Opaque identifier resolved only by the gateway. Never contains a secret, credential value, file path, URL, or environment-variable reference."
+    },
+    "account_or_project_kind_v3": {
+      "type": "string",
+      "enum": [
+        "account",
+        "tenant",
+        "project",
+        "subscription"
+      ]
+    },
+    "request_target_v3": {
+      "type": "string",
+      "maxLength": 2048,
+      "pattern": "^https://[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*(?:/[A-Za-z0-9._~!$&'()*+,;=:@-]+)+$",
+      "not": {
+        "pattern": "/(?:\\.|\\.\\.)(?:/|$)"
+      },
+      "description": "Exact canonical HTTPS provider target, without userinfo, port, query, fragment, percent escapes, empty path segments, or dot segments. Provider endpoint policy is additionally verified at execution."
+    },
+    "dispatch_grant_v3": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "dispatch_id",
+        "authorization_id",
+        "action_plan_id",
+        "plan_digest",
+        "worker_spiffe_id",
+        "provider",
+        "account_or_project_kind",
+        "account_or_project",
+        "region",
+        "model",
+        "gateway_endpoint_id",
+        "request_target",
+        "body_sha256",
+        "body_bytes",
+        "issued_at",
+        "expires_at",
+        "key_id",
+        "algorithm",
+        "signature",
+        "execution_class",
+        "auth_profile_id",
+        "credential_reference_id",
+        "transport_version",
+        "endpoint_policy_digest",
+        "worker_evidence_digest",
+        "max_output_tokens",
+        "max_response_bytes",
+        "max_elapsed_ms"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "cops.operator-gateway-dispatch/v3"
+        },
+        "dispatch_id": {
+          "$ref": "#/$defs/token"
+        },
+        "authorization_id": {
+          "$ref": "#/$defs/token"
+        },
+        "action_plan_id": {
+          "$ref": "#/$defs/token"
+        },
+        "plan_digest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "worker_spiffe_id": {
+          "$ref": "#/$defs/spiffe_id"
+        },
+        "provider": {
+          "$ref": "#/$defs/provider"
+        },
+        "account_or_project_kind": {
+          "$ref": "#/$defs/account_or_project_kind_v3"
+        },
+        "account_or_project": {
+          "$ref": "#/$defs/token"
+        },
+        "region": {
+          "$ref": "#/$defs/token"
+        },
+        "model": {
+          "$ref": "#/$defs/token"
+        },
+        "gateway_endpoint_id": {
+          "$ref": "#/$defs/token"
+        },
+        "request_target": {
+          "$ref": "#/$defs/request_target_v3"
+        },
+        "body_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "body_bytes": {
+          "type": "integer",
+          "minimum": 2,
+          "maximum": 262144
+        },
+        "issued_at": {
+          "$ref": "#/$defs/utc_timestamp"
+        },
+        "expires_at": {
+          "$ref": "#/$defs/utc_timestamp"
+        },
+        "key_id": {
+          "$ref": "#/$defs/token"
+        },
+        "algorithm": {
+          "const": "ed25519"
+        },
+        "signature": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{128}$"
+        },
+        "execution_class": {
+          "const": "production"
+        },
+        "auth_profile_id": {
+          "$ref": "#/$defs/opaque_id"
+        },
+        "credential_reference_id": {
+          "$ref": "#/$defs/opaque_id"
+        },
+        "transport_version": {
+          "enum": [
+            "openai-responses/v1",
+            "azure-openai-responses/v1",
+            "bedrock-converse/v1",
+            "vertex-generate-content/v1"
+          ]
+        },
+        "endpoint_policy_digest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "worker_evidence_digest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "max_output_tokens": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000000
+        },
+        "max_response_bytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1048576
+        },
+        "max_elapsed_ms": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 86400000
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "provider": {
+                "const": "openai"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "transport_version": {
+                "const": "openai-responses/v1"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "provider": {
+                "const": "azure"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "transport_version": {
+                "const": "azure-openai-responses/v1"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "provider": {
+                "const": "aws"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "transport_version": {
+                "const": "bedrock-converse/v1"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "provider": {
+                "const": "gcp"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "transport_version": {
+                "const": "vertex-generate-content/v1"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "case_v3": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "case_id",
+        "environment_id",
+        "provider",
+        "account_or_project_kind",
+        "account_or_project",
+        "region",
+        "model",
+        "request_target",
+        "endpoint_origin",
+        "gateway_path",
+        "gateway_endpoint_id",
+        "gateway_spiffe_id",
+        "requested_tools",
+        "request",
+        "estimate",
+        "dispatch_grant",
+        "execution_class",
+        "auth_profile_id",
+        "credential_reference_id",
+        "transport_version",
+        "endpoint_policy_digest",
+        "worker_evidence_digest"
+      ],
+      "properties": {
+        "case_id": {
+          "$ref": "#/$defs/token"
+        },
+        "environment_id": {
+          "$ref": "#/$defs/token"
+        },
+        "provider": {
+          "$ref": "#/$defs/provider"
+        },
+        "account_or_project_kind": {
+          "$ref": "#/$defs/account_or_project_kind_v3"
+        },
+        "account_or_project": {
+          "$ref": "#/$defs/token"
+        },
+        "region": {
+          "$ref": "#/$defs/token"
+        },
+        "model": {
+          "$ref": "#/$defs/token"
+        },
+        "request_target": {
+          "$ref": "#/$defs/request_target_v3"
+        },
+        "endpoint_origin": {
+          "$ref": "#/$defs/gateway_origin"
+        },
+        "gateway_path": {
+          "$ref": "#/$defs/gateway_path"
+        },
+        "gateway_endpoint_id": {
+          "$ref": "#/$defs/token"
+        },
+        "gateway_spiffe_id": {
+          "$ref": "#/$defs/spiffe_id"
+        },
+        "requested_tools": {
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 16,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/token"
+          }
+        },
+        "request": {
+          "$ref": "#/$defs/request"
+        },
+        "estimate": {
+          "$ref": "#/$defs/estimate"
+        },
+        "dispatch_grant": {
+          "$ref": "#/$defs/dispatch_grant_v3"
+        },
+        "execution_class": {
+          "const": "production"
+        },
+        "auth_profile_id": {
+          "$ref": "#/$defs/opaque_id"
+        },
+        "credential_reference_id": {
+          "$ref": "#/$defs/opaque_id"
+        },
+        "transport_version": {
+          "enum": [
+            "openai-responses/v1",
+            "azure-openai-responses/v1",
+            "bedrock-converse/v1",
+            "vertex-generate-content/v1"
+          ]
+        },
+        "endpoint_policy_digest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "worker_evidence_digest": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "provider": {
+                "const": "openai"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "transport_version": {
+                "const": "openai-responses/v1"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "provider": {
+                "const": "azure"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "transport_version": {
+                "const": "azure-openai-responses/v1"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "provider": {
+                "const": "aws"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "transport_version": {
+                "const": "bedrock-converse/v1"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "provider": {
+                "const": "gcp"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "transport_version": {
+                "const": "vertex-generate-content/v1"
+              }
+            }
+          }
+        }
+      ]
     }
-  }
+  },
+  "description": "Version 2 remains readable only as historical emulator evidence and is never eligible for production dispatch. Version 3 requires explicit execution class and signed production scope; schema validity alone does not authorize execution.",
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "schema_version": {
+            "const": "cops.ai-provider-live-assessment-cases/v3"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "cases": {
+            "items": {
+              "$ref": "#/$defs/case_v3"
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "cases": {
+            "items": {
+              "$ref": "#/$defs/case"
+            }
+          }
+        }
+      }
+    }
+  ]
 }
