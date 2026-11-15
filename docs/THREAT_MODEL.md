@@ -219,25 +219,11 @@ establishes production worker readiness or authorizes a paid provider request.
 
 ### Operator gateway dispatch boundary
 
-The v2 broker accepts a signed dispatch grant and a bounded body only when the
-operator has configured the exact action plan and digest, worker SPIFFE identity,
-gateway HTTPS origin and path, gateway SPIFFE identity, trust store, and durable
-replay store. The grant binds the provider, account or project, region, model,
-gateway endpoint, provider request target, body digest and byte count. The
-broker rechecks the grant immediately before consuming its one-use dispatch and
-authorization IDs. TLS checks the gateway hostname and configured SPIFFE URI;
-redirects and automatic retries are denied. A legacy replay database missing
-the authorization ID constraint fails closed until its history is migrated.
+Historical `v2` contracts are emulator-only: the `v2` broker accepts a signed dispatch grant and a bounded `POST` body only when the operator has configured the exact action plan and digest, worker SPIFFE identity, gateway HTTPS origin and path, gateway SPIFFE identity, trust store, and durable replay store. The grant binds the provider, account or project, region, model, gateway endpoint, provider request target, body digest, and byte count. The broker rechecks the grant immediately before consuming its one-use dispatch and authorization IDs; TLS checks the gateway hostname and configured SPIFFE URI, redirects and automatic retries are denied, and a legacy replay database missing the authorization ID constraint fails closed until migrated.
 
-The gateway emulator independently verifies the signed grant and worker identity
-and consumes it before invoking a provider-shaped handler. The handler can return
-only a bounded JSON response. These tests establish local protocol behavior, not
-the identity, credentials, isolation, or retention of a deployed gateway. A
-production gateway would own scoped provider credentials and must compare the
-grant to its configured provider endpoint before any provider call. The worker
-must not receive those credentials. A consumed grant followed by a disconnect
-has an uncertain outcome and must not be replayed automatically. Provider usage,
-billing, remote cancellation, and deletion require independent evidence.
+The `v3` contract requires `GatewayProductionDispatcher` and a registered, versioned, gateway-owned provider adapter (`OpenAI`, `Azure OpenAI`, `AWS Bedrock`, `Google Vertex AI`). In addition to the plan, worker, provider scope, and request bindings, `v3` signs `execution_class: production`, opaque auth-profile and credential-reference identifiers, the exact registered adapter version, endpoint-policy and worker-evidence digests, and positive request ceilings (output tokens, response bytes, elapsed time). Production dispatch uses the gateway's own clock (no injected verification time) and consumes the one-use grant before resolving the scoped credential from an explicit gateway-owned profile—ambient credentials, environment fallbacks, cloud instance identities, and automatic refresh are rejected. Only the registered adapter opens the direct HTTPS connection to the exact canonical provider target (host and path), rejecting redirects, proxies, automatic retries, streaming, attachments, tool output, and non-text/unknown responses, and returning only a normalized, redacted result.
+
+Controlled tests exercise these `v2` and `v3` protocol, scope, and adapter boundaries locally, but they do not establish production worker routing, deployed mTLS/SPIFFE enforcement, signer or credential custody, evidence freshness, live provider qualification, or provider-side retention, deletion, and billing reconciliation. A consumed grant followed by a disconnect or limit violation has an uncertain outcome and must not be replayed automatically.
 
 ### Opt-in provider assessment emulator boundary
 
@@ -603,11 +589,11 @@ validation before the affected release/capability expansion and schedule P2 with
 
 ### T29: Gateway dispatch replay, identity substitution, or credential scope escape
 
-- Attack path / prerequisite: A worker or gateway accepts a forged, expired, reused, or mismatched dispatch grant; a redirected POST reaches a direct provider destination; a gateway uses credentials outside the approved account, project, region, or model; or an uncertain request is automatically retried and charged twice.
+- Attack path / prerequisite: A worker or gateway accepts a forged, expired, reused, or mismatched dispatch grant; a redirected POST reaches a direct provider destination; a gateway uses credentials outside the approved account, project, region, or model; ambient credentials leak across scopes; or an uncertain request is automatically retried and charged twice.
 - Inherent impact: High; likelihood: Medium before deployment controls are verified; priority: P1.
-- Existing evidence / limitation: The v2 broker binds a bounded POST body to a signed plan-scoped grant, exact gateway URL and TLS SPIFFE URI, rechecks authorization immediately before sending, and consumes both dispatch and authorization IDs in a durable replay store. The emulator independently checks plan, worker, provider scope, and request digest before its handler runs. An optional gateway-local handler binds opaque credential references to exact verified endpoints and resolves them only after grant consumption. Synthetic tests cover replay, scope and identity mismatch, direct egress, oversized bodies, malformed responses, uncertain outcomes, credential scope mismatch, and redacted resolver failure. The repository does not provision the production gateway, provider credentials, worker route, or provider-side billing and deletion evidence.
-- Proposed mitigation and validation: Verify production worker isolation, SSH host key, gateway TLS identity, signer custody, replay-store durability, credential resolver scope, provider endpoint mapping, retention, and log redaction on the intended host. Exercise cancellation, timeout, duplicate delivery, and reconciliation with a separate engagement authorization and exact-revision human security review before a real canary.
-- Residual risk / status: A compromised gateway or same-authority replay store can bypass local checks. An authorization consumed before a disconnect may have produced an effect or charge; local cleanup cannot establish provider cancellation, billing, or deletion. Live execution remains disabled by default and no paid provider call has been made.
+- Existing evidence / limitation: The `v2` emulator broker binds a bounded `POST` body to a signed plan-scoped grant, exact gateway URL, and TLS SPIFFE URI, rechecks authorization immediately before sending, and consumes both dispatch and authorization IDs in a durable replay store. The `v3` `GatewayProductionDispatcher` additionally binds `execution_class: production`, opaque auth-profile and credential-reference identifiers, registered adapter version, endpoint-policy and worker-evidence digests, and positive request ceilings, using the gateway's own clock to prevent grant-revival via injected time. It consumes the one-use grant before resolving scoped credentials explicitly (no ambient or default credential lookup) and delegates only to a registered adapter that enforces exact canonical HTTPS provider target matching, direct TLS without redirects/proxies/retries, and strict text-only response normalization. Synthetic and controlled-transport tests cover replay, scope/identity/adapter/ceiling mismatch, direct egress, oversized bodies, malformed or tool-bearing responses, uncertain outcomes, credential scope mismatch, and redacted failure handling. The repository does not provision the production gateway, deployed mTLS/SPIFFE transport, provider credentials, worker route, or provider-side billing and deletion evidence.
+- Proposed mitigation and validation: Verify production worker isolation, SSH host key, deployed mTLS/SPIFFE gateway identity, signer custody, replay-store durability, gateway-owned credential resolver custody, endpoint-policy freshness, provider retention/residency, and log redaction on the intended host. Exercise cancellation, timeout, duplicate delivery, and reconciliation with a separate engagement authorization and exact-revision human security review before a real canary.
+- Residual risk / status: A compromised gateway or same-authority replay store can bypass local checks; `v3` policy and worker digests bind identifiers without verifying freshness or enforcing a deployment enablement switch. An authorization consumed before a disconnect may have produced an effect or charge; local cleanup cannot establish provider cancellation, billing, or deletion. Live provider qualification remains blocked without authorized production endpoints and accounts.
 
 ### T30: Exposure report disclosure or misleading intake result
 
