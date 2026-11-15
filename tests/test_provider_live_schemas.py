@@ -152,6 +152,34 @@ def _cases() -> dict[str, Any]:
     }
 
 
+V3_SCOPE = {
+    "execution_class": "production",
+    "auth_profile_id": "auth-profile-001",
+    "credential_reference_id": "credential-ref-001",
+    "transport_version": "openai-responses/v1",
+    "endpoint_policy_digest": "d" * 64,
+    "worker_evidence_digest": "e" * 64,
+}
+
+
+def _v3_documents() -> tuple[dict[str, Any], dict[str, Any]]:
+    plan, cases = _plan(), _cases()
+    plan["schema_version"] = "cops.ai-provider-live-assessment-plan/v3"
+    cases["schema_version"] = "cops.ai-provider-live-assessment-cases/v3"
+    environment, case = plan["environments"][0], cases["cases"][0]
+    for scope in (environment, case):
+        scope.update(V3_SCOPE)
+    for grant in (environment["approved_requests"][0]["dispatch_grant"], case["dispatch_grant"]):
+        grant.update(V3_SCOPE)
+        grant.update(
+            schema_version="cops.operator-gateway-dispatch/v3",
+            max_output_tokens=128,
+            max_response_bytes=4096,
+            max_elapsed_ms=5000,
+        )
+    return plan, cases
+
+
 PLAN_SCHEMA = _load_schema(PLAN_SCHEMA_PATH)
 CASES_SCHEMA = _load_schema(CASES_SCHEMA_PATH)
 RESPONSE_SCHEMA = _load_schema(RESPONSE_SCHEMA_PATH)
@@ -164,6 +192,215 @@ def test_live_schemas_are_valid_draft_2020_12() -> None:
     Draft202012Validator.check_schema(PLAN_SCHEMA)
     Draft202012Validator.check_schema(CASES_SCHEMA)
     Draft202012Validator.check_schema(RESPONSE_SCHEMA)
+
+
+def test_v3_schemas_accept_explicit_production_execution_class() -> None:
+    plan, cases = _v3_documents()
+    PLAN_VALIDATOR.validate(plan)
+    CASES_VALIDATOR.validate(cases)
+
+
+@pytest.mark.parametrize("execution_class", ["emulator", "unknown", "Production"])
+def test_v3_schemas_reject_nonproduction_execution_class(execution_class: str) -> None:
+    plan, cases = _v3_documents()
+    for scope in (
+        plan["environments"][0],
+        plan["environments"][0]["approved_requests"][0]["dispatch_grant"],
+        cases["cases"][0],
+        cases["cases"][0]["dispatch_grant"],
+    ):
+        scope["execution_class"] = execution_class
+    for validator, document in ((PLAN_VALIDATOR, plan), (CASES_VALIDATOR, cases)):
+        with pytest.raises(ValidationError):
+            validator.validate(document)
+
+
+@pytest.mark.parametrize("field", list(V3_SCOPE))
+@pytest.mark.parametrize("target", ["environment", "plan_grant", "case", "case_grant"])
+def test_v3_schemas_require_scope_at_every_boundary(field: str, target: str) -> None:
+    plan, cases = _v3_documents()
+    scopes = {
+        "environment": plan["environments"][0],
+        "plan_grant": plan["environments"][0]["approved_requests"][0]["dispatch_grant"],
+        "case": cases["cases"][0],
+        "case_grant": cases["cases"][0]["dispatch_grant"],
+    }
+    del scopes[target][field]
+    validator, document = (
+        (PLAN_VALIDATOR, plan) if target in {"environment", "plan_grant"} else (CASES_VALIDATOR, cases)
+    )
+    with pytest.raises(ValidationError):
+        validator.validate(document)
+
+
+@pytest.mark.parametrize("field", ["max_output_tokens", "max_response_bytes", "max_elapsed_ms"])
+@pytest.mark.parametrize("value", [None, 0, -1, True])
+def test_v3_grant_requires_positive_explicit_budgets(field: str, value: Any) -> None:
+    plan, cases = _v3_documents()
+    for document, validator, grant in (
+        (plan, PLAN_VALIDATOR, plan["environments"][0]["approved_requests"][0]["dispatch_grant"]),
+        (cases, CASES_VALIDATOR, cases["cases"][0]["dispatch_grant"]),
+    ):
+        if value is None:
+            del grant[field]
+        else:
+            grant[field] = value
+        with pytest.raises(ValidationError):
+            validator.validate(document)
+
+
+@pytest.mark.parametrize("target", ["root", "environment", "approved_request", "plan_grant", "case", "case_grant"])
+def test_v3_schemas_reject_unknown_fields_at_every_boundary(target: str) -> None:
+    plan, cases = _v3_documents()
+    scopes = {
+        "root": plan,
+        "environment": plan["environments"][0],
+        "approved_request": plan["environments"][0]["approved_requests"][0],
+        "plan_grant": plan["environments"][0]["approved_requests"][0]["dispatch_grant"],
+        "case": cases["cases"][0],
+        "case_grant": cases["cases"][0]["dispatch_grant"],
+    }
+    scopes[target]["unreviewed_override"] = True
+    validator, document = (CASES_VALIDATOR, cases) if target.startswith("case") else (PLAN_VALIDATOR, plan)
+    with pytest.raises(ValidationError):
+        validator.validate(document)
+
+
+@pytest.mark.parametrize("version", ["v1", "v4", "v03", "V3"])
+def test_live_schemas_reject_unknown_versions(version: str) -> None:
+    plan, cases = _v3_documents()
+    plan["schema_version"] = f"cops.ai-provider-live-assessment-plan/{version}"
+    cases["schema_version"] = f"cops.ai-provider-live-assessment-cases/{version}"
+    for validator, document in ((PLAN_VALIDATOR, plan), (CASES_VALIDATOR, cases)):
+        with pytest.raises(ValidationError):
+            validator.validate(document)
+
+
+def test_v3_schemas_reject_legacy_grants_and_v2_rejects_production_fields() -> None:
+    plan, cases = _v3_documents()
+    plan["environments"][0]["approved_requests"][0]["dispatch_grant"] = _dispatch_grant()
+    cases["cases"][0]["dispatch_grant"] = _dispatch_grant()
+    for validator, document in ((PLAN_VALIDATOR, plan), (CASES_VALIDATOR, cases)):
+        with pytest.raises(ValidationError):
+            validator.validate(document)
+    plan, cases = _plan(), _cases()
+    PLAN_VALIDATOR.validate(plan)
+    CASES_VALIDATOR.validate(cases)
+    plan["environments"][0]["execution_class"] = "production"
+    cases["cases"][0]["execution_class"] = "production"
+    for validator, document in ((PLAN_VALIDATOR, plan), (CASES_VALIDATOR, cases)):
+        with pytest.raises(ValidationError):
+            validator.validate(document)
+
+
+@pytest.mark.parametrize("kind", ["account", "tenant", "project", "subscription"])
+def test_v3_schemas_accept_explicit_provider_identity_kind(kind: str) -> None:
+    plan, cases = _v3_documents()
+    for scope in (
+        plan["environments"][0],
+        plan["environments"][0]["approved_requests"][0]["dispatch_grant"],
+        cases["cases"][0],
+        cases["cases"][0]["dispatch_grant"],
+    ):
+        scope["account_or_project_kind"] = kind
+    PLAN_VALIDATOR.validate(plan)
+    CASES_VALIDATOR.validate(cases)
+
+
+@pytest.mark.parametrize(
+    ("provider", "transport_version", "request_target"),
+    [
+        ("openai", "openai-responses/v1", "https://api.openai.com/v1/responses"),
+        ("azure", "azure-openai-responses/v1", "https://resource.openai.azure.com/openai/v1/responses"),
+        ("aws", "bedrock-converse/v1", "https://bedrock-runtime.us-east-1.amazonaws.com/model/model-v1:0/converse"),
+        (
+            "gcp",
+            "vertex-generate-content/v1",
+            "https://us-central1-aiplatform.googleapis.com/v1/projects/project/locations/us-central1/publishers/google/models/model:generateContent",
+        ),
+    ],
+)
+def test_v3_schemas_bind_provider_transport_version(provider: str, transport_version: str, request_target: str) -> None:
+    plan, cases = _v3_documents()
+    scopes = (
+        plan["environments"][0],
+        plan["environments"][0]["approved_requests"][0]["dispatch_grant"],
+        cases["cases"][0],
+        cases["cases"][0]["dispatch_grant"],
+    )
+    for scope in scopes:
+        scope.update(provider=provider, transport_version=transport_version, request_target=request_target)
+    PLAN_VALIDATOR.validate(plan)
+    CASES_VALIDATOR.validate(cases)
+    for scope in scopes:
+        scope["transport_version"] = "unsupported/v1"
+    for validator, document in ((PLAN_VALIDATOR, plan), (CASES_VALIDATOR, cases)):
+        with pytest.raises(ValidationError):
+            validator.validate(document)
+    for scope in scopes:
+        scope["transport_version"] = "openai-responses/v1" if provider != "openai" else "bedrock-converse/v1"
+    for validator, document in ((PLAN_VALIDATOR, plan), (CASES_VALIDATOR, cases)):
+        with pytest.raises(ValidationError):
+            validator.validate(document)
+
+
+@pytest.mark.parametrize("field", ["auth_profile_id", "credential_reference_id"])
+@pytest.mark.parametrize("value", ["", "file:///secret", "env:API_KEY", "/gateway/key", "credential with spaces"])
+def test_v3_auth_references_are_opaque_identifiers(field: str, value: str) -> None:
+    plan, cases = _v3_documents()
+    plan["environments"][0][field] = value
+    cases["cases"][0][field] = value
+    for validator, document in ((PLAN_VALIDATOR, plan), (CASES_VALIDATOR, cases)):
+        with pytest.raises(ValidationError):
+            validator.validate(document)
+
+
+@pytest.mark.parametrize(
+    "target",
+    [
+        "http://api.openai.com/v1/responses",
+        "https://API.openai.com/v1/responses",
+        "https://api.openai.com:443/v1/responses",
+        "https://user@api.openai.com/v1/responses",
+        "https://api.openai.com/v1/responses?api-version=preview",
+        "https://api.openai.com/v1/responses#fragment",
+        "https://api.openai.com/v1/%72esponses",
+        "https://api.openai.com/v1/../responses",
+        "https://api.openai.com/v1/./responses",
+        "https://api.openai.com//v1/responses",
+        "https://api..openai.com/v1/responses",
+    ],
+)
+def test_v3_schemas_reject_endpoint_normalization_aliases(target: str) -> None:
+    plan, cases = _v3_documents()
+    plan["environments"][0]["request_target"] = target
+    plan["environments"][0]["approved_requests"][0]["dispatch_grant"]["request_target"] = target
+    cases["cases"][0]["request_target"] = target
+    cases["cases"][0]["dispatch_grant"]["request_target"] = target
+    for validator, document in ((PLAN_VALIDATOR, plan), (CASES_VALIDATOR, cases)):
+        with pytest.raises(ValidationError):
+            validator.validate(document)
+
+
+@pytest.mark.parametrize("field", ["endpoint_policy_digest", "worker_evidence_digest"])
+@pytest.mark.parametrize("digest", ["a" * 63, "a" * 65, "A" * 64, "not-a-digest"])
+def test_v3_scope_digests_require_exact_lowercase_sha256(field: str, digest: str) -> None:
+    plan, cases = _v3_documents()
+    plan["environments"][0][field] = digest
+    cases["cases"][0][field] = digest
+    for validator, document in ((PLAN_VALIDATOR, plan), (CASES_VALIDATOR, cases)):
+        with pytest.raises(ValidationError):
+            validator.validate(document)
+
+
+def test_v3_schema_does_not_substitute_for_cross_document_authorization() -> None:
+    plan, cases = _v3_documents()
+    cases["cases"][0]["auth_profile_id"] = "different-profile"
+    cases["cases"][0]["dispatch_grant"]["body_sha256"] = "f" * 64
+    # JSON Schema establishes each document's shape. Dispatch must independently
+    # compare every scope and digest against the signed approved plan.
+    PLAN_VALIDATOR.validate(plan)
+    CASES_VALIDATOR.validate(cases)
 
 
 def test_live_plan_accepts_explicit_opt_in_and_empty_tool_allowlist() -> None:

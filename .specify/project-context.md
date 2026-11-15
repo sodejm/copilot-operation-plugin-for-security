@@ -109,6 +109,8 @@ active fixture callbacks on cancellation, and binds the operator's price
 assumptions to the policy. The provider gateway emulator assessment reserves
 each dispatch before sending it and retains uncertain attempts. The
 current ledger does not establish provider billing or authorize a paid call.
+Gateway provider adapters use explicitly supplied scoped credentials and exact HTTPS
+targets; disposable adapter tests do not qualify a live provider deployment.
 See the [budget specification](../specs/aggregate-assessment-budgets.spec.md)
 and [operator guide](../docs/ASSESSMENT_BUDGETS.md).
 
