@@ -30,6 +30,13 @@ review each result before updating them.
 
 ## Local verification
 
+Check the workflow languages, production exclusions, and CI regression command
+without running CodeQL or the inert fixtures:
+
+```sh
+python -m pytest tests/test_codeql_configuration.py -q
+```
+
 Use a CodeQL CLI bundle with Python libraries and extractors:
 
 ```sh
