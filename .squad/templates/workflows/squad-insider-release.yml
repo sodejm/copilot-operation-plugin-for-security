@@ -50,8 +50,15 @@ jobs:
         run: |
           gh release create "${{ steps.version.outputs.insider_tag }}" \
             --title "${{ steps.version.outputs.insider_tag }}" \
-            --notes "This is an insider/development build of Squad. Install with:\`\`\`bash\nnpm install -g @bradygaster/squad-cli@${{ steps.version.outputs.insider_tag }}\n\`\`\`\n\n**Note:** Insider builds may be unstable and are intended for early adopters and testing only." \
-            --prerelease
+            --notes-file - --prerelease <<'SQUAD_NOTES'
+          This is an insider/development build of Squad. Install with:
+
+          ```bash
+          npm install -g @bradygaster/squad-cli@${{ steps.version.outputs.insider_tag }}
+          ```
+
+          **Note:** Insider builds may be unstable and are intended for early adopters and testing only.
+          SQUAD_NOTES
 
       - name: Verify release
         env:

@@ -14,10 +14,10 @@ jobs:
     if: github.event.label.name == 'squad'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 #v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Triage issue via deterministic keyword routing
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b #v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         with:
           script: |
             const fs = require('fs');
@@ -300,7 +300,8 @@ jobs:
             const comment = [
               `### 🏗️ Squad Triage — Automated keyword routing`,
               '',
-              `**Provenance:** Deterministic keyword matching against the capability profile in \`.squad/team.md\` and rules in \`.squad/routing.md\`; no Lead-agent analysis was performed.`,
+              `**Provenance:** Deterministic keyword matching against the capability profile in \`.squad/team.md\` and` +
+                ` rules in \`.squad/routing.md\`; no Lead-agent analysis was performed.`,
               `**Issue:** #${issue.number} — ${issue.title}`,
               `**Assigned to:** ${assignedMember.name} (${assignedMember.role})`,
               `**Reason:** ${triageReason}`,

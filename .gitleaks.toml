@@ -39,6 +39,13 @@ paths = ['''^tests/test_git_history_scanner\.py$''']
 # an intervening real PEM header or footer cannot be hidden by this exception.
 regexes = ['''^-----BEGIN PRIVATE KEY-----\\n" \+ "QUJD" \* 16\s*\+ "\\n-----END PRIVATE KEY-----(?:[^-]|->)*-----BEGIN PUBLIC KEY-----$''']
 
+[[rules.allowlists]]
+description = "Historical Squad documentation table entry containing only PEM delimiters"
+condition = "AND"
+regexTarget = "secret"
+paths = ['''^(?:\.github/skills|\.squad/(?:templates/)?skills)/secret-handling/SKILL\.md$''']
+regexes = ['''^-{5}BEGIN PRIVATE KEY-{5}`, `-{5}BEGIN RSA PRIVATE KEY-{5}` \| `-{5}BEGIN \[A-Z \]\+PRIVATE KEY-{5}$''']
+
 # A malformed fixture can consume the next key header in the built-in broad rule.
 # Independently detect actual PEM bodies without crossing source or another header.
 [[rules]]

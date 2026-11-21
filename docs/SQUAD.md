@@ -98,3 +98,8 @@ The local Squad 2.0.0 stdio server completed an MCP handshake and advertised
 15 state tools. This verifies local server startup, not native dispatch or
 end-to-end swarm acceptance in each client. JSON/TOML configuration parsing,
 repository contract, documentation and adapter checks also passed.
+
+After changing a client projection, run
+`python -m pytest -q tests/test_squad_configuration.py` to check that all six
+MCP client configurations invoke the same pinned CLI with npm install scripts
+disabled. Run `yamllint -s .` after updating optional workflows or templates.
