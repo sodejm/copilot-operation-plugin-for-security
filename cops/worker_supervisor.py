@@ -102,6 +102,9 @@ class WorkerSupervisorConfig:
     egress_trust_domain: str | None = None
     credential_manifest_path: Path | None = None
     execution_profile: str = "standard"
+    offline_observer_socket: Path | None = None
+    offline_observer_uid: int | None = None
+    offline_observer_public_key: bytes | None = None
 
     def __post_init__(self) -> None:
         if self.execution_profile not in ("standard", "offline-research/v1"):
@@ -110,6 +113,24 @@ class WorkerSupervisorConfig:
             self.egress_trust_domain is not None or self.credential_manifest_path is not None
         ):
             raise WorkerSupervisorError("offline supervisor cannot configure credentials or egress")
+        observer_fields = (
+            self.offline_observer_socket,
+            self.offline_observer_uid,
+            self.offline_observer_public_key,
+        )
+        if any(field is not None for field in observer_fields):
+            observer_uid = self.offline_observer_uid
+            if (
+                self.execution_profile != "offline-research/v1"
+                or not isinstance(self.offline_observer_socket, Path)
+                or not self.offline_observer_socket.is_absolute()
+                or type(observer_uid) is not int
+                or observer_uid < 1
+                or observer_uid in (self.relay_uid, self.supervisor_uid, self.authority_uid)
+                or type(self.offline_observer_public_key) is not bytes
+                or len(self.offline_observer_public_key) != 32
+            ):
+                raise WorkerSupervisorError("offline observer configuration is invalid")
 
     @classmethod
     def from_file(cls, path: Path | str) -> WorkerSupervisorConfig:
@@ -132,7 +153,7 @@ class WorkerSupervisorConfig:
             "attestation_key_path",
             "executable_sha256_pins",
         }
-        optional = {"egress_trust_domain", "credential_manifest_path", "execution_profile"}
+        optional = {"egress_trust_domain", "credential_manifest_path", "execution_profile", "offline_observer"}
         fields = set(data)
         if not required <= fields or fields - required - optional:
             raise WorkerSupervisorError("supervisor configuration fields or schema are invalid")
@@ -179,6 +200,18 @@ class WorkerSupervisorConfig:
         if credential_manifest_path is not None:
             if not isinstance(credential_manifest_path, str) or not Path(credential_manifest_path).is_absolute():
                 raise WorkerSupervisorError("supervisor credential manifest path must be absolute")
+        observer_socket = observer_uid = observer_key = None
+        if "offline_observer" in data:
+            observer = data["offline_observer"]
+            if not isinstance(observer, dict) or set(observer) != {"socket_path", "uid", "public_key"}:
+                raise WorkerSupervisorError("offline observer configuration is invalid")
+            if not isinstance(observer["socket_path"], str):
+                raise WorkerSupervisorError("offline observer socket path is invalid")
+            if not isinstance(observer["public_key"], str) or not _SHA256_RE.fullmatch(observer["public_key"]):
+                raise WorkerSupervisorError("offline observer public key is invalid")
+            observer_socket = Path(observer["socket_path"])
+            observer_uid = observer["uid"]
+            observer_key = bytes.fromhex(observer["public_key"])
         return cls(
             expected_host=data["expected_host"],
             worker_identity=data["worker_identity"],
@@ -198,6 +231,9 @@ class WorkerSupervisorConfig:
             egress_trust_domain=egress_trust_domain,
             credential_manifest_path=(Path(credential_manifest_path) if credential_manifest_path is not None else None),
             execution_profile=data.get("execution_profile", "standard"),
+            offline_observer_socket=observer_socket,
+            offline_observer_uid=observer_uid,
+            offline_observer_public_key=observer_key,
         )
 
 
@@ -312,6 +348,16 @@ def build_receiver(config: WorkerSupervisorConfig) -> SSHRemoteExecutionReceiver
         worker_gid=config.supervisor_gid,
     )
     offline_only = config.execution_profile == "offline-research/v1"
+    observer = None
+    if config.offline_observer_socket is not None:
+        from cops.execution.offline_observer import ObserverClient, ObserverVerifier
+
+        assert config.offline_observer_uid is not None and config.offline_observer_public_key is not None
+        observer = ObserverClient(
+            config.offline_observer_socket,
+            config.offline_observer_uid,
+            ObserverVerifier(config.offline_observer_public_key),
+        )
     credential_resolver = None
     scope_guard = None
     if not offline_only:
@@ -338,6 +384,7 @@ def build_receiver(config: WorkerSupervisorConfig) -> SSHRemoteExecutionReceiver
         credential_resolver=credential_resolver,
         cleanup_journal_path=config.cleanup_journal_path,
         required_execution_profile="offline-research/v1" if offline_only else None,
+        offline_observer=observer,
     )
     worker.recover_pending_cleanup()
     return SSHRemoteExecutionReceiver(

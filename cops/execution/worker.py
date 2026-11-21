@@ -17,7 +17,7 @@ import platform
 import stat
 import tempfile
 import uuid
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from contextlib import ExitStack
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -35,6 +35,8 @@ from cops.evidence.canonical import digest, utc_now
 if TYPE_CHECKING:
     from cops.laboratory.agent_mcp_worker import AgentMcpEnvelope
     from cops.web_api.worker_replay import WebApiReplayEnvelope
+
+    from .offline_observer import ObserverClient
 
 from .cleanup import (
     PLAN_DECLARED_PROVENANCE_KEY,
@@ -291,6 +293,7 @@ class IsolatedWorker:
         credential_resolver: ScopedCredentialResolver | None = None,
         agent_mcp_dispatchers: Mapping[str, Any] | None = None,
         required_execution_profile: str | None = None,
+        offline_observer: ObserverClient | None = None,
     ) -> None:
         if not isinstance(worker_inventory, WorkerCapabilityInventory) or not worker_inventory.is_verified:
             raise WorkerIsolationError("a verified owner-provisioned worker capability inventory is required")
@@ -307,7 +310,10 @@ class IsolatedWorker:
             scope_guard is not None or credential_resolver is not None or egress_trust_domain is not None
         ):
             raise WorkerIsolationError("offline worker cannot configure scope, credentials or egress")
+        if offline_observer is not None and required_execution_profile != "offline-research/v1":
+            raise WorkerIsolationError("offline observer requires a dedicated offline worker")
         self.required_execution_profile = required_execution_profile
+        self.offline_observer = offline_observer
         if credential_resolver is not None and credential_resolver.approval_control is not approval_control:
             raise WorkerIsolationError("credential resolver and worker must use the same approval control client")
         self.credential_resolver = credential_resolver
@@ -693,6 +699,7 @@ class IsolatedWorker:
         staged_corpora: list[dict[str, str]] = []
         isolation_observation: dict[str, Any] | None = None
         isolation_invocations: list[dict[str, Any]] = []
+        approval_observer_attestation: dict[str, Any] | None = None
         try:
             ledger = SideEffectLedger(
                 plan_id=plan_model.plan_id,
@@ -736,6 +743,26 @@ class IsolatedWorker:
             self.approval_control.assert_ready(self.config.worker_id)
             self.sandbox.assert_ready(self.config.worker_id, cwd=target_workspace, expected_workspace_fd=workspace_fd)
             if offline_profile is not None:
+                approval_gate_authorizer: Callable[[dict[str, int]], None] | None = None
+                if self.offline_observer is not None:
+
+                    def approval_gate_authorizer(gate: dict[str, int]) -> None:
+                        nonlocal approval_observer_attestation
+                        try:
+                            attestation = self.offline_observer.attest(
+                                phase="approval",
+                                authorization_id=authorization_id,
+                                plan_digest=plan_model.plan_digest,
+                                worker_identity=self.config.worker_id,
+                                isolation_digest=offline_profile["isolation_attestation"]["digest"],
+                                gate=gate,
+                            )
+                        except ValueError as err:
+                            raise OfflineResearchError("offline observer approval attestation is unavailable") from err
+                        if not isinstance(attestation, dict) or not attestation:
+                            raise OfflineResearchError("offline observer approval attestation is invalid")
+                        approval_observer_attestation = dict(attestation)
+
                 staged_corpora = stage_corpora(
                     offline_profile, workspace=target_workspace, workspace_fd=workspace_fd, ledger=ledger
                 )
@@ -744,7 +771,10 @@ class IsolatedWorker:
                     sandbox=self.sandbox,
                     workspace=target_workspace,
                     workspace_fd=workspace_fd,
+                    **({"gate_authorizer": approval_gate_authorizer} if approval_gate_authorizer is not None else {}),
                 )
+                if self.offline_observer is not None and approval_observer_attestation is None:
+                    raise OfflineResearchError("offline observer did not attest the approval gate")
                 validate_offline_request(
                     plan_model,
                     worker_identity=self.config.worker_id,
@@ -762,7 +792,17 @@ class IsolatedWorker:
                     "approval_consumption_started",
                     {"plan_digest": plan_model.plan_digest},
                 )
-            receipt = self.approval_control.consume_authorization(authorization_id, plan_model, self.config.worker_id)
+            consumption_arguments = (
+                {"observer_attestation": approval_observer_attestation}
+                if approval_observer_attestation is not None
+                else {}
+            )
+            receipt = self.approval_control.consume_authorization(
+                authorization_id,
+                plan_model,
+                self.config.worker_id,
+                **consumption_arguments,
+            )
             verified_receipt = self.approval_control.validate_receipt_provenance(receipt)
             if verified_receipt is not receipt:
                 raise ApprovalControlError("approval authority receipt provenance is invalid")
@@ -878,6 +918,24 @@ class IsolatedWorker:
 
             # 6. Execute operations in sequence (if checks passed)
             if status == "success":
+                release_gate_authorizer: Callable[[dict[str, int]], None] | None = None
+                if offline_profile is not None and self.offline_observer is not None:
+
+                    def release_gate_authorizer(gate: dict[str, int]) -> None:
+                        try:
+                            attestation = self.offline_observer.attest(
+                                phase="release",
+                                authorization_id=authorization_id,
+                                plan_digest=plan_model.plan_digest,
+                                worker_identity=self.config.worker_id,
+                                isolation_digest=offline_profile["isolation_attestation"]["digest"],
+                                gate=gate,
+                            )
+                        except ValueError as err:
+                            raise OfflineResearchError("offline observer release attestation is unavailable") from err
+                        if not isinstance(attestation, dict) or not attestation:
+                            raise OfflineResearchError("offline observer release attestation is invalid")
+
                 for operation_index, (op, operation_egress_policy) in enumerate(
                     zip(plan_model.operations, operation_egress_policies, strict=True)
                 ):
@@ -1069,6 +1127,11 @@ class IsolatedWorker:
                                                 ),
                                             }
                                         ),
+                                        **(
+                                            {"gate_authorizer": release_gate_authorizer}
+                                            if release_gate_authorizer is not None
+                                            else {}
+                                        ),
                                     }
                                     if offline_profile is not None
                                     else {}
@@ -1163,6 +1226,11 @@ class IsolatedWorker:
                                                         observation["measured"]
                                                     ),
                                                 }
+                                            ),
+                                            **(
+                                                {"gate_authorizer": release_gate_authorizer}
+                                                if release_gate_authorizer is not None
+                                                else {}
                                             ),
                                         }
                                         if offline_profile is not None

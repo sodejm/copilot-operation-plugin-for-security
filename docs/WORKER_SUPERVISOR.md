@@ -92,22 +92,6 @@ to its new PID. Never relax worker restrictions to make a profile start. Older
 v2 implementations reject the new field; remove it only when intentionally
 restoring standard scoped behavior, not to bypass failed offline qualification.
 
-The receiver regression test in `tests/integration/test_offline_supervisor.py`
-uses real Linux bubblewrap and a pinned local corpus, but in-process test
-approval. It does not validate installed SSH accounts, peer credentials across
-roles, an independently administered observer, or production readiness.
-
-Before installed-host qualification (#328) or production acceptance (#331),
-record the intended host and administrator trust model. Identify who can alter
-the supervisor, enforcement policy, corpus provisioning, approval keys/database,
-observer and evidence signing keys. Define how the separately administered
-observer supplies fresh pre-execution evidence to approval, detects loss or
-substitution, and is checked again at execution boundaries. The supervisor's
-response signature and worker's own sandbox measurement are not an independent
-observer. A root observer sharing the worker's VM administrator remains inside
-that administrator's trust domain. No such external observer integration is
-installed by selecting this configuration field.
-
 The worker records cleanup intent before exclusively creating each default
 workspace or credential scratch directory. It records the resource identity from
 the still-open creation descriptor before cleanup is permitted. Recovery verifies
@@ -119,6 +103,93 @@ an owner-only `.cops-cleanup-*` directory for operator reconciliation. A caller-
 supplied worker workspace must already exist and remains caller-owned. Recursive
 cleanup preserves a worker-owned directory whenever any effect beneath it lacks a
 durable `cleaned` state, including an unresolved plan declaration.
+
+### Qualify a dedicated Ubuntu VM with the host observer
+
+Use a dedicated Ubuntu 24.04 LTS guest with AppArmor enabled and Ubuntu's
+packaged Bubblewrap profile loaded in enforcing mode. Install `bubblewrap`,
+`apparmor-profiles`, `openssh-server`, and the Python environment required by
+this repository. The Lima VM used for qualification has host filesystem mounts
+and its container runtime disabled. Verify `uname -m`, `uname -r` and the
+package versions in the guest. Record the kernel's AppArmor user-namespace
+restriction and Yama settings and leave those restrictions in force. Confirm
+that the packaged `/usr/bin/bwrap` starts as the unprivileged worker. Pin the
+packaged GNU `cat` executable by hash and version in the worker inventory.
+
+The single-maintainer qualification uses a fourth, unprivileged account for the
+observer. Guest administrators can change every service and its trust roots,
+including the observer's policy and key. Record that shared authority in the
+qualification evidence. Keep the observer key and policy inaccessible to the
+worker, relay and approval authority. The templates under
+[scripts/qualification/ubuntu-observer](../scripts/qualification/ubuntu-observer)
+assume the names `cops328-observer` and `cops328-worker`, worker UID `997`,
+worker primary GID `987`, a root-managed checkout at `/opt/cops-qual` and a
+root-managed virtual environment at `/opt/cops-m0-venv`. If the guest assigns
+different values, update the templates and service configurations together.
+Keep the relay out of the observer group. The supervisor socket can use the
+worker group for relay access. The observer also checks the connecting peer's
+primary UID and GID before accepting a request.
+
+Use the guest administrator account to install the private key directory and
+generate a dedicated Ed25519 key without copying the private bytes off the VM.
+
+```sh
+install -d -o cops328-observer -g cops328-observer -m 0700 /var/lib/cops328-observer
+runuser -u cops328-observer -- /opt/cops-m0-venv/bin/python - <<'PY'
+import os
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+key = Ed25519PrivateKey.generate()
+os.umask(0o077)
+with open("/var/lib/cops328-observer/signing-key", "xb") as private_key:
+    private_key.write(key.private_bytes_raw())
+print(key.public_key().public_bytes_raw().hex())
+PY
+```
+
+The printed 64-character public key goes in the trusted configuration of the
+supervisor and authority. Install the templates from the checkout as root.
+
+```sh
+templates=/opt/cops-qual/scripts/qualification/ubuntu-observer
+install -m 0644 "$templates/cops328-observer.apparmor" /etc/apparmor.d/cops328-observer
+install -m 0644 "$templates/cops328-observer.service" /etc/systemd/system/cops328-observer.service
+install -m 0644 "$templates/cops328-observer.tmpfiles" /etc/tmpfiles.d/cops328-observer.conf
+apparmor_parser -r /etc/apparmor.d/cops328-observer
+systemd-tmpfiles --create /etc/tmpfiles.d/cops328-observer.conf
+systemctl daemon-reload
+systemctl start cops328-observer.service
+```
+
+The observer socket directory uses mode `2710` and the socket uses mode
+`0660`, both owned by the observer and the worker group. The observer supplies
+read-only evidence from the paused Bubblewrap child's process, namespace and
+descriptor metadata. AppArmor denies access to process memory, maps, environment
+and auxiliary vectors. The systemd unit denies process-inspection syscalls,
+namespace creation and network families other than Unix sockets. The supervisor
+and authority do not get these host-observation privileges.
+
+Set the supervisor's `offline_observer` to an object with `socket_path`
+(`/run/cops328-observer/observer.sock` in the template), the observer's
+numeric `uid`, and the hex `public_key`. In the approval authority service,
+pass `offline_observer=ObserverVerifier(bytes.fromhex(public_key))` when
+constructing `ApprovalAuthority`, keeping its configured worker PID bound to the
+actual supervisor process. The client verifies the socket peer UID, the pinned
+signature, the request nonce and the blocked gate. The authority requires the
+approval-phase signature for a new consumption and binds it to the signed
+plan, authorization, isolation digest and the authenticated supervisor PID.
+Each invocation requests a fresh release-phase signature while its gate is
+still blocked. If the observer loses connectivity or supplies invalid evidence,
+the required approval or release stops.
+
+Capture the guest package and kernel versions, enforcing profiles, socket and
+key permissions, pinned SSH host key, signed approval and release evidence, and
+negative checks for a missing, stale or substituted observer. Correlate the
+observer journal's phase, plan digest and isolation digest with the authority
+consumption and the worker cleanup receipt. The in-process receiver regression
+test covers its local Linux path. Use the installed services across the distinct
+accounts and pinned SSH route to qualify #328. Start #331 only after the complete
+#328 acceptance checklist passes with zero required skips.
 
 `egress_trust_domain` and `credential_manifest_path` are optional. Omit the
 manifest path when no operation uses a credential. For credentialed operations,

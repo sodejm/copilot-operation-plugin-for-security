@@ -14,17 +14,20 @@ import stat
 import struct
 import time
 import uuid
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
 from cops.contracts.models import ActionPlan
 from cops.evidence.canonical import digest
 
 from .authorization import AuthorizationTrustStore, verify_execution_authorization
 from .store import ApprovalConsumptionRecord, ApprovalStore
+
+if TYPE_CHECKING:
+    from .offline_observer import ObserverVerifier
 
 REQUEST_SCHEMA = "cops.approval-control-request/v1"
 RESPONSE_SCHEMA = "cops.approval-control-response/v1"
@@ -168,6 +171,7 @@ class ApprovalAuthority:
     worker_gid: int
     worker_pid: int
     authority_uid: int
+    offline_observer: ObserverVerifier | None = field(default=None, repr=False, compare=False)
 
     def assert_ready(self) -> None:
         if not sys_platform_linux():
@@ -198,7 +202,13 @@ class ApprovalAuthority:
             "worker_identity",
             "action_plan",
         }
+        if self.offline_observer is not None:
+            expected_keys.add("observer_attestation")
         if set(document) != expected_keys:
+            if self.offline_observer is not None and "observer_attestation" not in document:
+                raise ApprovalControlError("offline observer attestation is required")
+            if self.offline_observer is None and "observer_attestation" in document:
+                raise ApprovalControlError("observer attestation is unsupported without an offline observer")
             raise ApprovalControlError("approval control request has unexpected or missing fields")
         if document["schema_version"] != REQUEST_SCHEMA or document["operation"] != "consume":
             raise ApprovalControlError("unsupported approval control request")
@@ -238,6 +248,28 @@ class ApprovalAuthority:
         if prior is not None:
             return _consumption_response(document["request_id"], prior)
 
+        observer_attestation: dict[str, Any] | None = None
+        isolation_digest: str | None = None
+        if self.offline_observer is not None:
+            candidate_attestation = document["observer_attestation"]
+            if not isinstance(candidate_attestation, dict):
+                raise ApprovalControlError("offline observer attestation must be an object")
+            observer_attestation = candidate_attestation
+            profile = plan.offline_research
+            if (
+                not isinstance(profile, Mapping)
+                or profile.get("profile") != "offline-research"
+                or profile.get("version") != "v1"
+            ):
+                raise ApprovalControlError("offline observer requires an approved offline-research profile")
+            isolation_attestation = profile.get("isolation_attestation")
+            if not isinstance(isolation_attestation, Mapping):
+                raise ApprovalControlError("offline observer requires an approved isolation attestation")
+            candidate_digest = isolation_attestation.get("digest")
+            if not isinstance(candidate_digest, str) or len(candidate_digest) != 64:
+                raise ApprovalControlError("offline observer requires an approved isolation attestation digest")
+            isolation_digest = candidate_digest
+
         try:
             stored = self.store.get_authorization(document["authorization_id"])
             verified = verify_execution_authorization(
@@ -260,6 +292,26 @@ class ApprovalAuthority:
             raise ApprovalControlError(
                 "approval authorization did not verify for the requested plan and worker"
             ) from err
+
+        if self.offline_observer is not None:
+            # This follows the exact durable-retry lookup above so an already
+            # committed request is returned without a second live observation.
+            # It remains before the one-time consumption transaction, however,
+            # so an unavailable or invalid observer fails closed.
+            assert observer_attestation is not None
+            assert isolation_digest is not None
+            try:
+                self.offline_observer.verify(
+                    observer_attestation,
+                    phase="approval",
+                    authorization_id=document["authorization_id"],
+                    plan_digest=plan.plan_digest,
+                    worker_identity=self.worker_identity,
+                    worker_pid=peer_pid,
+                    isolation_digest=isolation_digest,
+                )
+            except ValueError as err:
+                raise ApprovalControlError("offline observer rejected the attestation") from err
 
         record = self.store.atomically_consume_request(
             document["request_id"],
@@ -457,7 +509,12 @@ class ApprovalControlClient:
             ) from err
 
     def consume_authorization(
-        self, authorization_id: str, action_plan: ActionPlan, worker_identity: str
+        self,
+        authorization_id: str,
+        action_plan: ActionPlan,
+        worker_identity: str,
+        *,
+        observer_attestation: dict[str, Any] | None = None,
     ) -> ApprovalConsumptionReceipt:
         self.assert_ready(worker_identity)
         request_id = str(uuid.uuid4())
@@ -469,6 +526,8 @@ class ApprovalControlClient:
             "worker_identity": worker_identity,
             "action_plan": action_plan.to_dict(),
         }
+        if observer_attestation is not None:
+            request["observer_attestation"] = observer_attestation
         response: dict[str, Any] | None = None
         for attempt in range(2):
             try:

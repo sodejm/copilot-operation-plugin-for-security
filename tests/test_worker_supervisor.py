@@ -321,10 +321,19 @@ def test_supervisor_fails_startup_when_cleanup_recovery_fails(tmp_path, monkeypa
 
 
 def _config_document(config):
-    return {
+    fields = asdict(config)
+    observer_socket = fields.pop("offline_observer_socket")
+    observer_uid = fields.pop("offline_observer_uid")
+    observer_key = fields.pop("offline_observer_public_key")
+    document = {
         "schema_version": supervisor.CONFIG_SCHEMA,
-        **{key: str(value) if isinstance(value, Path) else value for key, value in asdict(config).items()},
+        **{key: str(value) if isinstance(value, Path) else value for key, value in fields.items()},
     }
+    if observer_socket is not None:
+        document["offline_observer"] = {
+            "socket_path": str(observer_socket), "uid": observer_uid, "public_key": observer_key.hex()
+        }
+    return document
 
 
 @pytest.mark.parametrize("profile", [None, "standard", "offline-research/v1"])
@@ -340,6 +349,32 @@ def test_supervisor_loads_explicit_profile_and_preserves_default(tmp_path, monke
     monkeypatch.setattr(supervisor.os, "getegid", lambda: config.supervisor_gid)
     loaded = supervisor.WorkerSupervisorConfig.from_file(tmp_path / "config.json")
     assert loaded.execution_profile == (profile or "standard")
+
+
+def test_supervisor_loads_observer_only_with_offline_profile_and_distinct_uid(tmp_path, monkeypatch):
+    config = replace(
+        _config(tmp_path),
+        execution_profile="offline-research/v1",
+        offline_observer_socket=tmp_path / "observer.sock",
+        offline_observer_uid=1004,
+        offline_observer_public_key=b"p" * 32,
+    )
+    data = _config_document(config)
+    monkeypatch.setattr(supervisor, "_owner_only_json", lambda _path: data)
+    monkeypatch.setattr(supervisor.os, "geteuid", lambda: config.supervisor_uid)
+    monkeypatch.setattr(supervisor.os, "getegid", lambda: config.supervisor_gid)
+    path = tmp_path / "config.json"
+
+    assert supervisor.WorkerSupervisorConfig.from_file(path) == config
+
+    data["offline_observer"]["uid"] = config.supervisor_uid
+    with pytest.raises(supervisor.WorkerSupervisorError, match="observer"):
+        supervisor.WorkerSupervisorConfig.from_file(path)
+
+    data["offline_observer"]["uid"] = config.offline_observer_uid
+    data["execution_profile"] = "standard"
+    with pytest.raises(supervisor.WorkerSupervisorError, match="observer"):
+        supervisor.WorkerSupervisorConfig.from_file(path)
 
 
 @pytest.mark.parametrize("profile", [None, True, [], {}, "", "offline-research", "offline-research/v2"])

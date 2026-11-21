@@ -10,6 +10,7 @@ import stat
 import threading
 import time
 import uuid
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -31,6 +32,8 @@ from cops.execution.store import (
     ApprovalStoreConflictError,
 )
 from tests.auth_testkit import make_test_approval_authority
+from tests.test_offline_research import _plan as _offline_plan
+from tests.test_offline_research import _profile as _offline_profile
 
 WORKER_IDENTITY = "worker-01"
 
@@ -61,6 +64,28 @@ def _different_plan(plan: ActionPlan) -> ActionPlan:
 def authority_context(tmp_path, monkeypatch):
     monkeypatch.setattr("cops.execution.control.sys_platform_linux", lambda: True)
     return make_test_approval_authority(tmp_path, _plan())
+
+
+class _RecordingOfflineObserver:
+    def __init__(self, *, reject: bool = False) -> None:
+        self.reject = reject
+        self.calls: list[tuple[dict, dict[str, object]]] = []
+
+    def verify(self, document: dict, **bindings: object) -> None:
+        self.calls.append((document, bindings))
+        if self.reject:
+            raise ValueError("inert observer rejection")
+
+
+@pytest.fixture
+def offline_authority_context(tmp_path, monkeypatch):
+    monkeypatch.setattr("cops.execution.control.sys_platform_linux", lambda: True)
+    corpus = tmp_path / "offline-corpus.txt"
+    corpus.write_text("inert offline fixture\n", encoding="utf-8")
+    plan = _offline_plan(_offline_profile(corpus.resolve()))
+    authority, authorization, _ = make_test_approval_authority(tmp_path, plan)
+    observer = _RecordingOfflineObserver()
+    return replace(authority, offline_observer=observer), authorization, plan, observer
 
 
 def _request(authorization_id: str, plan: ActionPlan, **replacements):
@@ -138,6 +163,126 @@ def test_authority_returns_the_durable_receipt_for_an_exact_retry(authority_cont
         "target": plan.target,
         "created_at": authority.store.get_authorization(authorization.authorization_id).consumed_at,
     }
+
+
+def test_standard_authority_rejects_observer_attestation_without_a_verifier(authority_context):
+    authority, authorization, plan = authority_context
+
+    with pytest.raises(ApprovalControlError, match="unsupported without an offline observer"):
+        _consume(
+            authority,
+            _request(
+                authorization.authorization_id,
+                plan,
+                observer_attestation={"attestation": "inert"},
+            ),
+        )
+
+    assert authority.store.get_authorization(authorization.authorization_id).status == "approved"
+
+
+def test_offline_observer_rejects_a_standard_plan(authority_context):
+    authority, authorization, plan = authority_context
+    configured_authority = replace(authority, offline_observer=_RecordingOfflineObserver())
+
+    with pytest.raises(ApprovalControlError, match="approved offline-research profile"):
+        _consume(
+            configured_authority,
+            _request(
+                authorization.authorization_id,
+                plan,
+                observer_attestation={"attestation": "inert"},
+            ),
+        )
+
+    assert configured_authority.store.get_authorization(authorization.authorization_id).status == "approved"
+
+
+def test_offline_observer_requires_attestation_and_an_offline_profile(offline_authority_context):
+    authority, authorization, plan, _ = offline_authority_context
+
+    with pytest.raises(ApprovalControlError, match="attestation is required"):
+        _consume(authority, _request(authorization.authorization_id, plan))
+    with pytest.raises(ApprovalControlError, match="attestation must be an object"):
+        _consume(
+            authority,
+            _request(authorization.authorization_id, plan, observer_attestation="not-an-object"),
+        )
+
+    assert authority.store.get_authorization(authorization.authorization_id).status == "approved"
+
+
+def test_offline_observer_receives_immutable_isolation_digest_and_skips_exact_retry(
+    offline_authority_context,
+):
+    authority, authorization, plan, observer = offline_authority_context
+    attestation = {"attestation": "inert", "sequence": 1}
+    request = _request(
+        authorization.authorization_id,
+        plan,
+        observer_attestation=attestation,
+    )
+
+    first = _consume(authority, request)
+    retried = _consume(authority, request)
+
+    assert retried == first
+    assert observer.calls == [
+        (
+            attestation,
+            {
+                "phase": "approval",
+                "authorization_id": authorization.authorization_id,
+                "plan_digest": plan.plan_digest,
+                "worker_identity": WORKER_IDENTITY,
+                "worker_pid": authority.worker_pid,
+                "isolation_digest": plan.offline_research["isolation_attestation"]["digest"],
+            },
+        )
+    ]
+
+
+def test_offline_observer_rejection_fails_before_authorization_consumption(offline_authority_context):
+    authority, authorization, plan, observer = offline_authority_context
+    rejecting_authority = replace(authority, offline_observer=_RecordingOfflineObserver(reject=True))
+
+    with pytest.raises(ApprovalControlError, match="observer rejected"):
+        _consume(
+            rejecting_authority,
+            _request(authorization.authorization_id, plan, observer_attestation={"attestation": "inert"}),
+        )
+
+    assert observer.calls == []
+    assert rejecting_authority.store.get_authorization(authorization.authorization_id).status == "approved"
+
+
+def test_client_forwards_optional_observer_attestation(offline_authority_context, monkeypatch, tmp_path):
+    authority, authorization, plan, observer = offline_authority_context
+    observed_requests: list[dict] = []
+    attestation = {"attestation": "inert"}
+    monkeypatch.setattr(ApprovalControlClient, "assert_ready", lambda self, worker_identity: None)
+
+    def consume_with_authority(self, request):
+        del self
+        observed_requests.append(request)
+        return _consume(authority, request)
+
+    monkeypatch.setattr(ApprovalControlClient, "_exchange", consume_with_authority)
+    client = ApprovalControlClient(
+        socket_path=tmp_path / "unused.sock",
+        expected_authority_uid=authority.authority_uid,
+    )
+
+    receipt = client.consume_authorization(
+        authorization.authorization_id,
+        plan,
+        WORKER_IDENTITY,
+        observer_attestation=attestation,
+    )
+
+    assert observed_requests[0]["observer_attestation"] == attestation
+    assert observer.calls[0][0] == attestation
+    assert receipt.authorization_id == authorization.authorization_id
 
 
 def test_authority_rejects_altered_reuse_of_a_consumed_request_id(authority_context):

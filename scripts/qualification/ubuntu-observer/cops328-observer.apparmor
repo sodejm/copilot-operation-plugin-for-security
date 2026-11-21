@@ -1,0 +1,29 @@
+abi <abi/4.0>,
+include <tunables/global>
+
+profile cops328-observer flags=(attach_disconnected,mediate_deleted) {
+  include <abstractions/base>
+
+  capability sys_ptrace,
+  capability dac_read_search,
+  # Some read-only proc entries use the kernel's ptrace access check.
+  ptrace (read, trace) peer=bwrap,
+  audit deny /proc/[0-9]*/{maps,auxv,mem,environ} r,
+  network unix stream,
+
+  /usr/bin/python3.12 ixr,
+  /usr/lib/python3*/** r,
+  /usr/bin/bwrap r,
+  /opt/cops-qual/ r,
+  /opt/cops-qual/cops/ r,
+
+  /opt/cops-qual/cops/** r,
+  /opt/cops-m0-venv/ r,
+  /opt/cops-m0-venv/** mr,
+  /{,var/,var/lib/,run/,proc/} r,
+  owner /var/lib/cops328-observer/ r,
+  owner /var/lib/cops328-observer/signing-key r,
+  owner /run/cops328-observer/ r,
+  owner /run/cops328-observer/observer.sock rw,
+  /proc/[0-9]*/{stat,attr/current,syscall,fd/,fd/[0-9]*,ns/net,net/dev,net/route,net/ipv6_route,exe} r,
+}
