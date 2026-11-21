@@ -1,0 +1,3 @@
+name: COPS Actions extended security
+queries:
+  - uses: security-extended

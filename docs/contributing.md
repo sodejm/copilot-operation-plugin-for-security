@@ -328,6 +328,11 @@ For air-gapped or restricted network development environments:
 
 Workflow maintenance keeps checkout actions aligned with the current hosted runner runtime. The dependency pull requests update the remaining Python, CodeQL, and Pages actions; shell values used by issue summaries are quoted before passing them to the GitHub CLI.
 
+For evidence capture or persistence changes, update the
+[CodeQL evidence guard](../codeql/README.md) and run its good and bad regression
+fixtures. The CodeQL workflow runs these fixtures before extended Python analysis
+and separately analyzes Actions workflows.
+
 
 Typed network changes require `tests/test_network_policy_inputs.py` and the
 package correction demo, including vulnerable, corrected and incomplete inputs.

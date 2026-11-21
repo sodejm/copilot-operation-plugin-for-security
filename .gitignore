@@ -21,6 +21,12 @@ venv/
 ENV/
 env/
 .pytest_cache/
+# CodeQL regression databases, results and local pack resolution
+codeql/**/.cache/
+codeql/**/*.testproj/
+codeql/**/*.actual
+codeql/**/*.bqrs
+codeql/**/codeql-pack.lock.yml
 .mypy_cache/
 
 # IDEs and Editors
