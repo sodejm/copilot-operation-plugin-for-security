@@ -304,3 +304,9 @@ installs hash-pinned synthetic wheels offline and exercises their vulnerable and
 corrected behavior through real HTTP requests. Tampered wheels must fail
 installation; missing dependency evidence stays unknown. Arbitrary package builds
 and production registries require separate adapters and validation.
+
+### Contributor Squad
+
+This repository uses automatic Squad routing for independent contributor work,
+with separate worktrees, frequent meaningful checkpoints and validated
+integration. See [the Squad workflow](docs/SQUAD.md) for setup and client support.

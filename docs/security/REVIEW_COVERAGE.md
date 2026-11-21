@@ -28,3 +28,12 @@ review trigger. Record third-party provenance and review separately. Changed
 behavior invalidates prior scope approval. Follow the
 [engineering review policy](../ENGINEERING_REVIEW.md). No automated result or
 threat-model entry closes this human-review backlog.
+
+## Squad tooling inventory
+
+`.squad/**`, generated client agents/MCP configuration and automatic orchestration
+instructions introduce third-party Squad 2.0.0 contributor tooling. Provenance is
+`github/squad` / `@bradygaster/squad-cli@2.0.0`; local policy adaptations are described
+in `docs/SQUAD.md`. Independent human supply-chain and permission review is pending
+under R-CI, owned by the maintainer before enabling optional hosted workflows or
+expanding tooling permissions. No automated check closes this review obligation.

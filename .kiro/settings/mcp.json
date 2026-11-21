@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "squad_state": {
+      "env": {},
+      "disabled": false,
+      "autoApprove": [],
+      "command": "npx",
+      "args": [
+        "--ignore-scripts",
+        "-y",
+        "@bradygaster/squad-cli@2.0.0",
+        "state-mcp"
+      ]
+    }
+  }
+}

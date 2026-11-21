@@ -1,0 +1,4 @@
+[mcp_servers.squad_state]
+command = "npx"
+args = ["--ignore-scripts", "-y", "@bradygaster/squad-cli@2.0.0", "state-mcp"]
+startup_timeout_sec = 60

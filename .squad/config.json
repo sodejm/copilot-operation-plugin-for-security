@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "clients": [
+    "copilot",
+    "claude",
+    "kiro",
+    "opencode",
+    "cursor",
+    "codex",
+    "antigravity"
+  ]
+}
