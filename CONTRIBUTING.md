@@ -37,7 +37,7 @@ its offline validator must not import pytest-only `test_authorized*.py` modules.
 Those real-service cases remain mandatory in the separate development gate.
 
 1. Read `AGENTS.md`, whether contributing manually or with an AI assistant.
-2. Open or reference a focused issue when the project uses issue tracking.
+2. Link the issue or repository-local ticket described in `AGENTS.md`. After each verified checkpoint commit, record its SHA, checks, and remaining work there.
 3. Work on a short-lived branch; do not mix unrelated changes.
 4. Set up local push protections with `make setup-hooks`.
 5. Add behavior-first tests and update relevant documentation for the issue being worked.
