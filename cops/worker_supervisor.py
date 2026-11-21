@@ -12,6 +12,7 @@ import json
 import math
 import os
 import re
+import signal
 import socket
 import stat
 import struct
@@ -20,6 +21,7 @@ import time
 from dataclasses import dataclass
 from dataclasses import fields as dataclass_fields
 from pathlib import Path
+from threading import Event
 from typing import Any
 
 from cops.adapters import ToolAdapterRegistry
@@ -445,7 +447,12 @@ def serve_connection(
     connection.sendall(response)
 
 
-def serve_forever(config: WorkerSupervisorConfig, receiver: SSHRemoteExecutionReceiver) -> None:
+def serve_forever(
+    config: WorkerSupervisorConfig,
+    receiver: SSHRemoteExecutionReceiver,
+    *,
+    stop_requested: Event | None = None,
+) -> None:
     """Bind a pre-provisioned directory and serve a single request per connection."""
     if sys.platform != "linux":
         raise WorkerSupervisorError("production supervisor requires Linux")
@@ -475,28 +482,40 @@ def serve_forever(config: WorkerSupervisorConfig, receiver: SSHRemoteExecutionRe
             listener.bind(str(config.socket_path))
         finally:
             os.umask(old_umask)
-        os.chmod(config.socket_path, 0o660)
         bound = os.lstat(config.socket_path)
-        if not stat.S_ISSOCK(bound.st_mode) or (bound.st_uid, bound.st_gid) != (
-            config.supervisor_uid,
-            config.supervisor_gid,
-        ):
-            raise WorkerSupervisorError("bound supervisor socket identity is unsafe")
-        listener.listen(8)
         try:
-            while True:
-                connection, _ = listener.accept()
+            if not stat.S_ISSOCK(bound.st_mode) or (bound.st_uid, bound.st_gid) != (
+                config.supervisor_uid,
+                config.supervisor_gid,
+            ):
+                raise WorkerSupervisorError("bound supervisor socket identity is unsafe")
+            os.chmod(config.socket_path, 0o660, follow_symlinks=False)
+            listener.listen(8)
+            if stop_requested is not None:
+                listener.settimeout(0.25)
+            while stop_requested is None or not stop_requested.is_set():
+                try:
+                    connection, _ = listener.accept()
+                except TimeoutError:
+                    continue
                 with connection:
+                    if stop_requested is not None and stop_requested.is_set():
+                        break
                     try:
                         serve_connection(connection, config, receiver, attestor)
                     except (OSError, ValueError, RuntimeError):
                         # The relay receives EOF; errors must not expose local paths or secrets.
                         continue
         finally:
-            config.socket_path.unlink(missing_ok=True)
+            try:
+                current = os.lstat(config.socket_path)
+                if stat.S_ISSOCK(current.st_mode) and (current.st_dev, current.st_ino) == (bound.st_dev, bound.st_ino):
+                    config.socket_path.unlink()
+            except FileNotFoundError:
+                pass
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: list[str] | None = None, *, stop_requested: Event | None = None) -> int:
     args = sys.argv[1:] if argv is None else argv
     if len(args) != 2 or args[0] != "--config":
         print("usage: python3 -m cops.worker_supervisor --config ABSOLUTE_PATH", file=sys.stderr)
@@ -504,7 +523,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         config = WorkerSupervisorConfig.from_file(args[1])
         receiver = build_receiver(config)
-        serve_forever(config, receiver)
+        serve_forever(config, receiver, stop_requested=stop_requested)
     except (OSError, ValueError, RuntimeError):
         print("worker supervisor readiness or service failed", file=sys.stderr)
         return 1
@@ -512,4 +531,6 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":  # pragma: no cover - process entry point
-    raise SystemExit(main())
+    stop_requested = Event()
+    signal.signal(signal.SIGTERM, lambda _signum, _frame: stop_requested.set())
+    raise SystemExit(main(stop_requested=stop_requested))

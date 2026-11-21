@@ -124,8 +124,12 @@ worker, relay and approval authority. The templates under
 [scripts/qualification/ubuntu-observer](../scripts/qualification/ubuntu-observer)
 assume the names `cops328-observer` and `cops328-worker`, worker UID `997`,
 worker primary GID `987`, a root-managed checkout at `/opt/cops-qual` and a
-root-managed virtual environment at `/opt/cops-m0-venv`. If the guest assigns
-different values, update the templates and service configurations together.
+root-managed virtual environment at `/opt/cops-m0-venv314`. The AppArmor
+template pins the executable and library paths of the Python 3.14.10 ARM64
+build at `/opt/hostedtoolcache/Python/3.14.10/arm64`. Verify the publisher's
+SHA-256 before installation. If the guest uses a different interpreter path,
+architecture or account IDs, update the templates and service configurations
+together.
 Keep the relay out of the observer group. The supervisor socket can use the
 worker group for relay access. The observer also checks the connecting peer's
 primary UID and GID before accepting a request.
@@ -135,7 +139,7 @@ generate a dedicated Ed25519 key without copying the private bytes off the VM.
 
 ```sh
 install -d -o cops328-observer -g cops328-observer -m 0700 /var/lib/cops328-observer
-runuser -u cops328-observer -- /opt/cops-m0-venv/bin/python - <<'PY'
+runuser -u cops328-observer -- /opt/cops-m0-venv314/bin/python - <<'PY'
 import os
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
@@ -324,6 +328,16 @@ its PID, before accepting a consume request. A restarted supervisor requires a
 new authority binding. Starting the supervisor before the authority is ready is
 safe because request execution fails closed until the authority socket and
 identity checks pass; it is not evidence of execution readiness.
+
+The supervisor CLI handles `SIGTERM` by completing its bounded active request,
+closing its listener and removing the socket it bound. The authority's service
+entry point can do the same by passing an event to
+`ApprovalAuthorityServer.serve_forever(stop_requested=event)` and setting it
+on `SIGTERM`. Give both services time to drain before escalation. After a forced
+stop, a service manager may clear its dedicated runtime directory once all
+processes from that service are gone. Keep the persistent worker cleanup
+journal outside that directory. The supervisor recovers that journal before
+opening its relay socket.
 
 Configure the SSH account's forced command to run the separate
 `cops.remote_worker` relay with an owner-only relay configuration and the

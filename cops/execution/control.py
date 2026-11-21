@@ -18,6 +18,7 @@ from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
+from threading import Event
 from typing import TYPE_CHECKING, Any, Protocol
 
 from cops.contracts.models import ActionPlan
@@ -383,38 +384,49 @@ class ApprovalAuthorityServer:
             raise ApprovalControlError("approval control socket path already exists")
         listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         listener.set_inheritable(False)
+        bound: os.stat_result | None = None
         try:
             previous_umask = os.umask(0o117)
             try:
                 listener.bind(str(self.socket_path))
             finally:
                 os.umask(previous_umask)
-            os.chmod(self.socket_path, 0o660, follow_symlinks=False)
-            socket_stat = os.lstat(self.socket_path)
-            if not stat.S_ISSOCK(socket_stat.st_mode):
+            bound = os.lstat(self.socket_path)
+            if not stat.S_ISSOCK(bound.st_mode):
                 raise ApprovalControlError("approval control path is not a Unix socket after bind")
-            if socket_stat.st_uid != self.authority.authority_uid:
+            if bound.st_uid != self.authority.authority_uid:
                 raise ApprovalControlError("approval control socket is not authority-owned")
-            if socket_stat.st_gid != self.authority.worker_gid:
+            if bound.st_gid != self.authority.worker_gid:
                 raise ApprovalControlError("approval control socket group is not the configured worker group")
-            if stat.S_IMODE(socket_stat.st_mode) != 0o660:
-                raise ApprovalControlError("approval control socket must have mode 0660")
+            os.chmod(self.socket_path, 0o660, follow_symlinks=False)
+            current = os.lstat(self.socket_path)
+            if (current.st_dev, current.st_ino) != (bound.st_dev, bound.st_ino) or stat.S_IMODE(current.st_mode) != 0o660:
+                raise ApprovalControlError("approval control socket identity or mode changed during setup")
             listener.listen(self.backlog)
             yield listener
         finally:
             listener.close()
-            try:
-                socket_stat = os.lstat(self.socket_path)
-                if stat.S_ISSOCK(socket_stat.st_mode) and socket_stat.st_uid == self.authority.authority_uid:
-                    self.socket_path.unlink()
-            except FileNotFoundError:
-                pass
+            if bound is not None and stat.S_ISSOCK(bound.st_mode):
+                try:
+                    socket_stat = os.lstat(self.socket_path)
+                    if (socket_stat.st_dev, socket_stat.st_ino) == (bound.st_dev, bound.st_ino):
+                        self.socket_path.unlink()
+                except FileNotFoundError:
+                    pass
 
-    def serve_forever(self) -> None:
+    def serve_forever(self, *, stop_requested: Event | None = None) -> None:
         """Serve requests serially; process supervision owns restart policy."""
         with self.listener() as listener:
-            while True:
-                connection, _ = listener.accept()
+            if stop_requested is not None:
+                listener.settimeout(0.25)
+            while stop_requested is None or not stop_requested.is_set():
+                try:
+                    connection, _ = listener.accept()
+                except TimeoutError:
+                    continue
+                if stop_requested is not None and stop_requested.is_set():
+                    connection.close()
+                    break
                 try:
                     self._serve_accepted_connection(connection)
                 except (ApprovalControlError, OSError):

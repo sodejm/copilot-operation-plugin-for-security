@@ -8,7 +8,7 @@ User=cops328-observer
 Group=cops328-observer
 WorkingDirectory=/opt/cops-qual
 Environment=PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1
-ExecStart=/opt/cops-m0-venv/bin/python -m cops.execution.offline_observer_host --socket-path=/run/cops328-observer/observer.sock --signing-key=/var/lib/cops328-observer/signing-key --worker-uid=997 --worker-gid=987 --worker-identity=cops328-worker
+ExecStart=/opt/cops-m0-venv314/bin/python -m cops.execution.offline_observer_host --socket-path=/run/cops328-observer/observer.sock --signing-key=/var/lib/cops328-observer/signing-key --worker-uid=997 --worker-gid=987 --worker-identity=cops328-worker
 AppArmorProfile=cops328-observer
 UMask=0117
 NoNewPrivileges=yes
