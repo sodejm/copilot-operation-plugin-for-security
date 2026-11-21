@@ -553,3 +553,44 @@ The earlier expansion results in this document do not qualify the subsequent
 Issue #100 isolated-worker integration. Its criterion-by-criterion evidence and
 remaining closure gates are tracked in the [worker qualification contract](../specs/issue-100-worker-qualification.md).
 Record results against the actual integrated revision before claiming completion.
+
+## Offline-only supervisor construction (#328 source increment)
+
+On 2026-10-25, the source increment based on
+`6848fd97a7620fae74566c0afb3d50ff35fb911d` added an explicit owner-provisioned
+`offline-research/v1` supervisor profile. The default standard scoped path is
+unchanged. Offline construction excludes external scope, credentials and egress;
+the worker rejects profile removal before approval consumption. Both modes
+retain durable cleanup recovery before receiver creation and fail startup on
+recovery errors. See [the configuration and restart
+procedure](WORKER_SUPERVISOR.md#select-an-offline-only-supervisor).
+
+The restricted disposable Linux worker passed 74 focused tests with zero skips:
+
+```sh
+"$PYTHON" -m pytest -o addopts= -p no:cacheprovider -q -ra \
+  tests/test_worker_supervisor.py tests/test_offline_research.py \
+  tests/step_defs/test_offline_supervisor_steps.py \
+  tests/step_defs/test_offline_research_execution_steps.py \
+  tests/integration/test_offline_supervisor.py \
+  tests/integration/test_linux_bubblewrap_sandbox.py \
+  tests/integration/test_offline_sandbox_gate.py
+```
+
+The receiver integration read the actual pinned GNU coreutils 9.4 corpus through
+bubblewrap, verified output bytes, approval/result binding, one consumption,
+matching per-invocation isolation observations and removal of its execution
+workspace. It uses an in-process signed test authority, not installed SSH or
+independent-observer acceptance. The worker retained `RestrictSUIDSGID=yes`,
+`NoNewPrivileges=yes`, strict filesystem protection and narrow writable state.
+Runtime: Linux 6.8.0-146-generic aarch64, Python 3.12.3, bubblewrap 0.9.0.
+
+A separate writable Linux Git checkout passed `make check` (4,574 pytest passes,
+12 skips, zero failures/errors), `make check-docs` (58 pages) and Ruff. Skips
+remain native Windows junction/device/PowerShell behavior, optional Evtx, the
+unsupported-platform executable boundary and two pinned-installer scenarios.
+These skips do not count as qualified capabilities. No production deployment,
+hosted validation of this source increment, or release was performed. #328 still
+requires the intended administrator trust model, installed SSH/authority roles,
+and separately administered pre-execution observer integration; #331 remains
+blocked on that qualification.

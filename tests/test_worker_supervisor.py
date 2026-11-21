@@ -7,12 +7,19 @@ import os
 import socket
 import struct
 import time
+from dataclasses import asdict, replace
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
 from cops import worker_supervisor as supervisor
+from cops.contracts import ActionPlan
+from cops.evidence.canonical import digest
+from cops.execution import ApprovalStore, IsolatedWorker, WorkerExecutionError, WorkerIsolationError
+from cops.execution.offline_research import OfflineResearchError, validate_offline_request
+from tests.auth_testkit import TestApprovalControl, authorize_test_plan, worker_inventory_for_plan
+from tests.test_offline_research import WORKER_ID, _plan, _profile
 
 
 class _Connection:
@@ -245,8 +252,9 @@ def test_supervisor_config_requires_persistent_absolute_cleanup_journal(tmp_path
         load_config()
 
 
-def test_supervisor_recovers_cleanup_before_creating_receiver(tmp_path, monkeypatch):
-    config = _config(tmp_path)
+@pytest.mark.parametrize("profile", ["standard", "offline-research/v1"])
+def test_supervisor_recovers_cleanup_before_creating_receiver(tmp_path, monkeypatch, profile):
+    config = replace(_config(tmp_path), execution_profile=profile)
     events = []
     worker_kwargs = {}
 
@@ -280,11 +288,13 @@ def test_supervisor_recovers_cleanup_before_creating_receiver(tmp_path, monkeypa
 
     assert events == ["recover", "receiver"]
     assert worker_kwargs["cleanup_journal_path"] == config.cleanup_journal_path
+    assert worker_kwargs["required_execution_profile"] == (None if profile == "standard" else profile)
     assert result["worker"].__class__ is _Worker
 
 
-def test_supervisor_fails_startup_when_cleanup_recovery_fails(tmp_path, monkeypatch):
-    config = _config(tmp_path)
+@pytest.mark.parametrize("profile", ["standard", "offline-research/v1"])
+def test_supervisor_fails_startup_when_cleanup_recovery_fails(tmp_path, monkeypatch, profile):
+    config = replace(_config(tmp_path), execution_profile=profile)
     monkeypatch.setattr(supervisor.WorkerCapabilityInventory, "from_file", lambda *args, **kwargs: object())
     monkeypatch.setattr(
         supervisor.Engagement, "from_dict", lambda data: SimpleNamespace(engagement_id="eng-1", scope={})
@@ -308,3 +318,142 @@ def test_supervisor_fails_startup_when_cleanup_recovery_fails(tmp_path, monkeypa
     monkeypatch.setattr(supervisor, "SSHRemoteExecutionReceiver", lambda **kwargs: pytest.fail("receiver created"))
     with pytest.raises(RuntimeError, match="cleanup journal is invalid"):
         supervisor.build_receiver(config)
+
+
+def _config_document(config):
+    return {
+        "schema_version": supervisor.CONFIG_SCHEMA,
+        **{key: str(value) if isinstance(value, Path) else value for key, value in asdict(config).items()},
+    }
+
+
+@pytest.mark.parametrize("profile", [None, "standard", "offline-research/v1"])
+def test_supervisor_loads_explicit_profile_and_preserves_default(tmp_path, monkeypatch, profile):
+    config = _config(tmp_path)
+    data = _config_document(config)
+    if profile is None:
+        data.pop("execution_profile", None)
+    else:
+        data["execution_profile"] = profile
+    monkeypatch.setattr(supervisor, "_owner_only_json", lambda _path: data)
+    monkeypatch.setattr(supervisor.os, "geteuid", lambda: config.supervisor_uid)
+    monkeypatch.setattr(supervisor.os, "getegid", lambda: config.supervisor_gid)
+    loaded = supervisor.WorkerSupervisorConfig.from_file(tmp_path / "config.json")
+    assert loaded.execution_profile == (profile or "standard")
+
+
+@pytest.mark.parametrize("profile", [None, True, [], {}, "", "offline-research", "offline-research/v2"])
+def test_supervisor_rejects_unknown_execution_profile(tmp_path, profile):
+    with pytest.raises(supervisor.WorkerSupervisorError, match="execution profile"):
+        replace(_config(tmp_path), execution_profile=profile)
+
+
+@pytest.mark.parametrize(
+    "options",
+    [{"egress_trust_domain": "example.test"}, {"credential_manifest_path": Path("/unread/manifest.json")}],
+)
+def test_offline_supervisor_rejects_external_capabilities_at_configuration(tmp_path, options):
+    with pytest.raises(supervisor.WorkerSupervisorError, match="cannot configure credentials or egress"):
+        replace(_config(tmp_path), execution_profile="offline-research/v1", **options)
+
+
+def _test_receiver(tmp_path, monkeypatch, profile="offline-research/v1", *, plan=None, inventory=None):
+    """Real provisioned files/worker with test-only in-process signed approval."""
+    if plan is None:
+        source = tmp_path.resolve() / "corpus.txt"
+        source.write_text("synthetic corpus\n", encoding="utf-8")
+        plan = _plan(_profile(source))
+        inventory = worker_inventory_for_plan(plan, worker_identity=WORKER_ID)
+        offline = _profile(source)
+        offline["worker_inventory_sha256"] = digest(inventory.to_dict())
+        plan = _plan(offline)
+    authorization, trust, engagement = authorize_test_plan(plan, worker_identity=WORKER_ID)
+    store = ApprovalStore(tmp_path / "approvals.sqlite3")
+    store.store_authorization(authorization)
+    control = TestApprovalControl(store, trust, engagement)
+    config = replace(
+        _config(tmp_path), worker_identity=WORKER_ID, execution_profile=profile,
+        supervisor_uid=os.geteuid(), supervisor_gid=os.getegid(),
+        executable_sha256_pins=(
+            {"cat": plan.offline_research["cat_executable_sha256"]}
+            if plan.offline_research is not None and "cat_executable_sha256" in plan.offline_research else {}
+        ),
+    )
+    for path, document in ((config.inventory_path, inventory.to_dict()), (config.engagement_path, engagement.to_dict())):
+        path.write_text(json.dumps(document), encoding="utf-8")
+        path.chmod(0o600)
+    monkeypatch.setattr(supervisor, "ApprovalControlClient", lambda **kwargs: control)
+    if profile == "offline-research/v1":
+        monkeypatch.setattr(
+            supervisor, "_credential_resolver", lambda *args, **kwargs: pytest.fail("credential resolver constructed")
+        )
+        monkeypatch.setattr(
+            supervisor.ScopeDefinition, "from_engagement_scope",
+            lambda *args, **kwargs: pytest.fail("external scope constructed"),
+        )
+    return SimpleNamespace(
+        receiver=supervisor.build_receiver(config), config=config, plan=plan, inventory=inventory,
+        store=store, control=control, authorization=authorization,
+    )
+
+
+@pytest.mark.parametrize("profile", ["standard", "offline-research/v1"])
+def test_supervisor_constructs_only_provisioned_profile(tmp_path, monkeypatch, profile):
+    context = _test_receiver(tmp_path, monkeypatch, profile)
+    receiver, config, plan, inventory = context.receiver, context.config, context.plan, context.inventory
+    worker = receiver.worker
+    assert worker.expected_engagement_id == plan.engagement_id
+    assert worker.cleanup_journal.path == config.cleanup_journal_path
+    if profile == "standard":
+        assert worker.scope_guard is not None
+        assert worker.required_execution_profile is None
+    else:
+        assert worker.scope_guard is None
+        assert worker.credential_resolver is None
+        assert worker._egress_identity_verifier is None
+        assert worker.required_execution_profile == "offline-research/v1"
+        validate_offline_request(
+            plan, worker_identity=WORKER_ID, worker_inventory=inventory.to_dict(),
+            cat_executable_sha256=None, sandbox=worker.sandbox, workspace_dir=None,
+            scope_guard=worker.scope_guard, credential_resolver=worker.credential_resolver,
+            egress_identity_verifier=worker._egress_identity_verifier,
+        )
+        stripped = plan.approved_snapshot()
+        stripped.pop("offline_research")
+        stripped.pop("schema_version")
+        stripped = ActionPlan.create(**stripped)
+        with pytest.raises(WorkerExecutionError, match="requires offline-research/v1"):
+            worker.execute_plan_with_receipt(stripped, authorization_id=context.authorization.authorization_id)
+        assert context.control.consume_calls == []
+        assert context.store.get_authorization(context.authorization.authorization_id).status == "approved"
+
+
+@pytest.mark.parametrize("options", [{"target": "https://example.invalid"}, {"egress": True}, {"credentials": ["ref"]}])
+def test_offline_supervisor_rejects_external_plan_before_consumption(tmp_path, monkeypatch, options):
+    context = _test_receiver(tmp_path, monkeypatch)
+    plan = _plan(context.plan.approved_snapshot()["offline_research"], **options)
+    with pytest.raises((OfflineResearchError, WorkerIsolationError)):
+        context.receiver.worker.execute_plan_with_receipt(plan, authorization_id=context.authorization.authorization_id)
+    assert context.control.consume_calls == []
+    assert context.store.get_authorization(context.authorization.authorization_id).status == "approved"
+
+
+@pytest.mark.parametrize(
+    "options,error",
+    [
+        ({"required_execution_profile": "unknown"}, "required execution profile is invalid"),
+        ({"required_execution_profile": True}, "required execution profile is invalid"),
+        ({"scope_guard": object()}, "cannot configure scope, credentials or egress"),
+        ({"credential_resolver": object()}, "cannot configure scope, credentials or egress"),
+        ({"egress_trust_domain": "example.test"}, "cannot configure scope, credentials or egress"),
+    ],
+)
+def test_direct_offline_worker_cannot_bypass_profile_configuration(tmp_path, monkeypatch, options, error):
+    context = _test_receiver(tmp_path, monkeypatch)
+    parameters = {"required_execution_profile": "offline-research/v1", **options}
+    with pytest.raises(WorkerIsolationError, match=error):
+        IsolatedWorker(
+            context.inventory, context.control, context.receiver.worker.sandbox,
+            cleanup_journal_path=context.config.cleanup_journal_path, **parameters,
+        )
+    assert context.control.consume_calls == []

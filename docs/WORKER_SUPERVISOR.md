@@ -65,6 +65,49 @@ unsafe ownership or permissions, or unreadable recovery state stops supervisor
 startup. Review unresolved cleanup receipts and unknown effects before repeating
 an operation; recovery does not prove an interrupted external effect rolled back.
 
+### Select an offline-only supervisor
+
+The optional v2 configuration field `execution_profile` defaults to `"standard"`,
+which preserves the existing scoped worker, credential and egress behavior.
+To dedicate a supervisor to local offline research, set it to
+`"offline-research/v1"` and omit `egress_trust_domain` and
+`credential_manifest_path` (or set them to `null`). Unknown profile values and
+offline configurations with either external capability fail startup.
+
+The offline supervisor constructs no network scope guard, credential resolver or
+egress mediator. Instead, the worker requires the signed `offline_research`
+profile and applies its local-target, inventory, corpus, adapter, freshness and
+isolation checks. A relay cannot remove the profile to fall back to standard
+execution; that request fails before approval consumption. The configured
+engagement, one-use authority, budgets, sandbox and durable cleanup journal
+remain required. See [Offline research execution](OFFLINE_RESEARCH_EXECUTION.md)
+for plan preparation and the supported GNU cat version and executable pin.
+
+Profile selection is an owner-provisioned service decision, not a request field
+or automatic dispatch rule. Use separate service configuration, identities and
+state when operating separate standard and offline supervisors. To change a
+profile, stop admission, reconcile pending cleanup, provision the new reviewed
+configuration and inventory, restart the supervisor, and rebind the authority
+to its new PID. Never relax worker restrictions to make a profile start. Older
+v2 implementations reject the new field; remove it only when intentionally
+restoring standard scoped behavior, not to bypass failed offline qualification.
+
+The receiver regression test in `tests/integration/test_offline_supervisor.py`
+uses real Linux bubblewrap and a pinned local corpus, but in-process test
+approval. It does not validate installed SSH accounts, peer credentials across
+roles, an independently administered observer, or production readiness.
+
+Before installed-host qualification (#328) or production acceptance (#331),
+record the intended host and administrator trust model. Identify who can alter
+the supervisor, enforcement policy, corpus provisioning, approval keys/database,
+observer and evidence signing keys. Define how the separately administered
+observer supplies fresh pre-execution evidence to approval, detects loss or
+substitution, and is checked again at execution boundaries. The supervisor's
+response signature and worker's own sandbox measurement are not an independent
+observer. A root observer sharing the worker's VM administrator remains inside
+that administrator's trust domain. No such external observer integration is
+installed by selecting this configuration field.
+
 The worker records cleanup intent before exclusively creating each default
 workspace or credential scratch directory. It records the resource identity from
 the still-open creation descriptor before cleanup is permitted. Recovery verifies

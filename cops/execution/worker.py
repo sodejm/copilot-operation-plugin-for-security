@@ -290,6 +290,7 @@ class IsolatedWorker:
         egress_trust_domain: str | None = None,
         credential_resolver: ScopedCredentialResolver | None = None,
         agent_mcp_dispatchers: Mapping[str, Any] | None = None,
+        required_execution_profile: str | None = None,
     ) -> None:
         if not isinstance(worker_inventory, WorkerCapabilityInventory) or not worker_inventory.is_verified:
             raise WorkerIsolationError("a verified owner-provisioned worker capability inventory is required")
@@ -300,6 +301,13 @@ class IsolatedWorker:
         self.scope_guard = scope_guard
         self.adapter_registry = adapter_registry or ToolAdapterRegistry()
         self.expected_engagement_id = expected_engagement_id
+        if required_execution_profile not in (None, "offline-research/v1"):
+            raise WorkerIsolationError("worker required execution profile is invalid")
+        if required_execution_profile is not None and (
+            scope_guard is not None or credential_resolver is not None or egress_trust_domain is not None
+        ):
+            raise WorkerIsolationError("offline worker cannot configure scope, credentials or egress")
+        self.required_execution_profile = required_execution_profile
         if credential_resolver is not None and credential_resolver.approval_control is not approval_control:
             raise WorkerIsolationError("credential resolver and worker must use the same approval control client")
         self.credential_resolver = credential_resolver
@@ -586,6 +594,9 @@ class IsolatedWorker:
             # Directly constructed models bypass the validating factory methods.
             # Recheck the full signed snapshot before profile indexing or approval use.
             validate_contract(plan_model.to_dict(), "action_plan")
+
+        if self.required_execution_profile is not None and plan_model.offline_research is None:
+            raise WorkerExecutionError("worker requires offline-research/v1")
 
         if self.expected_engagement_id is not None and plan_model.engagement_id != self.expected_engagement_id:
             raise WorkerExecutionError("action plan engagement does not match the provisioned engagement")

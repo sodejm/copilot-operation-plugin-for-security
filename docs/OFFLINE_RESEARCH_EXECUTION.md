@@ -12,6 +12,13 @@ authorization, one-use approval, verified worker inventory, and cleanup journal.
 The profile is available through the Python execution API; it does not add a
 general-purpose research command or network fetcher.
 
+The SSH supervisor can construct an offline-only worker when its owner-only v2
+configuration explicitly selects `execution_profile: "offline-research/v1"`.
+The default standard supervisor retains its network scope guard and is not an
+offline-profile worker. Follow the [supervisor profile selection and restart
+procedure](WORKER_SUPERVISOR.md#select-an-offline-only-supervisor); a configured
+profile does not establish installed-host or independent-observer readiness.
+
 ## Prepare the worker and plan
 
 1. Provision a dedicated, unprivileged Linux worker with the production

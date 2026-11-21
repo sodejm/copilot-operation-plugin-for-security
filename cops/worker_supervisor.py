@@ -101,6 +101,15 @@ class WorkerSupervisorConfig:
     executable_sha256_pins: dict[str, str]
     egress_trust_domain: str | None = None
     credential_manifest_path: Path | None = None
+    execution_profile: str = "standard"
+
+    def __post_init__(self) -> None:
+        if self.execution_profile not in ("standard", "offline-research/v1"):
+            raise WorkerSupervisorError("supervisor execution profile is invalid")
+        if self.execution_profile == "offline-research/v1" and (
+            self.egress_trust_domain is not None or self.credential_manifest_path is not None
+        ):
+            raise WorkerSupervisorError("offline supervisor cannot configure credentials or egress")
 
     @classmethod
     def from_file(cls, path: Path | str) -> WorkerSupervisorConfig:
@@ -123,7 +132,7 @@ class WorkerSupervisorConfig:
             "attestation_key_path",
             "executable_sha256_pins",
         }
-        optional = {"egress_trust_domain", "credential_manifest_path"}
+        optional = {"egress_trust_domain", "credential_manifest_path", "execution_profile"}
         fields = set(data)
         if not required <= fields or fields - required - optional:
             raise WorkerSupervisorError("supervisor configuration fields or schema are invalid")
@@ -188,6 +197,7 @@ class WorkerSupervisorConfig:
             executable_sha256_pins=pins,
             egress_trust_domain=egress_trust_domain,
             credential_manifest_path=(Path(credential_manifest_path) if credential_manifest_path is not None else None),
+            execution_profile=data.get("execution_profile", "standard"),
         )
 
 
@@ -301,27 +311,33 @@ def build_receiver(config: WorkerSupervisorConfig) -> SSHRemoteExecutionReceiver
         worker_uid=config.supervisor_uid,
         worker_gid=config.supervisor_gid,
     )
-    credential_resolver = _credential_resolver(
-        config,
-        engagement_id=engagement.engagement_id,
-        approval_control=control,
-    )
+    offline_only = config.execution_profile == "offline-research/v1"
+    credential_resolver = None
+    scope_guard = None
+    if not offline_only:
+        credential_resolver = _credential_resolver(
+            config,
+            engagement_id=engagement.engagement_id,
+            approval_control=control,
+        )
+        scope_guard = ScopeGuard(
+            ScopeDefinition.from_engagement_scope(
+                engagement.scope,
+                egress_allowed=config.egress_trust_domain is not None,
+            )
+        )
     sandbox = LinuxBubblewrapSandbox(worker_uid=config.supervisor_uid, worker_gid=config.supervisor_gid)
     worker = IsolatedWorker(
         inventory,
         control,
         sandbox,
-        scope_guard=ScopeGuard(
-            ScopeDefinition.from_engagement_scope(
-                engagement.scope,
-                egress_allowed=config.egress_trust_domain is not None,
-            )
-        ),
+        scope_guard=scope_guard,
         adapter_registry=ToolAdapterRegistry(executable_sha256_pins=config.executable_sha256_pins),
         expected_engagement_id=engagement.engagement_id,
         egress_trust_domain=config.egress_trust_domain,
         credential_resolver=credential_resolver,
         cleanup_journal_path=config.cleanup_journal_path,
+        required_execution_profile="offline-research/v1" if offline_only else None,
     )
     worker.recover_pending_cleanup()
     return SSHRemoteExecutionReceiver(

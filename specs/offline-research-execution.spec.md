@@ -41,6 +41,19 @@ inventory, adapter pinning, evidence, and cleanup contracts.
    staged corpus digests. A network-denial claim for a deployment requires
    independent host observation of the OS boundary.
 
+## Supervisor profile selection
+
+The owner-only `cops.worker-supervisor-config/v2` configuration may select
+`execution_profile: "offline-research/v1"`. Omitting the field, or selecting
+`"standard"`, preserves the existing scoped worker construction. Unknown values
+fail startup. Offline mode cannot configure an egress trust domain or credential
+manifest and constructs no network scope guard, resolver or egress mediator.
+The worker requires a signed `offline-research/v1` plan before any approval or
+execution; removing the profile cannot select the standard path. All existing
+inventory, corpus, adapter, observation, budget, engagement and cleanup checks
+remain mandatory, including durable journal recovery before the receiver is
+created. This configuration is not independent observer or deployment evidence.
+
 ## Abuse cases and limits
 
 An attacker may substitute a corpus after review, swap a signed plan or receipt,
