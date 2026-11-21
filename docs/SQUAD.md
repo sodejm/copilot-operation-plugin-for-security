@@ -67,7 +67,8 @@ reported honestly. Hosted issue triage is separate from local swarm execution.
 
 ## Maintaining upstream scaffolding
 
-Initialization used CLI 2.0.0 from github/squad. Stock templates and optional
+Initialization used CLI 2.0.0 from github/squad; the upstream MIT license is
+retained in `.squad/UPSTREAM-LICENSE`. Stock templates and optional
 skills remain in `.squad/`; they are subordinate to the COPS root contract.
 Upstream generated Claude-only skills were moved into `.squad/skills/` to keep
 `.claude/skills/` an exact generated mirror of `.agents/skills/`. Do not add them
@@ -90,3 +91,10 @@ configuration belongs in the user's host configuration, not this tracked file.
 Recovery: revert the setup commits through the ordinary branch workflow, restart
 clients, and preserve any active worker branches and unmerged commits. Removing
 configuration does not undo remote issue updates or merged PRs.
+
+## Setup validation
+
+The local Squad 2.0.0 stdio server completed an MCP handshake and advertised
+15 state tools. This verifies local server startup, not native dispatch or
+end-to-end swarm acceptance in each client. JSON/TOML configuration parsing,
+repository contract, documentation and adapter checks also passed.

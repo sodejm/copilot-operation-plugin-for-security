@@ -9,9 +9,9 @@ When connecting Squad to an issue tracker, store the connection in `.squad/team.
 ```markdown
 ## Issue Source
 
-**Repository:** {owner}/{repo}  
-**Connected:** {date}  
-**Platform:** {GitHub | Azure DevOps | Planner}  
+**Repository:** {owner}/{repo}
+**Connected:** {date}
+**Platform:** {GitHub | Azure DevOps | Planner}
 **Filters:**
 - Labels: `{label-filter}`
 - Project: `{project-name}` (ADO/Planner only)
@@ -291,9 +291,9 @@ When spawning an agent to work on an issue, include this context block:
 ```markdown
 ## ISSUE CONTEXT
 
-**Issue:** #{number} — {title}  
-**Platform:** {GitHub | Azure DevOps | Planner}  
-**Repository:** {owner}/{repo}  
+**Issue:** #{number} — {title}
+**Platform:** {GitHub | Azure DevOps | Planner}
+**Repository:** {owner}/{repo}
 **Assigned to:** {member}
 
 **Description:**
@@ -367,28 +367,28 @@ If the issue was assigned to a squad member and they authored the PR:
 
 ### Pattern 1: Quick Fix (Single Agent, No Review)
 ```
-Issue created → Assigned to agent → Branch created → Code fixed → 
+Issue created → Assigned to agent → Branch created → Code fixed →
 PR opened → CI passes → Auto-merged → Issue closed
 ```
 
 ### Pattern 2: Feature Development (Human Review)
 ```
-Issue created → Assigned to agent → Branch created → Feature implemented → 
-PR opened → Human reviews → Changes requested → Agent fixes → 
+Issue created → Assigned to agent → Branch created → Feature implemented →
+PR opened → Human reviews → Changes requested → Agent fixes →
 Re-reviewed → Approved → Merged → Issue closed
 ```
 
 ### Pattern 3: Research-Then-Implement
 ```
-Issue created → Labeled `go:needs-research` → Research agent spawned → 
-Research documented → Research PR merged → Implementation issue created → 
+Issue created → Labeled `go:needs-research` → Research agent spawned →
+Research documented → Research PR merged → Implementation issue created →
 Implementation agent spawned → Feature built → PR merged
 ```
 
 ### Pattern 4: Parallel Multi-Agent (Future, #525)
 ```
-Epic issue created → Decomposed into sub-issues → Each sub-issue assigned → 
-Multiple agents work in parallel worktrees → PRs opened concurrently → 
+Epic issue created → Decomposed into sub-issues → Each sub-issue assigned →
+Multiple agents work in parallel worktrees → PRs opened concurrently →
 All PRs reviewed → All PRs merged → Epic closed
 ```
 

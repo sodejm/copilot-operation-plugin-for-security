@@ -64,4 +64,3 @@ If you make a decision that affects other team members, write it to:
 ```
 The Scribe will merge it into the shared decisions file.
 <!-- squad:copilot-instructions:end -->
-

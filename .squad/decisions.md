@@ -2,7 +2,7 @@
 
 ## Active Decisions
 
-No decisions recorded yet.
+The active COPS swarm policy is recorded below.
 
 ## Governance
 

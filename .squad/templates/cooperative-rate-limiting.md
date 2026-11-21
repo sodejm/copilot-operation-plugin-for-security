@@ -82,7 +82,7 @@ interface RatePool {
 function canUseQuota(pool: RatePool, agentName: string): boolean {
   const alloc = pool.allocations[agentName];
   if (!alloc) return true; // Unknown agent — allow (graceful)
-  
+
   // Reclaim stale leases from crashed agents
   const now = new Date();
   for (const [name, a] of Object.entries(pool.allocations)) {
@@ -90,7 +90,7 @@ function canUseQuota(pool: RatePool, agentName: string): boolean {
       a.allocated = 0; // Reclaim
     }
   }
-  
+
   return alloc.used < alloc.allocated;
 }
 ```
@@ -124,13 +124,13 @@ class PredictiveCircuitBreaker {
     const n = this.samples.length;
     const first = this.samples[0];
     const last = this.samples[n - 1];
-    
+
     const elapsedMs = last.timestamp - first.timestamp;
     if (elapsedMs === 0) return null;
-    
+
     const consumedPerMs = (first.remaining - last.remaining) / elapsedMs;
     if (consumedPerMs <= 0) return null; // Not consuming — safe
-    
+
     const msUntilExhausted = last.remaining / consumedPerMs;
     return msUntilExhausted / 1000;
   }
@@ -160,7 +160,7 @@ function getRetryDelay(priority: number, attempt: number): number {
     1: [2000, 30000],   // P1: 2s–30s
     2: [5000, 60000],   // P2: 5s–60s
   };
-  
+
   const [min, max] = windows[priority] ?? windows[2];
   const base = Math.min(min * Math.pow(2, attempt), max);
   const jitter = Math.random() * base * 0.5;

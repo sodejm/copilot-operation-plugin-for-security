@@ -7,7 +7,7 @@ tools: [view_file, write_to_file, replace_file_content, grep_search, list_dir, r
 mcpServers:
   - name: squad_state
     command: "npx"
-    args: ["-y", "@bradygaster/squad-cli@2.0.0", "state-mcp"]
+    args: ["--ignore-scripts", "-y", "@bradygaster/squad-cli@2.0.0", "state-mcp"]
 ---
 
 ## COPS policy override
@@ -77,4 +77,3 @@ Delegate each specialist task with the `invoke_subagent` tool: use the `self` su
 ## Transport
 
 This host connects to the backend via: mcp-bridge, http-backend (subagents: yes).
-
