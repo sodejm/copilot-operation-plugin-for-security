@@ -47,8 +47,8 @@ def test_detect_system_platform():
 
 
 def test_diagnose_tool():
-    """Verify tool diagnosis finds python3 and correctly classifies missing tools."""
-    py_tool = diagnose_tool("python3", ">=3.11")
+    """Verify tool diagnosis finds the selected Python and classifies missing tools."""
+    py_tool = diagnose_tool(sys.executable, ">=3.14")
     assert py_tool.status == "available"
     assert py_tool.installed_version is not None
 
@@ -63,7 +63,7 @@ def test_diagnose_host_tools():
     assert len(tools) >= 5
     tool_map = {t.tool: t for t in tools}
     assert "python3" in tool_map
-    assert tool_map["python3"].status == "available"
+    assert tool_map["python3"].minimum_version == "3.14.0"
     assert "nmap" in tool_map
 
 

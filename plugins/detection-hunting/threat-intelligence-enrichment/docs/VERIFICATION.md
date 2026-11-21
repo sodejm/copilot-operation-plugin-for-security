@@ -4,7 +4,7 @@
 
 Qualify local feed normalization, provenance/restriction handling, cache boundaries, and uncertainty. Historical fixture intelligence is not current reputation or independent verification of a threat.
 
-Use a trusted repository checkout, Python 3.11 or newer, and the prerequisites
+Use a trusted repository checkout, Python 3.14 or newer, and the prerequisites
 in [the package README](../README.md). Run the commands from the repository root
 in Bash (Git Bash on Windows). Record actual tool/host versions and input digests.
 Use only synthetic or authorized sanitized inputs; keep output evidence private.

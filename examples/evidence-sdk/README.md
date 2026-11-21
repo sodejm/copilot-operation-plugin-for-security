@@ -1,6 +1,6 @@
 # Shared evidence examples
 
-From the repository root, using Python 3.11 or newer:
+From the repository root, using Python 3.14 or newer:
 
 ```bash
 python3 -m cops.connectors.demo

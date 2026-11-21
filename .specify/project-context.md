@@ -6,7 +6,7 @@ Product packages use the category-first path `plugins/<category>/<plugin-id>/`.
 The current catalog contains Security Logging Advisor, SOC Investigation Workbench,
 Sentinel Hunt Workbench, Attack Path Workbench, and Attack Surface Planner.
 
-Python 3.11+ implements the host-neutral `python3 -m cops` operator interface,
+Python 3.14+ implements the host-neutral `python3 -m cops` operator interface,
 local tools, and package validation. Markdown holds instructions and durable
 evidence boundaries; JSON holds catalogs, manifests, package contracts, schemas,
 fixtures, and examples. The operator path uses only the standard library. Pytest

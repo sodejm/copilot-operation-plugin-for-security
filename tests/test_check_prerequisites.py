@@ -30,7 +30,7 @@ class PrerequisiteTests(unittest.TestCase):
         )
         self.output = StringIO()
 
-    def verify(self, versions=None, *, python_version=(3, 11, 0), import_error=None):
+    def verify(self, versions=None, *, python_version=(3, 14, 0), import_error=None):
         if versions is None:
             versions = {"pytest": "8.3.5", "pytest-bdd": "8.1.0"}
 
@@ -64,10 +64,10 @@ class PrerequisiteTests(unittest.TestCase):
         self.assertIn("virtual environment", self.output.getvalue())
 
     def test_unsupported_python_stops_before_dependency_imports(self):
-        result, imports = self.verify(python_version=(3, 10, 16))
+        result, imports = self.verify(python_version=(3, 13, 16))
         self.assertFalse(result)
         imports.assert_not_called()
-        self.assertIn("Python 3.11 or newer", self.output.getvalue())
+        self.assertIn("Python 3.14 or newer", self.output.getvalue())
 
     def test_incompatible_declared_version(self):
         result, _ = self.verify({"pytest": "7.4.4", "pytest-bdd": "8.1.0"})

@@ -13,7 +13,7 @@ not proof of capability or access.
 
 ## Prerequisites
 
-- A COPS repository checkout and Python 3.11 or newer accessible to the host.
+- A COPS repository checkout and Python 3.14 or newer accessible to the host.
   Run the commands from that checkout's root. The portable plugin archive does
   not bundle the root `cops` runtime; if absent, report the prerequisite and pause.
 - Fresh evidence of exact host IDs, per-model access, capabilities and supported

@@ -94,7 +94,7 @@ class TestedMatrix:
             "kube-hunter": "0.6.0",
             "kubescape": "2.0.0",
             "nmap": "7.80",
-            "python3": "3.11.0",
+            "python3": "3.14.0",
         }
     )
 

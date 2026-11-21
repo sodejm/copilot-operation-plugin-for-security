@@ -6,7 +6,7 @@ Use the results to decide what an analyst should validate next. A graph path or 
 
 ## Prerequisites and quick start
 
-Run from the repository root with Python 3.11 or later. The package has no network prerequisite.
+Run from the repository root with Python 3.14 or later. The package has no network prerequisite.
 
 ```bash
 python3 -m cops demo entra-identity-workbench
@@ -17,7 +17,7 @@ after the playback. Use the package runner directly with a new directory when
 you need to retain artifacts for inspection:
 
 ```bash
-PYTHON="${PYTHON:-python3.11}"
+PYTHON="${PYTHON:-python3.14}"
 scratch="$(mktemp -d "${TMPDIR:-/tmp}/cops-entra-playback.XXXXXX")"
 chmod 700 "$scratch"
 "$PYTHON" plugins/identity-access/entra-identity-workbench/scripts/run_demo.py \

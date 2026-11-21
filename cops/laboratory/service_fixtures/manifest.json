@@ -145,7 +145,7 @@
   "heavyweight_adapters": [
     {
       "name": "Docker Engine",
-      "pinned_prerequisite": "preinstalled immutable image sha256 digest; Python >=3.11 and cryptography==50.0.2 inside the image",
+      "pinned_prerequisite": "preinstalled immutable image sha256 digest; Python >=3.14 and cryptography==50.0.2 inside the image",
       "bundled": false,
       "platforms": [
         "linux",

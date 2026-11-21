@@ -121,7 +121,7 @@ reconciled before a new approval.
 
 Local fixture and macOS test results do not establish actual Linux bubblewrap
 isolation, independently administered observation, provider behavior, or hosted
-acceptance. The hosted matrix includes Python 3.15; an exact-revision hosted
+acceptance. Hosted CI runs Python 3.14; an exact-revision hosted
 result and human review require separate evidence.
 
 ## Agent delegation and MCP authorization boundary extension (issue 236)

@@ -20,7 +20,7 @@ The [complete operator guide](../plugins/offensive-security/offensive-engagement
 defines the catalog, task requirements, exclusions and preflight workflow. The
 [plugin skill](../plugins/offensive-security/offensive-engagement-workbench/skills/model-effort-routing/SKILL.md)
 ships that workflow to assistant hosts. Both require access to the COPS checkout
-and Python 3.11 or newer; the portable archive does not bundle the core runtime.
+and Python 3.14 or newer; the portable archive does not bundle the core runtime.
 
 Daybreak, Fable, Mythos, Astra and future families are eligible only when fresh
 operator evidence establishes the exact model's availability, granted access,

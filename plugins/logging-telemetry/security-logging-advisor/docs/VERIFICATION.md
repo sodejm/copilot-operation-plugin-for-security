@@ -4,7 +4,7 @@
 
 Qualify repository context collection, evidence-backed logging advice, and conditional CVE reachability review. The collector reads local files; advisory verification and provider behavior need their own evidence.
 
-Use a trusted repository checkout, Python 3.11 or newer, and the prerequisites
+Use a trusted repository checkout, Python 3.14 or newer, and the prerequisites
 in [the package README](../README.md). Run the commands from the repository root
 in Bash (Git Bash on Windows). Record actual tool/host versions and input digests.
 Use only synthetic or authorized sanitized inputs; keep output evidence private.

@@ -12,11 +12,11 @@ The journey uses synthetic data for `tenant-a` and `workspace-a` from `2026-01-0
 
 ## Run the journey
 
-This walkthrough requires Python 3.11 or later. From the repository root, select a
+This walkthrough requires Python 3.14 or later. From the repository root, select a
 compatible interpreter, create a private scratch directory, and run:
 
 ```bash
-PYTHON="${PYTHON:-python3.11}"
+PYTHON="${PYTHON:-python3.14}"
 "$PYTHON" --version
 PACKAGE=plugins/detection-hunting/soc-investigation-workbench
 SCRATCH="$(mktemp -d "${TMPDIR:-/tmp}/cops-soc.XXXXXX")"

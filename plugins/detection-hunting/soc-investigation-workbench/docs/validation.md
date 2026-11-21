@@ -23,7 +23,7 @@ Vendor hashing streams arbitrary-size regular files in 64 KiB chunks. Tests
 also reject incomplete provenance locks, installed cache additions, and cases
 missing either malicious or benign hypotheses, and verify portable handoff paths.
 CI runs the SOC suite and development package validator on Windows with Python
-3.11 and 3.13, alongside the full repository checks on Ubuntu.
+3.14, alongside the full repository checks on Ubuntu with Python 3.14.
 Vendor tests use clearly synthetic local fixtures; they do not assert that
 Sentinel's real hunts pass qualification or that the host loads skills correctly.
 

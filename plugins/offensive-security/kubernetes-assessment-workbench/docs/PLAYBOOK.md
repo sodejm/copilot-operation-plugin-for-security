@@ -6,7 +6,7 @@ a sanitized observation belongs to the approved scope. See the
 
 ## 1. Run the checked example
 
-From the repository root with Python 3.11 or newer:
+From the repository root with Python 3.14 or newer:
 
 ```bash
 python3 -m cops demo kubernetes-assessment-workbench

@@ -7,7 +7,7 @@ actions against **synthetic local JSON fixtures only**: `isolate-host` and
 ## Prerequisites and quick start
 
 Run these commands from the repository root in an activated project environment
-with Python 3.11 or newer. The demo uses private temporary local fixtures; it does
+with Python 3.14 or newer. The demo uses private temporary local fixtures; it does
 not require credentials or network access.
 
 ```sh

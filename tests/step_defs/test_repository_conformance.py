@@ -157,7 +157,7 @@ def early_failure(context):
 @given("a prepared interpreter matching the declared test requirements")
 def prepared_prerequisites(context, monkeypatch):
     put(context["root"], "requirements.txt", "pytest>=8.0\npytest-bdd>=8.0\n")
-    monkeypatch.setattr(prerequisites.sys, "version_info", (3, 11, 0))
+    monkeypatch.setattr(prerequisites.sys, "version_info", (3, 14, 0))
     monkeypatch.setattr(prerequisites, "version", lambda name: "8.1.0")
     monkeypatch.setattr(prerequisites, "import_module", lambda name: None)
     monkeypatch.setattr(subprocess, "run", lambda *args, **kwargs: pytest.fail("unexpected subprocess"))

@@ -179,7 +179,7 @@ For rule behavior against labeled positive and negative fixtures, use the Detect
 
 Pipeline engineers, detection engineers, and reviewers use this playback to
 exercise complete supplied-evidence traces without querying a provider. Run it
-from the COPS repository root with Python 3.11 or later. It needs no service
+from the COPS repository root with Python 3.14 or later. It needs no service
 credentials or network access and uses only synthetic package fixtures.
 
 Run the manifest demo:
@@ -255,7 +255,7 @@ partial directory as diagnostic evidence. Correct the fixture or package and
 rerun the full command into the retained directory; the fixed report names are
 replaced.
 
-For troubleshooting, confirm Python 3.11 or later, inspect the named scenario's
+For troubleshooting, confirm Python 3.14 or later, inspect the named scenario's
 manifest and evidence files, and compare marker, tenant or workspace, capture
 window, clock skew, and record timestamps. A missing export is still an evidence
 gap. Do not infer a provider outage from it.
