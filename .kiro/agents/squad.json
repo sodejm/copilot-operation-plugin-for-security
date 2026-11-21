@@ -1,0 +1,13 @@
+{
+  "name": "squad",
+  "description": "Squad coordinator: routes work to a team of specialist agents and keeps shared team state consistent via the squad_state MCP backend.",
+  "prompt": "file://../steering/squad.md",
+  "tools": [
+    "*"
+  ],
+  "includeMcpJson": true,
+  "resources": [
+    "file://.squad/team.md",
+    "file://.squad/routing.md"
+  ]
+}

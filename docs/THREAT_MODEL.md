@@ -908,3 +908,28 @@ requires exact approval and scoped typed egress, post-approval credential resolu
 independent Linux isolation tests, redacted evidence and cleanup receipts. Its
 integration, production isolation and exact-revision human security review remain
 to be verified; a local loopback result does not establish those boundaries.
+
+## Squad contributor coordination (2026-11-20)
+
+Scope: `.squad/`, all-client agent adapters and pinned Squad CLI 2.0.0 MCP launch
+configuration. Source provenance: github/squad, published as
+`@bradygaster/squad-cli`. This adds a developer-tool supply-chain and local state
+boundary, not security-plugin execution authorization. npm lifecycle scripts are
+disabled on configured launches; transitive versions are not locked, and package
+code still executes with host-granted filesystem/network access.
+
+Abuse cases include malicious issue text expanding worker scope, generated
+instructions bypassing launch preflight, concurrent work overwriting another
+worker, false checkpoint/merge claims, and MCP state writes exposing secrets or
+persisting hostile directives. Root-policy precedence, bounded workboard tasks,
+separate worktrees, coordinator-owned state/integration, inspected staged diffs,
+secret-free state, retained host approvals and validation at the integrated
+revision mitigate these risks. These are instructions, not a sandbox boundary.
+The generated hosted triage/assignment workflows remain inactive outside the
+Actions directory; no credentials or remote-worker authority are provisioned.
+
+Validation: repository checks and configuration inspection cover this setup;
+end-to-end multi-client dispatch, timing adherence and independent human review
+remain unverified. Owner: repository maintainer. Reassess on Squad upgrades,
+permission changes, hosted workflow activation or new state backends. See
+[Squad workflow](SQUAD.md) for operation and recovery.

@@ -111,3 +111,10 @@ for secure development and vulnerability response; [OWASP ASVS 5.0](https://gith
 for applicable application controls; and [SLSA 1.2 threats](https://slsa.dev/spec/v1.2/threats)
 for build and distribution analysis. These are references, not asserted certification
 or an automatic change to existing project assurance requirements.
+
+## Squad checkpoints and integration
+
+For Squad contributor runs, follow [the swarm workflow](SQUAD.md) and the root
+contract: meaningful active-edit checkpoints every 5–10 minutes, evidence-based
+issue updates, isolated worker branches, and validation of the combined tree.
+Only the recorded authorized delivery batch grants its work-item merge scope.

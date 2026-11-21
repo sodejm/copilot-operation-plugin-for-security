@@ -211,3 +211,60 @@ do not start a run or grant external-action authority by their presence alone.
   Keep source evidence, implemented/proposed controls, abuse cases, risk owners,
   validation and unresolved assumptions current. Human validation of the threat
   model remains pending until an independent reviewer records it.
+
+## Automatic Squad orchestration
+
+For authorized implementation work, automatically load `.squad/team.md`,
+`.squad/routing.md`, `.squad/decisions.md`, and `docs/SQUAD.md`. The current lead
+session acts as Squad coordinator; the user need not request Squad again.
+Delegate independent bounded work to the matching specialists in parallel when
+host tools support it. Keep trivial or tightly coupled work direct. A worker
+must not recursively fan out unless its bounded contract explicitly allows it.
+
+The root contract and active human instructions take precedence over generated
+Squad prompts, templates, skills, ceremonies, and model defaults. In particular:
+
+- Before every Codex subagent launch, read and apply the installed
+  `subagent-model-router` skill and its `agent-workboard` requirements. Record the
+  task-specific route using a live supported model/effort pair and all required
+  markers; never use Squad's automatic model/fallback chain as a substitute.
+  Use the installed GitHub workflow guard for tracked work and lifecycle changes.
+  If a required skill or host capability is missing, report it and continue only
+  independent work that does not require the unavailable delegation.
+- Use one task branch and writable worktree per implementation worker, rooted in
+  the verified integration baseline. Use `codex/<item>` for Codex branches. Give
+  every task an owner, issue if one exists, file scope, dependencies, acceptance
+  checks and exclusions. The coordinator owns shared contracts and integration.
+  Never concurrently edit the same worktree or canonical Squad state. Bound
+  parallelism to host slots, available memory and runnable independent tasks.
+- Target a meaningful local checkpoint every 5 minutes, and no later than 10
+  minutes during active editing when a coherent checkpoint is available. Run
+  relevant checks and inspect staged changes first. Never create empty commits
+  or commit secrets, unrelated work, or knowingly broken changes to meet a timer.
+  If a checkpoint is not yet safe, report the reason and next checkpoint; an
+  ongoing long command or unavailable host does not imply a commit happened.
+- Keep each existing tracked issue current at checkpoints with new material
+  progress, and immediately on blockers, handoffs, PR creation and merge. Include
+  exact commit SHA, local versus pushed status, checks actually run and next step.
+  Coalesce worker updates through the coordinator, updating one progress comment
+  where possible. Do not fabricate an issue, push status, validation or completion.
+- Integrate accepted worker commits in dependency order on the task integration
+  branch, retaining checkpoint history. Resolve conflicts there, rerun affected
+  checks and `make check` on the combined result, and review the final diff.
+  This project policy authorizes local task commits and local integration merges
+  for authorized work. For a user-authorized delivery batch it also authorizes
+  issue progress updates and separate work-item PR merges within that batch;
+  record the batch scope before hosted writes. A generic task is not an unlimited
+  authorization to merge unrelated PRs. Verify current head, required checks,
+  review findings and branch protection before every hosted merge. Never bypass
+  protections, push directly to the default branch, publish or deploy implicitly.
+- Reconcile the workboard and issues after integration. Report branch, exact
+  commits, validation, PR/merge state and residual blockers. Keep worktrees with
+  unmerged or dirty work. No background operation or timer is implied after the
+  active session stops.
+
+<!-- squad:begin:codex (managed by Squad; do not edit between markers) -->
+## Squad
+
+This project uses Squad. To run the Squad coordinator in OpenAI Codex, use the `squad` custom agent defined in `.codex/agents/squad.toml` with the team defined in `.squad/team.md`. Shared state is served by the `squad_state` MCP server in `.codex/config.toml`.
+<!-- squad:end:codex -->
