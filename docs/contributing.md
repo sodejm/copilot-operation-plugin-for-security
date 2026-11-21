@@ -91,7 +91,7 @@ or document predicate collapsing as supported behavior.
 
 ### 1. Create a Dedicated Virtual Environment
 
-COPS requires **Python 3.11 or newer**:
+COPS requires **Python 3.14 or newer**:
 
 ```bash
 # Clone the repository

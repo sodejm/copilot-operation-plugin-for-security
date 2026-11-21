@@ -142,7 +142,7 @@ def reject_redirect(path: Path) -> None:
         entry = path.lstat()
     except FileNotFoundError:
         return
-    # is_symlink() misses Windows junctions on supported Python 3.11 hosts.
+    # is_symlink() does not identify Windows junctions.
     require(
         not stat.S_ISLNK(entry.st_mode)
         and not getattr(entry, "st_file_attributes", 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT,

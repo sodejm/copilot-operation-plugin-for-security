@@ -28,7 +28,7 @@ host indexes from the canonical catalog.
    required user-facing interface metadata.
 8. Structural, offline, host-installation, and live-integration evidence remain
    separate. Repository checks never promote host or live support automatically.
-9. The operator commands run on Python 3.11 or newer on Linux, macOS, and Windows.
+9. The operator commands run on Python 3.14 or newer on Linux, macOS, and Windows.
 10. Workflow discovery, validation, and unsigned fixture playback require only the
     standard library. Ed25519 evidence signing is available only when explicitly
     requested with the optional crypto extra; an unavailable signer dependency

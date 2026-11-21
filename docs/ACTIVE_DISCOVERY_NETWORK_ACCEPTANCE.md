@@ -7,11 +7,11 @@ without scanning an engagement target or exposing a host port.
 
 ## Run
 
-From the repository root, start Docker with a locally cached `python:3.12-slim`
+From the repository root, start Docker with a locally cached `python:3.14-slim`
 image. The command deliberately uses `--pull never` and `--network none`. It
 streams the Python source into a temporary in-container filesystem because some
 Docker Desktop installations cannot bind-mount a host worktree under `/private/tmp`.
-It requires Docker, the cached image, and a Python 3.12 image whose `tarfile`
+It requires Docker, the cached image, and a Python 3.14 image whose `tarfile`
 module supports the `data` extraction filter.
 
 ```sh
@@ -23,7 +23,7 @@ tar -cf - cops scripts/active_discovery_network_acceptance.py | \
     --tmpfs /tmp:rw,nosuid,nodev,size=16m \
     --tmpfs /workspace:rw,nosuid,nodev,size=64m \
     -w /workspace -e PYTHONDONTWRITEBYTECODE=1 \
-    python:3.12-slim python -B -c \
+    python:3.14-slim python -B -c \
     'import runpy,sys,tarfile; tarfile.open(fileobj=sys.stdin.buffer,mode="r|").extractall("/workspace",filter="data"); runpy.run_module("scripts.active_discovery_network_acceptance",run_name="__main__")'
 ```
 
@@ -59,7 +59,7 @@ tar -cf - cops scripts/active_discovery_full_tcp_acceptance.py | \
     --tmpfs /tmp:rw,nosuid,nodev,size=256m \
     --tmpfs /workspace:rw,nosuid,nodev,size=64m \
     -w /workspace -e PYTHONDONTWRITEBYTECODE=1 \
-    python:3.12-slim python -B -c \
+    python:3.14-slim python -B -c \
     'import runpy,sys,tarfile; tarfile.open(fileobj=sys.stdin.buffer,mode="r|").extractall("/workspace",filter="data"); runpy.run_module("scripts.active_discovery_full_tcp_acceptance",run_name="__main__")'
 ```
 
@@ -95,7 +95,7 @@ and drops every capability except `NET_ADMIN`.
 ```sh
 build_dir="$(mktemp -d)"
 cat >"$build_dir/Dockerfile" <<'EOF'
-FROM python:3.12-slim
+FROM python:3.14-slim
 RUN apt-get update \
     && apt-get install -y --no-install-recommends iptables \
     && rm -rf /var/lib/apt/lists/*

@@ -36,24 +36,25 @@ make check-prerequisites PYTHON=.venv/bin/python
 
 ## Common Issues & Solutions
 
-### 1. Python Version Mismatch (< 3.11)
+### 1. Python Version Mismatch (< 3.14)
 
 **Symptom**:
 ```text
-error: Python 3.11 or newer is required (found 3.10.x)
+Python 3.13.9: /path/to/python3 (selected interpreter)
+error: Python 3.14 or newer is required for contributor checks
 ```
 
 **Cause**:
-Your system's default `python3` points to an older version of Python. COPS requires Python 3.11+ for modern standard-library features (such as `tomllib` and enhanced typing).
+Your system's default `python3` points to an older version of Python. COPS supports Python 3.14 or newer.
 
 **Resolution**:
 1. Check available Python versions on your system:
    ```bash
-   python3.11 --version || python3.12 --version || python3.13 --version
+   python3.14 --version
    ```
-2. Create your virtual environment with Python 3.11 or newer:
+2. Create your virtual environment with Python 3.14 or newer:
    ```bash
-   python3.11 -m venv .venv
+   python3.14 -m venv .venv
    source .venv/bin/activate
    ```
 3. When running `make`, explicitly pass your Python interpreter:
@@ -71,7 +72,7 @@ Your system's default `python3` points to an older version of Python. COPS requi
 error: pytest: missing
 error: pytest-bdd: missing
 error: jsonschema: missing
-Create and activate a Python 3.11+ virtual environment, then run:
+Create and activate a Python 3.14+ virtual environment, then run:
   python -m pip install -r requirements.txt
 make: *** [check-prerequisites] Error 1
 ```

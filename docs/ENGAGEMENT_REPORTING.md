@@ -26,7 +26,7 @@ show that join rule. Every Finding needs a `finding_contexts` row with its `find
 `limitations`. The four kinds are `configuration_observation`,
 `scanner_assertion`, `observed_behavior`, and `reproduced_attack_path`.
 
-With Python 3.11 or newer selected (see the [repository setup](../README.md)),
+With Python 3.14 or newer selected (see the [repository setup](../README.md)),
 run this from the repository root to copy the accepted fixture into a private
 directory outside the repository and build a report:
 

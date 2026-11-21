@@ -119,7 +119,7 @@ python3 -m unittest discover -s plugins/detection-hunting/sentinel-hunt-workbenc
 
 Threat hunters, detection engineers, and reviewers use this playback to prove
 that the packaged hunts can be rendered and evaluated consistently before a
-tenant test. Run it from the COPS repository root with Python 3.11 or later. It
+tenant test. Run it from the COPS repository root with Python 3.14 or later. It
 needs only the checked-out package and writes no network traffic. Do not place
 production telemetry or credentials in its fixture or output directories.
 
@@ -203,7 +203,7 @@ partial output as diagnostic evidence. Repair the input or package and rerun the
 entire command into the same retained directory; fixed artifact names are
 replaced while source fixtures remain unchanged.
 
-If the command fails, inspect its final error, confirm Python is 3.11 or later,
+If the command fails, inspect its final error, confirm Python is 3.14 or later,
 run `huntwb.py validate library`, and verify that the selected output directory
 is writable and private. An unknown table, field, surface, or parameter is a
 content error, not a reason to weaken validation.

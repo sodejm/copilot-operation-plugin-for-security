@@ -1,6 +1,6 @@
 # Local pre-push validation
 
-Contributor tooling requires Python 3.11 or newer. The installed policy validates
+Contributor tooling requires Python 3.14 or newer. The installed policy validates
 each proposed branch tip from Git's pre-push input, using committed files in an
 isolated checkout. Dirty and untracked files cannot supply validation inputs.
 

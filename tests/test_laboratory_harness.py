@@ -97,6 +97,9 @@ def test_matrix_and_registration() -> None:
         )
     with pytest.raises(PrerequisiteMismatchError):
         verify_tool_prerequisites({"kubectl": "1.28.0"}, required_tools=["kube-bench"])
+    with pytest.raises(PrerequisiteMismatchError, match="below tested minimum '3.14.0'"):
+        verify_tool_prerequisites({"python3": "3.13.9"})
+    assert verify_tool_prerequisites({"python3": "3.14.0"})
 
 
 @pytest.mark.parametrize("factory", [make_inert_container_environment, make_inert_vm_environment])

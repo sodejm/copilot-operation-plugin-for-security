@@ -7,7 +7,7 @@ name = "cops"
 version = "0.1.0"
 description = "Copilot Operations Plugins for Security"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.14"
 license = { text = "Apache-2.0" }
 dependencies = []
 
@@ -26,7 +26,7 @@ markers = [
 ]
 
 [tool.ruff]
-target-version = "py311"
+target-version = "py314"
 line-length = 120
 exclude = [
     ".git",

@@ -6,7 +6,7 @@ Define the canonical scenario catalog and pinned external research provenance re
 1. **Verifiable External Provenance**: Every operational scenario is grounded in pinned external research, cheatsheets, threat articles, or open-source security tools (S01–S13) with immutable revision commits, recorded licenses, and a durable per-source licensing review disposition.
 2. **Deterministic Mapping Integrity**: Every item across all 13 pinned sources has an explicit resolution (`scenario`, `supporting_guidance`, or `applicability_decision`) with zero orphaned targets.
 3. **Structured Scenario Definitions**: Canonical scenarios declare precise MITRE ATT&CK tactics and techniques, execution environments, required tools, isolation requirements, prerequisites, and safety profiles.
-4. **Offline and Script-First Validation**: Integrity checks and queries run completely offline using Python 3.11+ standard library without external network dependencies.
+4. **Offline and Script-First Validation**: Integrity checks and queries run completely offline using Python 3.14+ standard library without external network dependencies.
 
 ---
 

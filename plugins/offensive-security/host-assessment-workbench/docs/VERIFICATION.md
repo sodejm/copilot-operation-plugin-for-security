@@ -15,7 +15,7 @@ uses a separate process under the same Windows token to observe the owned marker
 absent, readable with its exact hash, and absent after cleanup. It does not test a
 second identity or cross a privilege boundary.
 
-Use a trusted repository checkout and Python 3.11 or newer. The native exercise
+Use a trusted repository checkout and Python 3.14 or newer. The native exercise
 also requires Windows PowerShell or PowerShell 7 on a disposable or otherwise
 authorized Windows host. Record the repository revision, Windows build,
 architecture, Python and PowerShell versions, export digest, and receipt result.

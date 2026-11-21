@@ -2,7 +2,7 @@
 
 ## Scope and prerequisites
 
-Python 3.11 or later; supplied synthetic JSON artifacts. No credentials or network
+Python 3.14 or later; supplied synthetic JSON artifacts. No credentials or network
 are required for offline inspection. Git is required only for the bounded history
 scanner and is declared in `org.cops/prerequisites.json`. Unsupported formats remain
 explicit limitations.

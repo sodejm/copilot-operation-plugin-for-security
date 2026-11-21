@@ -4,10 +4,10 @@ SOC Investigation Workbench helps SOC analysts and incident responders build a l
 
 ## Run the complete playback
 
-Use Python 3.11 or later from the repository root. No tenant credentials or network access are required.
+Use Python 3.14 or later from the repository root. No tenant credentials or network access are required.
 
 ```bash
-PYTHON="${PYTHON:-python3.11}"
+PYTHON="${PYTHON:-python3.14}"
 "$PYTHON" -m cops demo soc-investigation-workbench
 ```
 
@@ -16,7 +16,7 @@ after the playback. Use the package runner directly when you need to retain the
 artifacts:
 
 ```bash
-PYTHON="${PYTHON:-python3.11}"
+PYTHON="${PYTHON:-python3.14}"
 PACKAGE=plugins/detection-hunting/soc-investigation-workbench
 scratch="$(mktemp -d "${TMPDIR:-/tmp}/cops-soc-playback.XXXXXX")"
 chmod 700 "$scratch"
@@ -47,7 +47,7 @@ For a guided investigation, see the [malicious-access walkthrough](https://githu
 Start a case from local exports:
 
 ```bash
-PYTHON="${PYTHON:-python3.11}"
+PYTHON="${PYTHON:-python3.14}"
 scratch="$(mktemp -d "${TMPDIR:-/tmp}/cops-soc-case.XXXXXX")"
 chmod 700 "$scratch"
 CASE="$scratch/incident-402.json"
@@ -93,7 +93,7 @@ The Sentinel hunt catalog is a verified vendored snapshot. `vendor-lock.json` re
 ## Package validation
 
 ```bash
-PYTHON="${PYTHON:-python3.11}"
+PYTHON="${PYTHON:-python3.14}"
 "$PYTHON" plugins/detection-hunting/soc-investigation-workbench/scripts/validate-package.py
 "$PYTHON" -m pytest -q tests/step_defs/test_soc_investigation.py
 ```

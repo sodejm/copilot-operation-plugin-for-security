@@ -4,7 +4,7 @@
 
 Qualify hunt selection, explanation, compatibility assessment, parameter rendering, and local reference evaluation. Reference evaluation and an offline-qualified hunt do not establish execution in a Kusto engine.
 
-Use a trusted repository checkout, Python 3.11 or newer, and the prerequisites
+Use a trusted repository checkout, Python 3.14 or newer, and the prerequisites
 in [the package README](../README.md). Run the commands from the repository root
 in Bash (Git Bash on Windows). Record actual tool/host versions and input digests.
 Use only synthetic or authorized sanitized inputs; keep output evidence private.

@@ -138,7 +138,7 @@ Before signing off on a detection rule change:
 
 Detection engineers, SIEM administrators, and reviewers use this playback to
 verify the complete packaged rule-to-fixture workflow. Run it from the COPS
-repository root with Python 3.11 or later. It uses standard-library Python,
+repository root with Python 3.14 or later. It uses standard-library Python,
 synthetic fixtures, and no provider credentials or network access.
 
 Run the manifest demo:
@@ -219,7 +219,7 @@ report; or rerun difference exits `2`. Partial output is diagnostic evidence.
 Repair the input or package, then rerun the whole command into the retained
 directory; fixed report names are replaced.
 
-For troubleshooting, confirm Python 3.11 or later, compare rule and fixture
+For troubleshooting, confirm Python 3.14 or later, compare rule and fixture
 basenames, validate each JSON document, and inspect `case_results` for
 `missing_field_error`, false-positive, or false-negative outcomes. Do not remove
 the intentional schema-drift fixture merely to produce numeric precision and

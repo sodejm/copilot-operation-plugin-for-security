@@ -8,7 +8,7 @@ input.
 
 ## Use the registry
 
-The commands require Python 3.11 or newer and emit JSON for headless use:
+The commands require Python 3.14 or newer and emit JSON for headless use:
 
 ```bash
 python3 -m cops service-notices validate --json

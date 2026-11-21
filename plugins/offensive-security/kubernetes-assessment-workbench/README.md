@@ -7,7 +7,7 @@ It reads no kubeconfig, calls no cluster API, and does not authorize execution.
 
 ## Start here
 
-Use Python 3.11 or newer. Run these commands from the repository root:
+Use Python 3.14 or newer. Run these commands from the repository root:
 
 ```bash
 python3 -m cops info kubernetes-assessment-workbench

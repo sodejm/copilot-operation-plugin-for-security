@@ -6,10 +6,10 @@ The package does not collect from AD, LDAP, Kerberos, or hosts. A candidate path
 
 ## Prerequisites and quick start
 
-Run from the repository root with Python 3.11 or later:
+Run from the repository root with Python 3.14 or later:
 
 ```bash
-PYTHON="${PYTHON:-python3.11}"
+PYTHON="${PYTHON:-python3.14}"
 "$PYTHON" -m cops demo ad-assessment-workbench
 ```
 
@@ -18,7 +18,7 @@ runs and the expected rejection, and removes the workspace. Use the package
 runner directly when you need to retain that evidence in a new directory:
 
 ```bash
-PYTHON="${PYTHON:-python3.11}"
+PYTHON="${PYTHON:-python3.14}"
 scratch="$(mktemp -d "${TMPDIR:-/tmp}/cops-ad-playback.XXXXXX")"
 chmod 700 "$scratch"
 "$PYTHON" plugins/identity-access/ad-assessment-workbench/scripts/run_demo.py \
@@ -35,7 +35,7 @@ in the same shell.
 Analyze the bundled fixture without writing files:
 
 ```bash
-PYTHON="${PYTHON:-python3.11}"
+PYTHON="${PYTHON:-python3.14}"
 "$PYTHON" plugins/identity-access/ad-assessment-workbench/scripts/analyze.py \
   plugins/identity-access/ad-assessment-workbench/fixtures/synthetic-two-forest.json
 ```

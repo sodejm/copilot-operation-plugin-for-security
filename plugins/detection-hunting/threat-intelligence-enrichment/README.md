@@ -29,7 +29,7 @@ resolve provider markings before sharing. A Microsoft host record is not a verdi
 ## Prerequisites and quick start
 
 Run these commands from the repository root in an activated project environment
-with Python 3.11 or newer. The demo injects fixed provider responses and does not
+with Python 3.14 or newer. The demo injects fixed provider responses and does not
 need credentials or network access.
 
 ```sh

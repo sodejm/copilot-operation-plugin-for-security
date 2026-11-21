@@ -20,7 +20,7 @@ an isolated laboratory.
 
 ## Run a playback
 
-From the repository root, use Python 3.11 or later. Complete the
+From the repository root, use Python 3.14 or later. Complete the
 [contributor setup](contributing.md#environment-setup) for the full test suite. The
 optional `laboratory` dependency is needed for signed laboratory receipts.
 

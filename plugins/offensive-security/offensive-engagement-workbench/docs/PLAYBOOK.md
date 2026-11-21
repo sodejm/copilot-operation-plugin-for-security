@@ -18,7 +18,7 @@ semantic checks remain active when Python optimization disables `assert`.
 ## Prerequisites
 
 - A trusted COPS repository checkout.
-- Python 3.11 or newer.
+- Python 3.14 or newer.
 - A writable private output directory for evidence artifacts.
 - No network access, service credentials, external model, or assessment worker.
 
