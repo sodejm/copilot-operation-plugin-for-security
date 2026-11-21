@@ -410,6 +410,8 @@ class LinuxBubblewrapSandbox:
         # bwrap publishes child-pid before loopback setup. Only its final blocking
         # read proves setup has finished; the worker alone holds the empty pipe's
         # writer and must keep it open until observation and authorization finish.
+        if os.uname().machine not in {"x86_64", "aarch64"}:
+            raise SandboxReadinessError("offline sandbox execution gate syscall ABI is unsupported")
         pipe = os.fstat(gate_writer)
         while time.monotonic() < deadline:
             if cls._execution_gate_is_blocked(child_pid, gate_fd, pipe.st_dev, pipe.st_ino):
