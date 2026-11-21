@@ -12,6 +12,7 @@ import json
 import math
 import os
 import re
+import signal
 import socket
 import stat
 import struct
@@ -20,6 +21,7 @@ import time
 from dataclasses import dataclass
 from dataclasses import fields as dataclass_fields
 from pathlib import Path
+from threading import Event
 from typing import Any
 
 from cops.adapters import ToolAdapterRegistry
@@ -101,6 +103,36 @@ class WorkerSupervisorConfig:
     executable_sha256_pins: dict[str, str]
     egress_trust_domain: str | None = None
     credential_manifest_path: Path | None = None
+    execution_profile: str = "standard"
+    offline_observer_socket: Path | None = None
+    offline_observer_uid: int | None = None
+    offline_observer_public_key: bytes | None = None
+
+    def __post_init__(self) -> None:
+        if self.execution_profile not in ("standard", "offline-research/v1"):
+            raise WorkerSupervisorError("supervisor execution profile is invalid")
+        if self.execution_profile == "offline-research/v1" and (
+            self.egress_trust_domain is not None or self.credential_manifest_path is not None
+        ):
+            raise WorkerSupervisorError("offline supervisor cannot configure credentials or egress")
+        observer_fields = (
+            self.offline_observer_socket,
+            self.offline_observer_uid,
+            self.offline_observer_public_key,
+        )
+        if any(field is not None for field in observer_fields):
+            observer_uid = self.offline_observer_uid
+            if (
+                self.execution_profile != "offline-research/v1"
+                or not isinstance(self.offline_observer_socket, Path)
+                or not self.offline_observer_socket.is_absolute()
+                or type(observer_uid) is not int
+                or observer_uid < 1
+                or observer_uid in (self.relay_uid, self.supervisor_uid, self.authority_uid)
+                or type(self.offline_observer_public_key) is not bytes
+                or len(self.offline_observer_public_key) != 32
+            ):
+                raise WorkerSupervisorError("offline observer configuration is invalid")
 
     @classmethod
     def from_file(cls, path: Path | str) -> WorkerSupervisorConfig:
@@ -123,7 +155,7 @@ class WorkerSupervisorConfig:
             "attestation_key_path",
             "executable_sha256_pins",
         }
-        optional = {"egress_trust_domain", "credential_manifest_path"}
+        optional = {"egress_trust_domain", "credential_manifest_path", "execution_profile", "offline_observer"}
         fields = set(data)
         if not required <= fields or fields - required - optional:
             raise WorkerSupervisorError("supervisor configuration fields or schema are invalid")
@@ -170,6 +202,18 @@ class WorkerSupervisorConfig:
         if credential_manifest_path is not None:
             if not isinstance(credential_manifest_path, str) or not Path(credential_manifest_path).is_absolute():
                 raise WorkerSupervisorError("supervisor credential manifest path must be absolute")
+        observer_socket = observer_uid = observer_key = None
+        if "offline_observer" in data:
+            observer = data["offline_observer"]
+            if not isinstance(observer, dict) or set(observer) != {"socket_path", "uid", "public_key"}:
+                raise WorkerSupervisorError("offline observer configuration is invalid")
+            if not isinstance(observer["socket_path"], str):
+                raise WorkerSupervisorError("offline observer socket path is invalid")
+            if not isinstance(observer["public_key"], str) or not _SHA256_RE.fullmatch(observer["public_key"]):
+                raise WorkerSupervisorError("offline observer public key is invalid")
+            observer_socket = Path(observer["socket_path"])
+            observer_uid = observer["uid"]
+            observer_key = bytes.fromhex(observer["public_key"])
         return cls(
             expected_host=data["expected_host"],
             worker_identity=data["worker_identity"],
@@ -188,6 +232,10 @@ class WorkerSupervisorConfig:
             executable_sha256_pins=pins,
             egress_trust_domain=egress_trust_domain,
             credential_manifest_path=(Path(credential_manifest_path) if credential_manifest_path is not None else None),
+            execution_profile=data.get("execution_profile", "standard"),
+            offline_observer_socket=observer_socket,
+            offline_observer_uid=observer_uid,
+            offline_observer_public_key=observer_key,
         )
 
 
@@ -301,27 +349,44 @@ def build_receiver(config: WorkerSupervisorConfig) -> SSHRemoteExecutionReceiver
         worker_uid=config.supervisor_uid,
         worker_gid=config.supervisor_gid,
     )
-    credential_resolver = _credential_resolver(
-        config,
-        engagement_id=engagement.engagement_id,
-        approval_control=control,
-    )
+    offline_only = config.execution_profile == "offline-research/v1"
+    observer = None
+    if config.offline_observer_socket is not None:
+        from cops.execution.offline_observer import ObserverClient, ObserverVerifier
+
+        assert config.offline_observer_uid is not None and config.offline_observer_public_key is not None
+        observer = ObserverClient(
+            config.offline_observer_socket,
+            config.offline_observer_uid,
+            ObserverVerifier(config.offline_observer_public_key),
+        )
+    credential_resolver = None
+    scope_guard = None
+    if not offline_only:
+        credential_resolver = _credential_resolver(
+            config,
+            engagement_id=engagement.engagement_id,
+            approval_control=control,
+        )
+        scope_guard = ScopeGuard(
+            ScopeDefinition.from_engagement_scope(
+                engagement.scope,
+                egress_allowed=config.egress_trust_domain is not None,
+            )
+        )
     sandbox = LinuxBubblewrapSandbox(worker_uid=config.supervisor_uid, worker_gid=config.supervisor_gid)
     worker = IsolatedWorker(
         inventory,
         control,
         sandbox,
-        scope_guard=ScopeGuard(
-            ScopeDefinition.from_engagement_scope(
-                engagement.scope,
-                egress_allowed=config.egress_trust_domain is not None,
-            )
-        ),
+        scope_guard=scope_guard,
         adapter_registry=ToolAdapterRegistry(executable_sha256_pins=config.executable_sha256_pins),
         expected_engagement_id=engagement.engagement_id,
         egress_trust_domain=config.egress_trust_domain,
         credential_resolver=credential_resolver,
         cleanup_journal_path=config.cleanup_journal_path,
+        required_execution_profile="offline-research/v1" if offline_only else None,
+        offline_observer=observer,
     )
     worker.recover_pending_cleanup()
     return SSHRemoteExecutionReceiver(
@@ -382,7 +447,12 @@ def serve_connection(
     connection.sendall(response)
 
 
-def serve_forever(config: WorkerSupervisorConfig, receiver: SSHRemoteExecutionReceiver) -> None:
+def serve_forever(
+    config: WorkerSupervisorConfig,
+    receiver: SSHRemoteExecutionReceiver,
+    *,
+    stop_requested: Event | None = None,
+) -> None:
     """Bind a pre-provisioned directory and serve a single request per connection."""
     if sys.platform != "linux":
         raise WorkerSupervisorError("production supervisor requires Linux")
@@ -412,28 +482,40 @@ def serve_forever(config: WorkerSupervisorConfig, receiver: SSHRemoteExecutionRe
             listener.bind(str(config.socket_path))
         finally:
             os.umask(old_umask)
-        os.chmod(config.socket_path, 0o660)
         bound = os.lstat(config.socket_path)
-        if not stat.S_ISSOCK(bound.st_mode) or (bound.st_uid, bound.st_gid) != (
-            config.supervisor_uid,
-            config.supervisor_gid,
-        ):
-            raise WorkerSupervisorError("bound supervisor socket identity is unsafe")
-        listener.listen(8)
         try:
-            while True:
-                connection, _ = listener.accept()
+            if not stat.S_ISSOCK(bound.st_mode) or (bound.st_uid, bound.st_gid) != (
+                config.supervisor_uid,
+                config.supervisor_gid,
+            ):
+                raise WorkerSupervisorError("bound supervisor socket identity is unsafe")
+            os.chmod(config.socket_path, 0o660, follow_symlinks=False)
+            listener.listen(8)
+            if stop_requested is not None:
+                listener.settimeout(0.25)
+            while stop_requested is None or not stop_requested.is_set():
+                try:
+                    connection, _ = listener.accept()
+                except TimeoutError:
+                    continue
                 with connection:
+                    if stop_requested is not None and stop_requested.is_set():
+                        break
                     try:
                         serve_connection(connection, config, receiver, attestor)
                     except (OSError, ValueError, RuntimeError):
                         # The relay receives EOF; errors must not expose local paths or secrets.
                         continue
         finally:
-            config.socket_path.unlink(missing_ok=True)
+            try:
+                current = os.lstat(config.socket_path)
+                if stat.S_ISSOCK(current.st_mode) and (current.st_dev, current.st_ino) == (bound.st_dev, bound.st_ino):
+                    config.socket_path.unlink()
+            except FileNotFoundError:
+                pass
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: list[str] | None = None, *, stop_requested: Event | None = None) -> int:
     args = sys.argv[1:] if argv is None else argv
     if len(args) != 2 or args[0] != "--config":
         print("usage: python3 -m cops.worker_supervisor --config ABSOLUTE_PATH", file=sys.stderr)
@@ -441,7 +523,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         config = WorkerSupervisorConfig.from_file(args[1])
         receiver = build_receiver(config)
-        serve_forever(config, receiver)
+        serve_forever(config, receiver, stop_requested=stop_requested)
     except (OSError, ValueError, RuntimeError):
         print("worker supervisor readiness or service failed", file=sys.stderr)
         return 1
@@ -449,4 +531,6 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":  # pragma: no cover - process entry point
-    raise SystemExit(main())
+    stop_requested = Event()
+    signal.signal(signal.SIGTERM, lambda _signum, _frame: stop_requested.set())
+    raise SystemExit(main(stop_requested=stop_requested))

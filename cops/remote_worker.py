@@ -403,7 +403,7 @@ def relay_remote_execution_request(
 
 def _verify_supervisor_socket(path: Path, *, supervisor_uid: int, supervisor_gid: int) -> None:
     try:
-        parent_fd = open_directory_no_symlinks(path.parent)
+        parent_fd = open_directory_no_symlinks(path.parent, lookup_only=True)
     except SecureDirectoryError as err:
         raise SSHExecutionError("remote worker supervisor socket cannot be opened securely") from err
     try:

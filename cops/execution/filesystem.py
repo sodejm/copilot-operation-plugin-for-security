@@ -15,8 +15,13 @@ def open_directory_no_symlinks(
     *,
     create: bool = False,
     mode: int = 0o700,
+    lookup_only: bool = False,
 ) -> int:
-    """Open a directory path without following any symbolic-link component."""
+    """Open a directory path without following any symbolic-link component.
+
+    Use a lookup-only descriptor for paths whose final directory permits
+    traversal and metadata checks but forbids listing.
+    """
     if os.name != "posix" or not hasattr(os, "O_NOFOLLOW") or not hasattr(os, "O_DIRECTORY"):
         raise SecureDirectoryError("symlink-safe directory access requires POSIX O_NOFOLLOW and directory descriptors")
 
@@ -25,7 +30,10 @@ def open_directory_no_symlinks(
         raise SecureDirectoryError("directory path must not contain '..' components")
 
     absolute = Path(os.path.abspath(os.fspath(requested)))
-    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0)
+    if lookup_only and (create or not hasattr(os, "O_PATH")):
+        raise SecureDirectoryError("lookup-only directory access requires Linux O_PATH and an existing path")
+    access = os.O_PATH if lookup_only else os.O_RDONLY
+    flags = access | os.O_DIRECTORY | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0)
     descriptor = -1
     try:
         descriptor = os.open(absolute.anchor, flags)
