@@ -6,7 +6,7 @@ context. The [README](../README.md) describes the data contract and safety limit
 
 ## 1. Run the synthetic branches
 
-From the repository root with Python 3.11 or newer:
+From the repository root with Python 3.14 or newer:
 
 ```bash
 python3 -m cops demo host-assessment-workbench

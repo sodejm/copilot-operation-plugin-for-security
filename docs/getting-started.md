@@ -21,7 +21,7 @@ outcome you want. A draft is not an approved or validated execution plan.
 
 ## Try it locally
 
-The core CLI requires Python 3.11 or newer. Use an existing checkout, or clone
+The core CLI requires Python 3.14 or newer. Use an existing checkout, or clone
 with Git and network access:
 
 ```bash

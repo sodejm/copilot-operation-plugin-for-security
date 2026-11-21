@@ -1,6 +1,6 @@
 # Install and run COPS Security Logging Advisor
 
-The package ID is `security-logging-advisor`. Use Python 3.11+ for the
+The package ID is `security-logging-advisor`. Use Python 3.14+ for the
 repository's supported contributor environment. The scanner and validator need
 no third-party runtime packages.
 

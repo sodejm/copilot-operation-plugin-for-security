@@ -48,7 +48,7 @@ limits. The index deliberately does not repeat status labels.
 
 ## Prepare the run
 
-Use a trusted checkout of the revision being qualified and Python 3.11 or newer.
+Use a trusted checkout of the revision being qualified and Python 3.14 or newer.
 Run commands below from the repository root in Bash or Git Bash. Select the plugin
 ID from the index;
 this example selects Attack Path Workbench:

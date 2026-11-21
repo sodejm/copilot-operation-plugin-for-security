@@ -8,7 +8,7 @@ The workbench operates on local JSON. It does not query Microsoft Sentinel, exec
 
 ## Prerequisites
 
-- Python 3.11 or later.
+- Python 3.14 or later.
 - A checkout of this repository.
 - For a real case, authorized and redacted source exports that fall within one tenant, workspace, and UTC time window.
 - A private, disposable filesystem if you retain artifacts with `--out-dir`. Do not store secrets, access tokens, raw credentials, or unnecessary personal data in case artifacts.

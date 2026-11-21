@@ -4,7 +4,7 @@ The Azure profile models control-plane entitlement chains from local Microsoft G
 and Azure Resource Manager evidence. It evaluates a declared controlled principal,
 user-selected targets and an explicit UTC analysis time. Reports describe predicates
 supported by the supplied model and assumptions, not compromise or successful
-exploitation. Both commands are standard-library-only and require Python 3.11+.
+exploitation. Both commands are standard-library-only and require Python 3.14+.
 
 ## Commands
 

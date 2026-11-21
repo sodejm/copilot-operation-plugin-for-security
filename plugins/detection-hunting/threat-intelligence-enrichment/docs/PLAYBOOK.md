@@ -15,7 +15,7 @@ integration.
 ## Prerequisites
 
 - A trusted repository checkout.
-- Python 3.11 or newer.
+- Python 3.14 or newer.
 - Bash or another shell that supports the commands below.
 - A private, disposable output directory.
 
@@ -91,7 +91,7 @@ reinterpret an absent provider result as a clean reputation finding.
 
 Common problems:
 
-- `datetime.UTC` or syntax/import errors usually mean Python is older than 3.11.
+- Syntax or import errors may indicate an unsupported interpreter; use Python 3.14 or newer.
 - `No module named cops` means the command was not run from the repository root.
 - A package validation dependency error requires the repository's documented
   development environment; do not bypass the schema or test gate.

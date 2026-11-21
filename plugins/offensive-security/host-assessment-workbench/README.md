@@ -7,7 +7,7 @@ cleanup receipt. It does not attempt privilege escalation or read credential val
 
 ## Start here
 
-Use Python 3.11 or newer and run from the repository root:
+Use Python 3.14 or newer and run from the repository root:
 
 ```bash
 python3 -m cops info host-assessment-workbench

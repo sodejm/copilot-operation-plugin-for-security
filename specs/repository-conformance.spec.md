@@ -20,7 +20,7 @@ and skills; distinguish included capabilities from potential future add-ons.
   adapter drift, plugin package, plugin unit tests, pytest scenarios, and bundled
   skill tests. Failures must produce a nonzero exit status.
 - Before any aggregate checks, both `make check` and its Python entry point
-  verify Python 3.11 or newer plus importable test dependencies and compatible
+  verify Python 3.14 or newer plus importable test dependencies and compatible
   installed versions from `requirements.txt`. Verification is offline and never
   installs packages. Missing or incompatible prerequisites stop the gate early
   with a virtual-environment setup and installation command.

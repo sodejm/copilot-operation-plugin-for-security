@@ -47,31 +47,6 @@ jobs:
           cat "$RUNNER_TEMP/cops-runtime/base.id" "$RUNNER_TEMP/cops-runtime/image.id"
           make check-laboratory PYTHON=python LABORATORY_ARGS="--runtime docker --image $(cat "$RUNNER_TEMP/cops-runtime/image.id")"
 
-  linux-bubblewrap-isolation:
-    name: Linux bubblewrap isolation
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v7
-      - name: Set up Python
-        uses: actions/setup-python@v7
-        with:
-          python-version: "3.11"
-          cache: pip
-      - name: Install bubblewrap, its AppArmor profile, and test dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install --yes apparmor-profiles apparmor-utils bubblewrap util-linux
-          sudo install -m 0644 /usr/share/apparmor/extra-profiles/bwrap-userns-restrict /etc/apparmor.d/bwrap-userns-restrict
-          sudo apparmor_parser -r /etc/apparmor.d/bwrap-userns-restrict
-          python -m pip install -r requirements.txt
-      - name: Verify required Linux isolation boundaries
-        run: >-
-          python -m pytest -m linux_bubblewrap
-          tests/integration/test_linux_bubblewrap_sandbox.py
-          tests/integration/test_linux_fd_scrubber_qualification.py
-          tests/integration/test_linux_cancellation_qualification.py -q
-
   portability-smoke:
     name: Operator smoke (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -85,7 +60,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
-          python-version: "3.11"
+          python-version: "3.14"
       - name: Check the operator entry point
         run: python -m cops doctor
       - name: Check the catalog and generated indexes
@@ -95,8 +70,6 @@ jobs:
           python -m cops generate --check
       - name: Install reachability acceptance test dependencies
         run: python -m pip install -r requirements.txt
-      - name: Verify test prerequisites
-        run: python scripts/agent/check_prerequisites.py
       - name: Exercise native checkpoint portability
         run: python -m pytest tests/integration/test_active_discovery_checkpoint_portability.py -q
       - name: Exercise native loopback host and service discovery
@@ -124,6 +97,12 @@ jobs:
       - name: Exercise Windows host assessment contract regressions
         if: runner.os == 'Windows'
         run: python -m pytest tests/test_host_windows_assessment.py tests/test_host_windows_service_acl.py tests/step_defs/test_host_windows_privilege_boundaries_steps.py -q
+      - name: Test SOC investigation and dependency boundaries
+        if: runner.os == 'Windows'
+        run: python -m pytest tests/step_defs/test_soc_investigation.py -q
+      - name: Validate SOC development package
+        if: runner.os == 'Windows'
+        run: python plugins/detection-hunting/soc-investigation-workbench/scripts/validate-package.py --allow-pending-vendor
       - name: Exercise bounded repository scanning
         run: python -m pytest tests/test_repository_context_reader.py tests/step_defs/test_repository_scanning.py -q
       - name: Exercise every offline demo
@@ -135,16 +114,13 @@ jobs:
 
   validate:
     runs-on: ubuntu-24.04
-    strategy:
-      matrix:
-        python-version: ["3.11", "3.13", "3.15"]
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.14"
           cache: pip
       - name: Install Linux isolation runtime, AppArmor profile, and test dependencies
         run: |
@@ -155,25 +131,3 @@ jobs:
           python3 -m pip install -r requirements.txt
       - name: Validate repository and plugin
         run: make check PYTHON=python3
-
-  soc-windows:
-    runs-on: windows-latest
-    strategy:
-      matrix:
-        python-version: ["3.11", "3.13", "3.15"]
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v7
-      - name: Set up Python
-        uses: actions/setup-python@v7
-        with:
-          python-version: ${{ matrix.python-version }}
-          cache: pip
-      - name: Install test dependencies
-        run: python -m pip install -r requirements.txt
-      - name: Verify test prerequisites
-        run: python scripts/agent/check_prerequisites.py
-      - name: Test SOC investigation and dependency boundaries
-        run: python -m pytest tests/step_defs/test_soc_investigation.py -q
-      - name: Validate SOC development package
-        run: python plugins/detection-hunting/soc-investigation-workbench/scripts/validate-package.py --allow-pending-vendor

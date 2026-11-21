@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="https://sodejm.github.io/copilot-operation-plugin-for-security/"><img src="https://img.shields.io/badge/docs-GitHub%20Pages-blue.svg" alt="Documentation Site"></a>
-  <img src="https://img.shields.io/badge/python-3.11+-3776AB.svg?logo=python&logoColor=white" alt="Python 3.11+">
+  <img src="https://img.shields.io/badge/python-3.14+-3776AB.svg?logo=python&logoColor=white" alt="Python 3.14+">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-PolyForm%20Noncommercial-green.svg" alt="License"></a>
   <img src="https://img.shields.io/badge/execution-100%25%20offline--first-success.svg" alt="Offline First">
   <a href="docs/COVERAGE_MATRIX.md"><img src="https://img.shields.io/badge/MITRE%20ATT%26CK-v18.0-orange.svg" alt="MITRE ATT&CK v18.0"></a>
@@ -42,7 +42,7 @@ Start with an ordinary-language goal, even if scope or evidence is incomplete.
 The [getting-started guide](docs/getting-started.md) separates drafting, local
 inspection, contract validation, and authorized execution.
 
-The core commands require **Python 3.11 or newer** and use the Python standard library. Cloning the repository requires Git and network access; you can also use an existing local copy. After setup, the `cops` commands below run locally without external network calls:
+The core commands require **Python 3.14 or newer** and use the Python standard library. Cloning the repository requires Git and network access; you can also use an existing local copy. After setup, the `cops` commands below run locally without external network calls:
 
 ```bash
 # 1. Clone the repository and enter the directory

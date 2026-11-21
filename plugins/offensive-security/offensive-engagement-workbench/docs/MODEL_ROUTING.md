@@ -8,7 +8,7 @@ grants no execution authority.
 
 ## Runtime and usage
 
-Run from a COPS repository checkout with Python 3.11 or newer, as described in the
+Run from a COPS repository checkout with Python 3.14 or newer, as described in the
 [installation guide](../README.md#installation-and-runtime-availability). Plugin
 installation alone does not install the root `cops` runtime. A standalone portable
 archive includes this skill and guide, but needs that checkout to run the advisor.

@@ -73,7 +73,7 @@ compatible dependency before importing the root SDK.
 
 ## Prepare the test environment
 
-Contributor checks require Python 3.11 or newer. From the repository root, create
+Contributor checks require Python 3.14 or newer. From the repository root, create
 a virtual environment and explicitly install the test dependencies:
 
 ```bash
@@ -122,7 +122,8 @@ declaration syntax, duplicate names, and prerelease or development versions fail
 explicitly. Extend the verifier and its tests before introducing other requirement
 formats or dependencies with different import names. The pytest upper bound keeps
 pytest-bdd 9.0.0 compatible until an upstream fix is available. These constraints
-are not a lockfile. CI tests Python 3.11, 3.13, and 3.15 on Linux and Windows.
+are not a lockfile. CI runs the full repository gate on Ubuntu with Python 3.14
+and focused portability checks on Linux, macOS, and Windows with Python 3.14.
 
 Native service DACL changes also require the real Windows SCM correction gate:
 
@@ -165,7 +166,7 @@ disconnecting; the verification gate does not fetch missing dependencies.
 - **Unexpected interpreter:** compare the executable printed by the preflight
   with your environment, then select it with Make's `PYTHON` override. The direct
   Python entry point uses the interpreter that launches it.
-- **Unsupported Python:** recreate the environment with Python 3.11 or newer.
+- **Unsupported Python:** recreate the environment with Python 3.14 or newer.
 - **Import failure:** recreate the environment and reinstall from the declaration;
   installed metadata alone does not prove a usable dependency.
 - **Invalid requirement declaration:** correct `requirements.txt` or extend the

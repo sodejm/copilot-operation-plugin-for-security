@@ -1,6 +1,6 @@
 # Shared evidence SDK v1
 
-Issue #25. Repository tooling, Python 3.11+, standard-library runtime. Existing
+Issue #25. Repository tooling, Python 3.14+, standard-library runtime. Existing
 portable plugins and their public formats retain their independent contracts.
 
 ## Evidence

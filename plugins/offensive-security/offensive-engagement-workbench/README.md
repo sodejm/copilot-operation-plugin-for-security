@@ -82,7 +82,7 @@ producer, consumer, validation rule, and example in detail.
 
 ## Installation and Runtime Availability
 
-Use the workbench from a COPS repository checkout with Python 3.11 or newer. The local CLI, demo, and offline package check use the Python standard library; they do not require an AI assistant, cloud credentials, or additional pip packages. From an existing checkout, start with `python3 -m cops doctor`. If a checkout is not present, the first two commands below require Git, network access to GitHub, and permission to create the destination directory. Run the remaining commands from the repository root:
+Use the workbench from a COPS repository checkout with Python 3.14 or newer. The local CLI, demo, and offline package check use the Python standard library; they do not require an AI assistant, cloud credentials, or additional pip packages. From an existing checkout, start with `python3 -m cops doctor`. If a checkout is not present, the first two commands below require Git, network access to GitHub, and permission to create the destination directory. Run the remaining commands from the repository root:
 
 ```bash
 git clone https://github.com/sodejm/copilot-operation-plugin-for-security.git
@@ -97,7 +97,7 @@ Run the `python3 -m cops engagement`, `lab`, and `diagnostics` commands below fr
 
 ### AI assistant hosts and portable export
 
-COPS publishes discovery metadata for these host surfaces. To install in an assistant, use that host's plugin or marketplace workflow to register the indicated marketplace and select `offensive-engagement-workbench`; grant only the filesystem and command permissions needed for the intended workflow. A host that invokes the local CLI also needs access to this checkout and Python 3.11 or newer.
+COPS publishes discovery metadata for these host surfaces. To install in an assistant, use that host's plugin or marketplace workflow to register the indicated marketplace and select `offensive-engagement-workbench`; grant only the filesystem and command permissions needed for the intended workflow. A host that invokes the local CLI also needs access to this checkout and Python 3.14 or newer.
 
 | Host surface | Repository discovery entry | Package entry | Host setup to verify |
 | --- | --- | --- | --- |
@@ -134,7 +134,7 @@ it does not switch models or launch provider calls. This is a template for an
 operator-supplied catalog: replace `model-catalog.json` and
 `<exact-host-model-id>` with an existing catalog path and an exact ID declared in
 that file. The portable plugin includes the skill and guide; executing the
-command also requires the COPS checkout and Python 3.11 or newer described above.
+command also requires the COPS checkout and Python 3.14 or newer described above.
 
 ## CLI usage templates
 

@@ -38,7 +38,7 @@ def make_inert_container_environment(
             "kube-hunter": "0.6.8",
             "kubescape": "3.0.0",
             "nmap": "7.94",
-            "python3": "3.11.8",
+            "python3": "3.14.8",
         },
         isolation={
             "isolation_type": "container_unprivileged",
@@ -89,7 +89,7 @@ def make_inert_vm_environment(
             "kubectl": "1.26.1",
             "kube-bench": "0.6.5",
             "nmap": "7.92",
-            "python3": "3.11.2",
+            "python3": "3.14.2",
         },
         isolation={
             "isolation_type": "vm_hypervisor",

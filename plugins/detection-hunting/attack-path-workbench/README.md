@@ -6,7 +6,7 @@ The illustrative contract is not a Wiz mapping. Wiz query rendering remains bloc
 
 ## Prerequisites and quick start
 
-Run from the repository root with Python 3.11 or later:
+Run from the repository root with Python 3.14 or later:
 
 ```bash
 python3 -m cops demo attack-path-workbench

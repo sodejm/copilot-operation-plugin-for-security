@@ -54,8 +54,8 @@ def check_prerequisites(root: Path = ROOT) -> bool:
     print(f"Python {'.'.join(map(str, sys.version_info[:3]))}: {sys.executable} ({environment})", flush=True)
     errors = []
     requirements = []
-    if sys.version_info < (3, 11):  # noqa: UP036 - diagnose unsupported Python runtimes
-        errors.append("Python 3.11 or newer is required for contributor checks")
+    if sys.version_info < (3, 14):  # noqa: UP036 - diagnose unsupported Python runtimes
+        errors.append("Python 3.14 or newer is required for contributor checks")
     else:
         try:
             requirements = read_requirements(root / "requirements.txt")
@@ -89,7 +89,7 @@ def check_prerequisites(root: Path = ROOT) -> bool:
         for error in errors:
             print(f"error: {error}", file=sys.stderr)
         print(
-            "Create and activate a Python 3.11+ virtual environment, then run:\n"
+            "Create and activate a Python 3.14+ virtual environment, then run:\n"
             "  python -m pip install -r requirements.txt\n"
             "Offline setup and troubleshooting: CONTRIBUTING.md",
             file=sys.stderr,

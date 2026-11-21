@@ -50,7 +50,7 @@ of tenant or cross-host validation are included.
   Reviewed untracked files produce a working-tree snapshot regardless of Git's
   untracked-status display configuration.
   Source and installed traversal and vendor destinations reject symlinks and
-  Windows directory reparse points, including junctions on Python 3.11.
+  Windows directory reparse points, including junctions.
   Validate the staged inventory and generated lock before replacing an installed
   snapshot; invalid source paths must preserve the previous snapshot and lock.
   Source inspection accepts the exact canonical repository path

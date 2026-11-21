@@ -185,7 +185,7 @@ do not start a run or grant external-action authority by their presence alone.
   prompts. Scripts must emit compact, high-signal summaries for low-token agent
   consumption and deterministic CI pass/fail gates.
 - Keep the scanner and plugin validator standard-library-only. Development tests
-  use `requirements.txt`. Target Python 3.11 or newer for contributor tooling.
+  use `requirements.txt`. Target Python 3.14 or newer for contributor tooling.
 - Never include matched credential values in scanner output or recommendation
   reports. Review context before sharing it with a model provider.
 - Run `make check` before handoff. This includes the plugin validator, plugin unit

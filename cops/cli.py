@@ -100,8 +100,8 @@ def command_doctor(*, contributor: bool, root: Path = ROOT) -> int:
     missing: list[str] = []
     print(f"COPS root: {root}")
     print(f"Python: {platform.python_version()} ({sys.executable})")
-    if sys.version_info < (3, 11):  # noqa: UP036 - diagnose unsupported Python runtimes
-        missing.append("Python 3.11 or newer")
+    if sys.version_info < (3, 14):  # noqa: UP036 - diagnose unsupported Python runtimes
+        missing.append("Python 3.14 or newer")
     try:
         records = validate_repository(root)
         print(f"Catalog: {len(records)} package(s), generated indexes current")

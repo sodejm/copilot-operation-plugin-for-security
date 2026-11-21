@@ -13,7 +13,7 @@ receipts. The approver field is a self-recorded assertion and grants no authorit
 
 ## Prerequisites and command
 
-Run from the COPS repository root with Python 3.11 or newer:
+Run from the COPS repository root with Python 3.14 or newer:
 
 ```sh
 P=plugins/incident-response/incident-response-sandbox

@@ -103,7 +103,7 @@ python scripts/check_laboratory.py --state-dir "$TMPDIR/cops-laboratory-evidence
 
 On a host without a verified container or network namespace boundary, the gate still exercises the local services so failures remain observable, then exits 2 only if all functional prerequisites and checks pass. A missing Linux EVTX parser or registered synthetic-wheel installer fails its required case with exit 1. It marks nonisolated results as `functional_evidence_only: true`. Its strict preflight also calls the workflow runner with `require_isolation=True` and verifies rejection happens before a state directory is created.
 
-The root `Makefile` exposes the strict gate. The default process runtime records functional evidence and cannot verify network isolation. For isolated acceptance, provision an image locally containing Python 3.11 or later, `cryptography==50.0.2`, `python-evtx==0.8.1`, `hexdump==3.3`, and `pip==26.1.2`, then supply its immutable image ID:
+The root `Makefile` exposes the strict gate. The default process runtime records functional evidence and cannot verify network isolation. For isolated acceptance, provision an image locally containing Python 3.14 or later, `cryptography==50.0.2`, `python-evtx==0.8.1`, `hexdump==3.3`, and `pip==26.1.2`, then supply its immutable image ID:
 
 ```console
 make check-laboratory
