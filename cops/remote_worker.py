@@ -6,18 +6,21 @@ import argparse
 import json
 import os
 import re
+import select
 import socket
 import stat
 import struct
 import sys
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, BinaryIO, Protocol
 
-from cops.contracts.models import ActionPlan, RunResult
+from cops.contracts.models import ActionPlan, CleanupReceipt, RunResult
 from cops.execution.control import ApprovalConsumptionReceipt
 from cops.execution.filesystem import SecureDirectoryError, open_directory_no_symlinks
+from cops.execution.process import WaitableCancellationSignal
 from cops.execution.ssh_execution import (
     SSH_EXECUTION_REQUEST_SCHEMA,
     RemoteAuthorizedRun,
@@ -25,7 +28,7 @@ from cops.execution.ssh_execution import (
     _validate_execution_limits,
     validate_remote_authorized_run,
 )
-from cops.execution.ssh_transport import SSH_PROTOCOL
+from cops.execution.ssh_transport import SSH_CANCELLABLE_PREFIX, SSH_PROTOCOL
 from cops.execution.supervisor_attestation import (
     SupervisorAttestationError,
     validate_exchange_nonce,
@@ -146,6 +149,7 @@ class _ValidatedRemoteExecutionRequest:
 class AuthorizedRunLike(Protocol):
     result: RunResult
     approval_receipt: ApprovalConsumptionReceipt
+    cleanup_receipt: CleanupReceipt | None
 
 
 class ReceiptExecutingWorker(Protocol):
@@ -157,6 +161,7 @@ class ReceiptExecutingWorker(Protocol):
         workspace_dir: Path | str | None = None,
         timeout_seconds: float = 30.0,
         max_output_bytes: int = 65_536,
+        cancellation_event: WaitableCancellationSignal | None = None,
     ) -> AuthorizedRunLike: ...
 
 
@@ -171,7 +176,13 @@ class SSHRemoteExecutionReceiver:
     max_request_bytes: int = 64 * 1024
     max_response_bytes: int = 1024 * 1024
 
-    def serve_one(self, input_stream: BinaryIO, output_stream: BinaryIO) -> None:
+    def serve_one(
+        self,
+        input_stream: BinaryIO,
+        output_stream: BinaryIO,
+        *,
+        cancellation_event: WaitableCancellationSignal | None = None,
+    ) -> None:
         serve_one_remote_execution_request(
             expected_host=self.expected_host,
             expected_worker_identity=self.expected_worker_identity,
@@ -181,6 +192,7 @@ class SSHRemoteExecutionReceiver:
             workspace_dir=self.workspace_dir,
             max_request_bytes=self.max_request_bytes,
             max_response_bytes=self.max_response_bytes,
+            cancellation_event=cancellation_event,
         )
 
 
@@ -191,18 +203,22 @@ def handle_remote_execution_request(
     expected_worker_identity: str,
     worker: ReceiptExecutingWorker,
     workspace_dir: Path | str | None = None,
+    cancellation_event: WaitableCancellationSignal | None = None,
 ) -> dict[str, Any]:
     request = _validate_remote_execution_request(
         document,
         expected_host=expected_host,
         expected_worker_identity=expected_worker_identity,
     )
+    if cancellation_event is not None and request.action_plan.offline_research is None:
+        raise SSHExecutionError("cancellable SSH execution requires the offline research profile")
     executed = worker.execute_plan_with_receipt(
         request.action_plan,
         authorization_id=request.authorization_id,
         workspace_dir=workspace_dir,
         timeout_seconds=request.timeout_seconds,
         max_output_bytes=request.max_output_bytes,
+        **({"cancellation_event": cancellation_event} if cancellation_event is not None else {}),
     )
     authorized_run = RemoteAuthorizedRun(
         result=executed.result,
@@ -303,6 +319,7 @@ def serve_one_remote_execution_request(
     workspace_dir: Path | str | None = None,
     max_request_bytes: int = 64 * 1024,
     max_response_bytes: int = 1024 * 1024,
+    cancellation_event: WaitableCancellationSignal | None = None,
 ) -> None:
     if max_request_bytes < 1 or max_response_bytes < 1:
         raise SSHExecutionError("remote execution byte limits must be positive")
@@ -313,6 +330,7 @@ def serve_one_remote_execution_request(
         expected_worker_identity=expected_worker_identity,
         worker=worker,
         workspace_dir=workspace_dir,
+        cancellation_event=cancellation_event,
     )
     encoded = json.dumps(response, sort_keys=True, separators=(",", ":")).encode("utf-8") + b"\n"
     if len(encoded) > max_response_bytes:
@@ -336,6 +354,7 @@ def relay_remote_execution_request(
     config: RemoteWorkerRelayConfig,
     max_request_bytes: int = _DEFAULT_MAX_REQUEST_BYTES,
     max_response_bytes: int = _DEFAULT_MAX_RESPONSE_BYTES,
+    cancellation_fd: int | None = None,
 ) -> dict[str, Any]:
     """Validate then relay one request to an already-running local supervisor."""
 
@@ -368,12 +387,16 @@ def relay_remote_execution_request(
             supervisor_gid=config.supervisor_gid,
         )
         supervisor.settimeout(_remaining(deadline))
-        supervisor.sendall(encoded)
-        supervisor.shutdown(socket.SHUT_WR)
+        if cancellation_fd is None:
+            supervisor.sendall(encoded)
+            supervisor.shutdown(socket.SHUT_WR)
+        else:
+            supervisor.sendall(SSH_CANCELLABLE_PREFIX + encoded)
         raw = _read_bounded_supervisor_response(
             supervisor,
             max_response_bytes=max_response_bytes,
             deadline=deadline,
+            cancellation_fd=cancellation_fd,
         )
     except SSHExecutionError:
         raise
@@ -461,22 +484,42 @@ def _verify_supervisor_peer(
         raise SSHExecutionError("remote worker supervisor peer identity mismatch")
 
 
-def _read_one_json_document(input_stream: BinaryIO, *, max_request_bytes: int) -> dict[str, Any]:
+def read_remote_request_frame(
+    read: Callable[[int], bytes], *, max_request_bytes: int, permit_cancellation: bool
+) -> tuple[bytes, bool]:
+    """Read one bounded request, waiting for EOF in legacy mode."""
     if max_request_bytes < 1:
         raise SSHExecutionError("remote execution byte limits must be positive")
-    chunks: list[bytes] = []
-    total = 0
+    raw = bytearray()
+    first_read = True
+    cancellable = False
     while True:
-        chunk = input_stream.read(min(65_536, max_request_bytes + 1 - total))
+        chunk = read(min(65_536, max_request_bytes + 1 - len(raw)))
         if not chunk:
             break
-        chunks.append(chunk)
-        total += len(chunk)
-        if total > max_request_bytes:
+        if first_read:
+            cancellable = permit_cancellation and chunk.startswith(SSH_CANCELLABLE_PREFIX)
+            if cancellable:
+                chunk = chunk[len(SSH_CANCELLABLE_PREFIX):]
+            first_read = False
+        raw.extend(chunk)
+        if len(raw) > max_request_bytes:
             raise SSHExecutionError("remote execution request exceeds the byte limit")
-    raw = b"".join(chunks)
+        if cancellable and b"\n" in chunk:
+            break
     if not raw.endswith(b"\n") or raw.count(b"\n") != 1:
-        raise SSHExecutionError("remote execution requires one newline-delimited JSON document")
+        raise SSHExecutionError("remote execution requires one complete newline-delimited JSON document")
+    return bytes(raw), cancellable
+
+
+def _read_one_json_document(input_stream: BinaryIO, *, max_request_bytes: int) -> dict[str, Any]:
+    raw, _ = read_remote_request_frame(
+        input_stream.read, max_request_bytes=max_request_bytes, permit_cancellation=False
+    )
+    return _decode_request_document(raw)
+
+
+def _decode_request_document(raw: bytes) -> dict[str, Any]:
     try:
         document = json.loads(raw[:-1], object_pairs_hook=_reject_duplicate_fields)
     except (UnicodeDecodeError, json.JSONDecodeError) as err:
@@ -491,10 +534,23 @@ def _read_bounded_supervisor_response(
     *,
     max_response_bytes: int,
     deadline: float,
+    cancellation_fd: int | None = None,
 ) -> bytes:
     chunks: list[bytes] = []
     total = 0
+    poller = select.poll() if cancellation_fd is not None else None
+    if poller is not None:
+        poller.register(supervisor.fileno(), select.POLLIN)
+        poller.register(cancellation_fd, select.POLLIN)
     while True:
+        if poller is not None and cancellation_fd is not None:
+            ready = dict(poller.poll(max(1, int(_remaining(deadline) * 1000))))
+            if cancellation_fd in ready:
+                # EOF or any surplus input is a terminal cancellation signal.
+                supervisor.shutdown(socket.SHUT_WR)
+                cancellation_fd = None
+            if supervisor.fileno() not in ready:
+                continue
         supervisor.settimeout(_remaining(deadline))
         chunk = supervisor.recv(min(65_536, max_response_bytes + 1 - total))
         if not chunk:
@@ -521,12 +577,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--config", type=Path, default=DEFAULT_REMOTE_WORKER_RELAY_CONFIG)
     args = parser.parse_args(argv)
     try:
-        document = _read_one_json_document(
-            sys.stdin.buffer,
+        input_fd = sys.stdin.buffer.fileno()
+        raw, cancellable = read_remote_request_frame(
+            lambda size: os.read(input_fd, size),
             max_request_bytes=_DEFAULT_MAX_REQUEST_BYTES,
+            permit_cancellation=True,
         )
         config = RemoteWorkerRelayConfig.from_file(args.config)
-        response = relay_remote_execution_request(document, config=config)
+        response = relay_remote_execution_request(
+            _decode_request_document(raw), config=config, cancellation_fd=input_fd if cancellable else None
+        )
         encoded = json.dumps(response, sort_keys=True, separators=(",", ":")).encode("utf-8") + b"\n"
         if len(encoded) > _DEFAULT_MAX_RESPONSE_BYTES:
             raise SSHExecutionError("remote execution response exceeds the byte limit")

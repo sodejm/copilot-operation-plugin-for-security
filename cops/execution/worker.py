@@ -70,6 +70,7 @@ from .offline_research import (
     validate_offline_request,
     verify_isolation_observation,
 )
+from .process import WaitableCancellationSignal
 from .sandbox import ExecutionSandbox, LinuxBubblewrapSandbox, OfflineIsolationViolation
 
 
@@ -529,7 +530,7 @@ class IsolatedWorker:
         authorization: str,
         workspace_dir: Path | None = None,
         cancel_requested: bool = False,
-        cancellation_event: Event | None = None,
+        cancellation_event: WaitableCancellationSignal | None = None,
         failure_injection: dict[str, Any] | None = None,
     ) -> RunResult:
         """Execute an ActionPlan under a consume-only authorization identifier."""
@@ -549,7 +550,7 @@ class IsolatedWorker:
         authorization_id: str,
         workspace_dir: Path | None = None,
         cancel_requested: bool = False,
-        cancellation_event: Event | None = None,
+        cancellation_event: WaitableCancellationSignal | None = None,
         failure_injection: dict[str, Any] | None = None,
         timeout_seconds: float | None = None,
         max_output_bytes: int | None = None,
@@ -575,7 +576,7 @@ class IsolatedWorker:
         authorization_id: str,
         workspace_dir: Path | None,
         cancel_requested: bool,
-        cancellation_event: Event | None,
+        cancellation_event: WaitableCancellationSignal | None,
         failure_injection: dict[str, Any] | None,
         timeout_seconds: float | None,
         max_output_bytes: int | None,
@@ -1105,11 +1106,17 @@ class IsolatedWorker:
                                     "offline research cat command differs from the approved profile"
                                 )
 
+                            offline_signal = cancellation_event if offline_profile is not None else None
+                            offline_cancellation = (
+                                {"cancellation_event": offline_signal} if offline_signal is not None else {}
+                            )
+
                             def run_bound_probe(
                                 command: Any,
                                 *,
                                 _step_id: str = step_id,
                                 _operation_workspace_fd: int = operation_workspace_fd,
+                                _offline_signal: WaitableCancellationSignal | None = offline_signal,
                                 **kwargs: Any,
                             ) -> Any:
                                 offline_arguments = (
@@ -1136,12 +1143,16 @@ class IsolatedWorker:
                                     if offline_profile is not None
                                     else {}
                                 )
-                                return self.sandbox.run(
+                                probe = self.sandbox.run(
                                     command,
                                     expected_workspace_fd=_operation_workspace_fd,
                                     **offline_arguments,
+                                    **({"cancellation_event": _offline_signal} if _offline_signal is not None else {}),
                                     **kwargs,
                                 )
+                                if _offline_signal is not None and _offline_signal.is_set():
+                                    raise KeyboardInterrupt
+                                return probe
 
                             prepared = prepare_executable(
                                 adapter,
@@ -1250,8 +1261,11 @@ class IsolatedWorker:
 
                                 if operation_egress_policy is None:
                                     proc = run_prepared_adapter(
-                                        **({"operation_env": credential_env} if credential_env else {})
+                                        **({"operation_env": credential_env} if credential_env else {}),
+                                        **offline_cancellation,
                                     )
+                                    if offline_signal is not None and offline_signal.is_set():
+                                        raise KeyboardInterrupt
                                 elif isinstance(operation_egress_policy, (WebApiReplayEnvelope, AgentMcpEnvelope)):
                                     envelope_data = operation_egress_policy.to_dict()
                                     is_laboratory = isinstance(operation_egress_policy, AgentMcpEnvelope)

@@ -14,6 +14,7 @@ from cops.contracts.models import ActionPlan, CleanupReceipt, RunResult
 from cops.evidence.canonical import EvidenceError, digest, timestamp
 
 from .control import ApprovalConsumptionReceipt
+from .process import CancellationSignal
 from .ssh_transport import (
     SSHRemoteDispatcher,
     SSHRemoteEndpointInventory,
@@ -121,6 +122,7 @@ class SSHExecutionDispatcher:
         timeout_seconds: float = 30.0,
         max_output_bytes: int = 65_536,
         request_id: str | None = None,
+        cancellation_event: CancellationSignal | None = None,
     ) -> RemoteAuthorizedRun:
         return self.execute_with_evidence(
             approved_worker_identity=approved_worker_identity,
@@ -129,6 +131,7 @@ class SSHExecutionDispatcher:
             timeout_seconds=timeout_seconds,
             max_output_bytes=max_output_bytes,
             request_id=request_id,
+            cancellation_event=cancellation_event,
         )[0]
 
     def execute_with_evidence(
@@ -140,6 +143,7 @@ class SSHExecutionDispatcher:
         timeout_seconds: float = 30.0,
         max_output_bytes: int = 65_536,
         request_id: str | None = None,
+        cancellation_event: CancellationSignal | None = None,
     ) -> tuple[RemoteAuthorizedRun, dict[str, Any]]:
         """Execute and retain the exact response plus its re-verification context."""
         if not isinstance(approved_worker_identity, str) or not approved_worker_identity:
@@ -148,6 +152,8 @@ class SSHExecutionDispatcher:
             raise SSHExecutionError("authorization_id must be non-empty")
         if not isinstance(action_plan, ActionPlan):
             raise SSHExecutionError("action_plan must be an ActionPlan")
+        if cancellation_event is not None and action_plan.offline_research is None:
+            raise SSHExecutionError("cancellable SSH execution requires the offline research profile")
         _validate_execution_limits(timeout_seconds, max_output_bytes)
         exchange_id = request_id or str(uuid.uuid4())
         try:
@@ -174,6 +180,7 @@ class SSHExecutionDispatcher:
                 "endpoint_identity": endpoint_identity_document,
             },
             request_id=exchange_id,
+            **({"cancellation_event": cancellation_event} if cancellation_event is not None else {}),
         )
         if response.worker_id != approved_worker_identity:
             raise SSHExecutionError("remote response worker identity mismatch")

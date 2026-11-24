@@ -57,3 +57,20 @@ identity. It does not replace worker-side authorization verification, approval
 consumption, sandboxing, or egress mediation. The process must run under a
 dedicated operating-system identity because a hostile same-UID process can alter
 process memory or other files owned by that identity.
+
+## In-flight cancellation
+
+For an offline research plan, the operator may opt into cancellation by sending an ASCII `!` before the existing
+newline-delimited request. This mode accepts one bounded JSON frame and holds the
+SSH input channel open while the worker runs. The relay forwards the frame on its
+authenticated supervisor socket and half-closes its write side on SSH input EOF
+or further input. Further bytes cannot request any action. Existing callers
+continue to submit a frame followed by EOF.
+
+The supervisor treats write-side closure or further input on a cancellable
+connection as cancellation. It checks cancellation before releasing a child
+through the execution gate and during bounded child collection. Once an
+authorization has been consumed, cancellation follows the worker's normal
+result and durable cleanup path. The client continues reading within the
+existing transport limits and verifies the signed result and cleanup receipt.
+An interrupted or missing response does not establish that cleanup completed.

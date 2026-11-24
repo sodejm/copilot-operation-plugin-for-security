@@ -406,7 +406,14 @@ class LinuxBubblewrapSandbox:
             raise OfflineIsolationViolation("offline sandbox process differs from approved isolation")
 
     @classmethod
-    def _wait_for_execution_gate(cls, child_pid: int, gate_fd: int, gate_writer: int, deadline: float) -> None:
+    def _wait_for_execution_gate(
+        cls,
+        child_pid: int,
+        gate_fd: int,
+        gate_writer: int,
+        deadline: float,
+        cancellation_event: CancellationSignal | None = None,
+    ) -> None:
         # bwrap publishes child-pid before loopback setup. Only its final blocking
         # read proves setup has finished; the worker alone holds the empty pipe's
         # writer and must keep it open until observation and authorization finish.
@@ -414,6 +421,8 @@ class LinuxBubblewrapSandbox:
             raise SandboxReadinessError("offline sandbox execution gate syscall ABI is unsupported")
         pipe = os.fstat(gate_writer)
         while time.monotonic() < deadline:
+            if cancellation_event is not None and cancellation_event.is_set():
+                raise KeyboardInterrupt
             if cls._execution_gate_is_blocked(child_pid, gate_fd, pipe.st_dev, pipe.st_ino):
                 return
             time.sleep(max(0.0, min(0.01, deadline - time.monotonic())))
@@ -456,10 +465,13 @@ class LinuxBubblewrapSandbox:
         gate_fd: int,
         gate_writer: int,
         child_pids: list[int] | None = None,
+        cancellation_event: CancellationSignal | None = None,
     ) -> dict[str, Any]:
         os.set_blocking(info_fd, False)
         content = bytearray()
         while time.monotonic() < deadline:
+            if cancellation_event is not None and cancellation_event.is_set():
+                raise KeyboardInterrupt
             readable, _, _ = select.select([info_fd], [], [], max(0.0, min(0.05, deadline - time.monotonic())))
             if not readable:
                 continue
@@ -476,7 +488,7 @@ class LinuxBubblewrapSandbox:
             child_pid = metadata.get("child-pid") if isinstance(metadata, dict) else None
             if type(child_pid) is not int or child_pid <= 0:
                 raise SandboxReadinessError("offline sandbox process metadata is invalid")
-            cls._wait_for_execution_gate(child_pid, gate_fd, gate_writer, deadline)
+            cls._wait_for_execution_gate(child_pid, gate_fd, gate_writer, deadline, cancellation_event)
             measured = cls._measure_network_boundary(child_pid)
             if child_pids is not None:
                 child_pids.append(child_pid)
@@ -601,8 +613,11 @@ class LinuxBubblewrapSandbox:
                             gate_fd=child_gate_fd,
                             gate_writer=gate_write,
                             child_pids=child_pids,
+                            cancellation_event=cancellation_event,
                         )
                         self._authorize_offline_observation(observation, expected_isolation_digest, isolation_observer)
+                        if cancellation_event is not None and cancellation_event.is_set():
+                            raise KeyboardInterrupt
                         if gate_authorizer is not None:
                             gate = os.fstat(gate_write)
                             gate_authorizer(
@@ -617,6 +632,8 @@ class LinuxBubblewrapSandbox:
                                 raise OfflineIsolationViolation(
                                     "offline sandbox authorization exceeded the run deadline"
                                 )
+                        if cancellation_event is not None and cancellation_event.is_set():
+                            raise KeyboardInterrupt
                         os.write(gate_write, b"1")
                         os.close(gate_write)
                         gate_write = -1

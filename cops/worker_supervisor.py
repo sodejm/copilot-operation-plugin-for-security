@@ -12,6 +12,7 @@ import json
 import math
 import os
 import re
+import select
 import signal
 import socket
 import stat
@@ -39,7 +40,7 @@ from cops.execution.supervisor_attestation import (
     validate_attestation_key_id,
 )
 from cops.execution.worker import IsolatedWorker, WorkerCapabilityInventory
-from cops.remote_worker import SSHRemoteExecutionReceiver
+from cops.remote_worker import SSHExecutionError, SSHRemoteExecutionReceiver, read_remote_request_frame
 
 CONFIG_SCHEMA = "cops.worker-supervisor-config/v2"
 MAX_REQUEST_BYTES = 64 * 1024
@@ -396,23 +397,33 @@ def build_receiver(config: WorkerSupervisorConfig) -> SSHRemoteExecutionReceiver
     )
 
 
-def _read_complete_request(connection: socket.socket, deadline: float) -> bytes:
-    """Wait for write shutdown before execution, rejecting trailing or partial bytes."""
-    data = bytearray()
-    while True:
+class _RelayCancellation:
+    def __init__(self, connection: socket.socket) -> None:
+        self._connection = connection
+
+    def is_set(self) -> bool:
+        return self.wait(0)
+
+    def wait(self, timeout: float) -> bool:
+        # EOF, more input, and socket errors all remain readable. No monitor
+        # thread or socket read is needed to preserve the cancellation signal.
+        poller = select.poll()
+        poller.register(self._connection.fileno(), select.POLLIN)
+        return bool(poller.poll(math.ceil(timeout * 1000)))
+
+
+def _read_complete_request(connection: socket.socket, deadline: float) -> tuple[bytes, bool]:
+    def read(size: int) -> bytes:
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             raise WorkerSupervisorError("relay request deadline exceeded")
         connection.settimeout(remaining)
-        chunk = connection.recv(min(65_536, MAX_REQUEST_BYTES + 1 - len(data)))
-        if not chunk:
-            break
-        data.extend(chunk)
-        if len(data) > MAX_REQUEST_BYTES:
-            raise WorkerSupervisorError("relay request exceeds the byte limit")
-    if not data.endswith(b"\n") or data.count(b"\n") != 1:
-        raise WorkerSupervisorError("relay requires one complete newline-delimited request")
-    return bytes(data)
+        return connection.recv(size)
+
+    try:
+        return read_remote_request_frame(read, max_request_bytes=MAX_REQUEST_BYTES, permit_cancellation=True)
+    except SSHExecutionError as err:
+        raise WorkerSupervisorError(str(err)) from err
 
 
 def serve_connection(
@@ -431,9 +442,12 @@ def serve_connection(
     if (peer_uid, peer_gid) != (config.relay_uid, config.relay_gid):
         raise WorkerSupervisorError("relay peer identity mismatch")
     request_deadline = time.monotonic() + timeout_seconds
-    request = _read_complete_request(connection, request_deadline)
+    request, cancellable = _read_complete_request(connection, request_deadline)
     output = io.BytesIO()
-    receiver.serve_one(io.BytesIO(request), output)
+    if cancellable:
+        receiver.serve_one(io.BytesIO(request), output, cancellation_event=_RelayCancellation(connection))
+    else:
+        receiver.serve_one(io.BytesIO(request), output)
     response = attestor.attest(request, output.getvalue())
     if len(response) > MAX_RESPONSE_BYTES or not response.endswith(b"\n") or response.count(b"\n") != 1:
         raise WorkerSupervisorError("worker response framing or byte limit is invalid")

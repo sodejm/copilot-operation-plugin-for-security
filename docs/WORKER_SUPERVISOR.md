@@ -323,6 +323,19 @@ it consumes approval. The supervisor allows 30 seconds to receive the complete
 request and 30 seconds to deliver the completed response; the separately
 approved worker execution timeout bounds the intervening run.
 
+For an SSH request sent with the operator's opt-in `cops worker execute
+--cancel-on-interrupt`, the relay uses cancellable framing rather than closing
+its supervisor write side after the request. Once it has received the complete
+frame, the supervisor treats EOF or surplus input on that authenticated relay
+connection as a cancellation signal. It passes that signal only to an
+offline-research worker request; a cancellable request for any other profile
+fails closed. The worker completes mandatory cleanup before the supervisor
+attests and returns the response. The relay and operator must verify that signed
+response before treating cleanup as evidenced; an SSH disconnect or either
+deadline expiring can leave the result unknown rather than proving cancellation
+or cleanup. See [Remote Worker SSH Transport](REMOTE_WORKER_SSH_TRANSPORT.md)
+for the operator behavior and no-retry rule.
+
 The authority service must pin the supervisor worker process identity, including
 its PID, before accepting a consume request. A restarted supervisor requires a
 new authority binding. Starting the supervisor before the authority is ready is

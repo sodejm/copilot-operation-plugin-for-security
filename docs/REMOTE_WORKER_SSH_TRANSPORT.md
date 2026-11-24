@@ -79,3 +79,36 @@ same care as the supervisor copy. This control does not by itself prove sandbox
 or egress configuration on a deployed host. Run the client and worker under
 dedicated operating-system identities and provision the SSH key, known-host pin,
 worker identity, and attestation key outside the request payload.
+
+## Opt-in offline cancellation
+
+For an approved plan using the offline-research profile, an operator may add
+`--cancel-on-interrupt` to `cops worker execute`. The option replaces the
+client's normal `SIGINT` exit with a cancellation request: after the complete
+request frame has been written, the client closes SSH standard input and keeps
+reading the bounded response. The forced-command relay marks this framing as
+cancellable, retains its write side to the installed supervisor, and converts
+the resulting input EOF (or surplus input) into EOF on that local supervisor
+connection. The supervisor observes that EOF without reading further request
+bytes and passes a cancellation signal to the worker.
+
+This is deliberately an offline-only facility. A cancellable request whose plan
+does not carry the offline-research profile is rejected before worker execution;
+the option does not widen the plan, approval, egress policy, tool allowlist, or
+execution limits. An interrupt before the complete request frame is delivered
+can only cause the exchange to fail; it is not evidence that a worker started or
+that cleanup occurred.
+
+When the worker accepts cancellation, it records a cancelled or, where an
+already-dispatched non-idempotent operation makes the outcome unknowable, an
+uncertain result. It still performs its mandatory cleanup and returns the normal
+response containing cleanup status and cleanup evidence. The installed
+supervisor attests that exact response, so accept a cancellation outcome only
+after the operator verifies the returned attestation and its bound receipt.
+
+Cancellation is not a delivery guarantee. The SSH exchange remains bounded by
+the approved execution timeout and transport deadline; timeout, output overflow,
+or a broken SSH connection can terminate the local SSH process and discard its
+output. In those cases the operator has no signed response and must treat the
+run and cleanup state as unknown, must not automatically retry, and must
+reconcile through the approved authority and durable worker cleanup evidence.
