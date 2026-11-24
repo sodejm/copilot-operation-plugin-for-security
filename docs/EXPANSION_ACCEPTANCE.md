@@ -589,8 +589,36 @@ A separate writable Linux Git checkout passed `make check` (4,574 pytest passes,
 12 skips, zero failures/errors), `make check-docs` (58 pages) and Ruff. Skips
 remain native Windows junction/device/PowerShell behavior, optional Evtx, the
 unsupported-platform executable boundary and two pinned-installer scenarios.
-These skips do not count as qualified capabilities. No production deployment,
-hosted validation of this source increment, or release was performed. #328 still
-requires the intended administrator trust model, installed SSH/authority roles,
-and separately administered pre-execution observer integration; #331 remains
-blocked on that qualification.
+These skips do not count as qualified capabilities. This source increment did
+not include an installed SSH deployment or hosted validation.
+
+### Installed Ubuntu VM qualification (#328)
+
+The dedicated, single-maintainer VM ran Ubuntu 24.04.5 LTS ARM64, Linux
+6.8.0-149-generic, Python 3.14.10, Bubblewrap 0.9.0-1ubuntu0.3 and OpenSSH
+1:9.6p1-3ubuntu13.20 against behavior revision
+`0686a500cf3573e56cb031b0c4fa62c7c8ac017b`. The VM preserved AppArmor enforcement
+with Ubuntu's shipped Bubblewrap user-namespace profile and an enforcing
+read-only observer profile. The common administrator can change policy,
+services and evidence across roles. The qualification covers service-account
+and process separation under that administrator.
+
+The installed fixture passed 16 cases with zero skips. The separate observer
+signed approval and release evidence for the inert pinned GNU cat corpus.
+Signaling the installed CLI after release returned run exit code 130 over the
+authenticated SSH path. The VM verified that cat and both Bubblewrap processes
+were reaped. The signed completed receipt matched the durable v2 journal with
+zero unresolved effects and zero runtime result artifacts. Shutdown removed the
+relay and authority sockets. Startup recovered a journal seeded by a separate
+interrupted worker-role fixture before accepting requests.
+
+The installed matrix covered observer outage, missing and stale approval
+evidence, missing, stale and substituted release evidence, configuration and
+inventory permissions, inventory drift, tool pins, output bounds, destination
+allowlisting and credential exclusion. The unprivileged Ubuntu regression suite
+passed 195 tests with zero skips, including request/response binding, isolation
+and cleanup recovery. Operator provisioning is documented in
+[Worker supervisor](WORKER_SUPERVISOR.md). The
+[#328 evidence record](https://github.com/sodejm/copilot-operations-plugin-for-security/issues/328#issuecomment-7120409198)
+lists regression selectors. The qualification bundle supplied to the maintainer
+records the installed commands, package versions and fixture scripts.

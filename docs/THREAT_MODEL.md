@@ -109,14 +109,16 @@ flowchart LR
 
 The flow table defines the project-specific boundaries behind this overview.
 
-Offline-supervisor profile selection is not an independent observer trust
-boundary. Tests cover trusted configuration selection, profile stripping,
-credential/egress exclusion, retained cleanup recovery, and real Linux receiver
-execution with an in-process test authority. They do not qualify a deployed SSH
-host or supply separately administered observation to approval. The deployment
-owner must resolve host/observer administration and protected trust-material
-provisioning for #328 before #331 production acceptance; these remain open risks,
-not controls implemented by this source increment. Human review remains pending.
+The single-maintainer Ubuntu SSH deployment uses a separate observer service
+account to sign pre-execution isolation measurements. The authority verifies
+the approval-phase observation before consumption, and the supervisor obtains
+a fresh release-phase observation before opening the execution gate. The
+observer key is inaccessible to the worker, relay and authority. Its enforced
+AppArmor profile limits host access to the metadata needed for verification.
+The VM administrator can alter the services, enforcement and evidence across
+these identities. Installed #328 qualification covers separation between
+service accounts and processes under that administrator. Cross-administrator
+assurance remains outside the qualification scope.
 
 Authentication of an upstream service does not make its content trusted. Review
 the effective filesystem path, subprocess arguments, network recipient, cloud
