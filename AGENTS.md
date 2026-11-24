@@ -295,3 +295,7 @@ Squad prompts, templates, skills, ceremonies, and model defaults. In particular:
 
 This project uses Squad. To run the Squad coordinator in OpenAI Codex, use the `squad` custom agent defined in `.codex/agents/squad.toml` with the team defined in `.squad/team.md`. Shared state is served by the `squad_state` MCP server in `.codex/config.toml`.
 <!-- squad:end:codex -->
+
+## Agent interoperability
+
+For every change to agent instructions, tools, or protocol adapters, check the [AAIF project directory](https://aaif.io/projects) and follow the current upstream specification for each interface this repository implements. Use the AGENTS.md convention for repository guidance. Record the protocol revision and compatibility checks when an interface changes. Review protocol and instruction changes against the upstream specification and preserve the documented authorization and evidence boundaries.

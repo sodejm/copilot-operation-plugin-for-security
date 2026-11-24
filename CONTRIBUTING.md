@@ -120,9 +120,7 @@ The verifier checks stable numeric releases, including post
 releases, and imports the name with hyphens replaced by underscores. Unsupported
 declaration syntax, duplicate names, and prerelease or development versions fail
 explicitly. Extend the verifier and its tests before introducing other requirement
-formats or dependencies with different import names. The pytest upper bound keeps
-pytest-bdd 9.0.0 compatible until an upstream fix is available. These constraints
-are not a lockfile. CI runs the full repository gate on Ubuntu with Python 3.14
+formats or dependencies with different import names. pytest-bdd 9.0.1 supports the fixture API in pytest 9.2. CI runs the full repository gate on Ubuntu with Python 3.14
 and focused portability checks on Linux, macOS, and Windows with Python 3.14.
 
 Native service DACL changes also require the real Windows SCM correction gate:
