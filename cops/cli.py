@@ -7,13 +7,13 @@ import importlib.util
 import json
 import platform
 import shlex
-import signal
 import shutil
+import signal
 import subprocess
 import sys
-from threading import Event
 from collections.abc import Sequence
 from pathlib import Path
+from threading import Event
 from typing import Any
 
 from .catalog import ROOT, CatalogError, PluginRecord, find_plugin, plugin_records, validate_declared_command
