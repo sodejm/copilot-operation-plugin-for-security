@@ -24,6 +24,7 @@ from types import MappingProxyType
 from typing import Any
 
 from cops.execution.filesystem import SecureDirectoryError, open_directory_no_symlinks
+from cops.execution.process import CancellationSignal
 from cops.execution.supervisor_attestation import (
     SupervisorAttestationError,
     load_attestation_key,
@@ -31,6 +32,7 @@ from cops.execution.supervisor_attestation import (
 )
 
 SSH_PROTOCOL = "cops.remote-worker/v1"
+SSH_CANCELLABLE_PREFIX = b"!"
 SSH_ENDPOINT_INVENTORY_SCHEMA = "cops.ssh-remote-endpoint-inventory/v1"
 
 _HOST_LABEL = re.compile(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?")
@@ -295,7 +297,14 @@ class SSHRemoteDispatcher:
         self._limits = limits
         self._ssh_executable = ssh_executable
 
-    def request(self, worker_id: str, payload: Mapping[str, object], *, request_id: str) -> SSHRemoteResponse:
+    def request(
+        self,
+        worker_id: str,
+        payload: Mapping[str, object],
+        *,
+        request_id: str,
+        cancellation_event: CancellationSignal | None = None,
+    ) -> SSHRemoteResponse:
         """Dispatch one request using only the endpoint bound to ``worker_id``."""
         endpoint = self._inventory.resolve(worker_id)
         transport = SSHRemoteTransport(
@@ -303,7 +312,7 @@ class SSHRemoteDispatcher:
             limits=self._limits,
             ssh_executable=self._ssh_executable,
         )
-        return transport.request(payload, request_id=request_id)
+        return transport.request(payload, request_id=request_id, cancellation_event=cancellation_event)
 
 
 @dataclass(frozen=True)
@@ -334,7 +343,13 @@ class SSHRemoteTransport:
         self._limits = limits or SSHTransportLimits()
         self._ssh_executable = ssh_executable
 
-    def request(self, payload: Mapping[str, object], *, request_id: str) -> SSHRemoteResponse:
+    def request(
+        self,
+        payload: Mapping[str, object],
+        *,
+        request_id: str,
+        cancellation_event: CancellationSignal | None = None,
+    ) -> SSHRemoteResponse:
         """Exchange one bounded request and verify every response binding."""
         if not isinstance(payload, Mapping):
             raise TypeError("SSH request payload must be a mapping")
@@ -409,6 +424,7 @@ class SSHRemoteTransport:
                     max_response_bytes=self._limits.max_response_bytes,
                     max_diagnostic_bytes=self._limits.max_diagnostic_bytes,
                     pass_fds=executable_pass_fds,
+                    cancellation_event=cancellation_event,
                 )
                 if executable_descriptor >= 0:
                     _verify_executable_unchanged(executable_descriptor, executable_metadata)
@@ -725,18 +741,22 @@ def _run_exchange(
     max_response_bytes: int,
     max_diagnostic_bytes: int,
     pass_fds: tuple[int, ...] = (),
+    cancellation_event: CancellationSignal | None = None,
 ) -> _CollectedExchange:
     if os.name != "posix":
         raise SSHTransportError("SSH transport requires POSIX process-group support")
+    if cancellation_event is not None and cancellation_event.is_set():
+        raise SSHTransportError("SSH exchange cancelled before dispatch")
     with tempfile.TemporaryFile() as request_file:
-        request_file.write(request_bytes)
-        request_file.seek(0)
+        if cancellation_event is None:
+            request_file.write(request_bytes)
+            request_file.seek(0)
         try:
             process = subprocess.Popen(
                 list(command),
                 cwd=cwd,
                 env={"LANG": "C", "LC_ALL": "C", "PATH": "/usr/bin:/bin"},
-                stdin=request_file,
+                stdin=request_file if cancellation_event is None else subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 close_fds=True,
@@ -764,7 +784,17 @@ def _run_exchange(
             for stream, name in streams:
                 os.set_blocking(stream.fileno(), False)
                 selector.register(stream, selectors.EVENT_READ, name)
+            input_stream = process.stdin
+            pending = memoryview(SSH_CANCELLABLE_PREFIX + request_bytes) if input_stream is not None else memoryview(b"")
+            if input_stream is not None:
+                os.set_blocking(input_stream.fileno(), False)
+                selector.register(input_stream, selectors.EVENT_WRITE)
             while selector.get_map():
+                if cancellation_event is not None and cancellation_event.is_set() and input_stream is not None:
+                    if pending:
+                        selector.unregister(input_stream)
+                    input_stream.close()
+                    input_stream = None
                 remaining = deadline - time.monotonic()
                 if not terminated and remaining <= 0:
                     timed_out = True
@@ -780,6 +810,19 @@ def _run_exchange(
                 events = selector.select(wait)
                 for key, _ in events:
                     stream = key.fileobj
+                    if stream is input_stream:
+                        try:
+                            pending = pending[os.write(stream.fileno(), pending[:_READ_CHUNK]):]
+                        except BlockingIOError:
+                            continue
+                        except BrokenPipeError:
+                            selector.unregister(stream)
+                            stream.close()
+                            input_stream = None
+                            continue
+                        if not pending:
+                            selector.unregister(stream)
+                        continue
                     try:
                         chunk = os.read(stream.fileno(), _READ_CHUNK)
                     except BlockingIOError:
@@ -815,6 +858,8 @@ def _run_exchange(
                 _terminate_process_group(process, process_group_id)
             if selector is not None:
                 selector.close()
+            if process.stdin is not None:
+                process.stdin.close()
             for stream, _ in streams:
                 if not stream.closed:
                     stream.close()

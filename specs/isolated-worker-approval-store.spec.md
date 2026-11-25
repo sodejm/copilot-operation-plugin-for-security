@@ -55,15 +55,19 @@ dispatch authorized `cops.action-plan/v1` operations.
 
 4. **Separate Approval Authority and Worker**:
    - The approval authority owns verifier secrets, the protected store, and the
-     consume-only Unix socket. Operator provisioning runs outside the execution
-     worker and cannot be invoked by a worker request.
+     Unix socket for verification and consumption. Operator provisioning runs
+     outside the execution worker and cannot be invoked by a worker request.
    - The authority accepts only a bounded, versioned request containing an
      authorization identifier, request identifier, exact Action Plan, and expected
      worker identity. The client closes its write side after the single JSON line;
      the authority reads through EOF and rejects trailing bytes before consumption.
-     It verifies the stored signed authorization against those values and the active
-     Engagement, then atomically persists the request identifier, exact request
-     bindings, durable receipt, and authorization consumption. It does not accept a
+     The offline preflight operation verifies the stored signed authorization and
+     exact local target against the active Engagement before staging. It returns a
+     correlated acknowledgement without consuming approval or issuing a receipt.
+     The consumption operation independently verifies the same bindings and, for an
+     observer-backed deployment, the fresh attestation. It then atomically persists
+     the request identifier, exact request bindings, durable receipt, and authorization
+     consumption. It does not accept a
      caller-supplied authorization envelope for registration.
    - After an ambiguous transport failure, the client retries once with the same
      request identifier. An exact retry returns the durable receipt from the first

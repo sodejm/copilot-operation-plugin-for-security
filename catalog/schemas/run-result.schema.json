@@ -109,7 +109,8 @@
               "step_id": {"type": "string", "minLength": 1},
               "phase": {"enum": ["version_probe", "adapter"]},
               "observation": {"$ref": "#/$defs/isolationObservation"},
-              "matches_approved": {"type": "boolean"}
+              "matches_approved": {"type": "boolean"},
+              "observer_release_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
             }
           }
         }

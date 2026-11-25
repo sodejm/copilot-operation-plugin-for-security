@@ -15,10 +15,11 @@ from pathlib import Path
 import pytest
 
 from cops.adapters.registry import ToolAdapterRegistry
-from cops.contracts import ActionPlan, ContractError
+from cops.contracts import ActionPlan, ContractError, Engagement
 from cops.evidence.canonical import digest, utc_now
 from cops.execution import ApprovalStore, IsolatedWorker, WorkerExecutionError
 from cops.execution.cleanup import SideEffectLedger
+from cops.execution.control import ApprovalControlClient, ApprovalControlError
 from cops.execution.filesystem import open_directory_no_symlinks
 from cops.execution.offline_research import (
     OfflineResearchError,
@@ -31,6 +32,7 @@ from cops.execution.sandbox import LinuxBubblewrapSandbox, OfflineIsolationViola
 from tests.auth_testkit import (
     TestApprovalControl,
     authorize_test_plan,
+    make_test_approval_authority,
     worker_inventory_for_plan,
 )
 
@@ -219,6 +221,59 @@ def test_signed_inert_version_mismatch_rejects_before_approval_or_sandbox_launch
     assert approval_control.consume_calls == []
     assert sandbox_calls == []
     assert approval_store.get_authorization(authorization.authorization_id).status == "approved"
+
+
+@pytest.mark.parametrize("case", ["unknown", "unlisted", "excluded", "valid"])
+def test_offline_authority_checks_before_staging_or_consuming(tmp_path, monkeypatch, case):
+    source = tmp_path / "sample.txt"
+    source.write_bytes(b"fixture")
+    profile = _profile(source)
+    inventory = worker_inventory_for_plan(_plan(profile), worker_identity=WORKER_ID)
+    profile["worker_inventory_sha256"] = digest(inventory.to_dict())
+    plan = _plan(profile)
+    authority, authorization, _ = make_test_approval_authority(tmp_path, plan, worker_identity=WORKER_ID)
+    engagement = authority.engagement.to_dict()
+    if case == "unlisted":
+        engagement["scope"]["included_targets"] = ["local:other"]
+    elif case == "excluded":
+        engagement["scope"]["excluded_targets"] = [plan.target]
+    authority = replace(authority, engagement=Engagement.from_dict(engagement))
+    control = ApprovalControlClient(
+        socket_path=tmp_path / "approval.sock",
+        expected_authority_uid=authority.authority_uid,
+    )
+    monkeypatch.setattr("cops.execution.control.sys_platform_linux", lambda: True)
+    monkeypatch.setattr(ApprovalControlClient, "assert_ready", lambda self, worker_identity: None)
+
+    def verify(self, request):
+        return authority.verify_document(
+            request, peer_pid=authority.worker_pid, peer_uid=authority.worker_uid, peer_gid=authority.worker_gid
+        )
+
+    monkeypatch.setattr(ApprovalControlClient, "_exchange", verify)
+    if case == "valid":
+        control.verify_authorization(authorization.authorization_id, plan, WORKER_ID)
+    else:
+        cleanup_dir = tmp_path / "cleanup-journal"
+        cleanup_dir.mkdir(mode=0o700)
+        worker = IsolatedWorker(
+            inventory, control, LinuxBubblewrapSandbox(), cleanup_journal_path=cleanup_dir / "cleanup.sqlite3"
+        )
+        assert worker.cleanup_journal is not None
+
+        def fail_journaling(*args, **kwargs):
+            pytest.fail("unverified requests cannot start a cleanup journal run")
+
+        def fail_staging(*args, **kwargs):
+            pytest.fail("unverified requests cannot open a corpus")
+
+        monkeypatch.setattr(worker.cleanup_journal, "start_run", fail_journaling)
+        monkeypatch.setattr("cops.execution.worker.stage_corpora", fail_staging)
+        request_id = "unknown-authorization" if case == "unknown" else authorization.authorization_id
+        with pytest.raises(ApprovalControlError, match="did not verify"):
+            worker.execute_plan_with_receipt(plan, authorization_id=request_id)
+
+    assert authority.store.get_authorization(authorization.authorization_id).status == "approved"
 
 
 @pytest.mark.parametrize("violation", ["url", "egress", "credentials", "proxy", "adapter", "stale"])

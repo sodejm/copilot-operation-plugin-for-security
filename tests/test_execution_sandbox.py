@@ -16,6 +16,38 @@ from cops.execution.process import BoundedProcessResult
 from cops.execution.sandbox import LinuxBubblewrapSandbox, SandboxReadinessError
 
 
+@pytest.mark.parametrize(("platform", "os_name"), [("darwin", "posix"), ("win32", "nt")])
+@pytest.mark.parametrize("entrypoint", ["assert_ready", "run"])
+def test_unsupported_native_hosts_reject_before_process_setup(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    platform: str,
+    os_name: str,
+    entrypoint: str,
+) -> None:
+    # These module-local substitutes expose no UID or filesystem APIs. Reaching
+    # either would fail instead of returning the required platform denial.
+    monkeypatch.setattr(sandbox_module, "sys", SimpleNamespace(platform=platform))
+    monkeypatch.setattr(sandbox_module, "os", SimpleNamespace(name=os_name))
+
+    def unexpected_process(*args, **kwargs):
+        pytest.fail("unsupported native host reached process launch")
+
+    monkeypatch.setattr(sandbox_module, "run_bounded_process", unexpected_process)
+    sandbox = LinuxBubblewrapSandbox()
+    with pytest.raises(SandboxReadinessError, match="supported only on Linux"):
+        if entrypoint == "assert_ready":
+            sandbox.assert_ready("native-host-denial-fixture", cwd=tmp_path)
+        else:
+            sandbox.run(
+                ["inert-never-launched"],
+                cwd=tmp_path,
+                env={},
+                timeout_seconds=1,
+                max_output_bytes=1024,
+            )
+
+
 def _validate(capability_fds: tuple[int, ...], operation_env: dict[str, str] | None) -> None:
     executable_fd = os.open(os.devnull, os.O_RDONLY)
     try:

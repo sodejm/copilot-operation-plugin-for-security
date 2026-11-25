@@ -27,7 +27,16 @@ def make_fake_ssh(root: Path) -> tuple[Path, Path]:
 
             MARKER = Path({os.fspath(marker)!r})
             MARKER.write_text("invoked", encoding="utf-8")
-            request = json.load(sys.stdin)
+            first_byte = sys.stdin.buffer.read(1)
+            if first_byte == b"!":
+                # Cancellable exchanges use exactly one prefix byte, then keep the
+                # frame open until the client closes standard input.
+                MARKER.write_text("prefixed-frame-open", encoding="utf-8")
+                request_bytes = sys.stdin.buffer.read()
+                MARKER.write_text("prefixed-frame-closed", encoding="utf-8")
+            else:
+                request_bytes = first_byte + sys.stdin.buffer.read()
+            request = json.loads(request_bytes)
             mode = request["payload"].get("mode", "success")
 
             if mode == "timeout":

@@ -2,18 +2,23 @@
 
 from __future__ import annotations
 
+import base64
+import hashlib
 import math
 import secrets
 import uuid
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any
 
 from cops.contracts.models import ActionPlan, CleanupReceipt, RunResult
 from cops.evidence.canonical import EvidenceError, digest, timestamp
 
 from .control import ApprovalConsumptionReceipt
+from .evidence import MAX_REMOTE_REDACTED_ARTIFACT_BYTES
+from .process import CancellationSignal
 from .ssh_transport import (
     SSHRemoteDispatcher,
     SSHRemoteEndpointInventory,
@@ -48,24 +53,27 @@ class RemoteAuthorizedRun:
     result: RunResult
     approval_receipt: ApprovalConsumptionReceipt
     cleanup_receipt: CleanupReceipt | None = None
+    redacted_artifacts: Mapping[str, bytes] | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        document = {
             "schema_version": SSH_AUTHORIZED_RUN_SCHEMA,
             "result": self.result.to_dict(),
             "approval_receipt": _receipt_to_dict(self.approval_receipt),
             **({"cleanup_receipt": self.cleanup_receipt.to_dict()} if self.cleanup_receipt else {}),
         }
+        if self.redacted_artifacts is not None:
+            document["redacted_artifacts"] = {
+                path: base64.b64encode(content).decode("ascii")
+                for path, content in self.redacted_artifacts.items()
+            }
+        return document
 
     @classmethod
     def from_dict(cls, document: Mapping[str, object]) -> RemoteAuthorizedRun:
-        if not isinstance(document, Mapping) or set(document) not in (
-            {
-                "schema_version",
-                "result",
-                "approval_receipt",
-            },
-            {"schema_version", "result", "approval_receipt", "cleanup_receipt"},
+        required = {"schema_version", "result", "approval_receipt"}
+        if not isinstance(document, Mapping) or not required <= set(document) <= (
+            required | {"cleanup_receipt", "redacted_artifacts"}
         ):
             raise SSHExecutionError("remote authorized run fields do not match the required schema")
         if document["schema_version"] != SSH_AUTHORIZED_RUN_SCHEMA:
@@ -92,7 +100,41 @@ class RemoteAuthorizedRun:
             cleanup_receipt=(
                 CleanupReceipt.from_dict(document["cleanup_receipt"]) if "cleanup_receipt" in document else None
             ),
+            redacted_artifacts=(
+                _decode_redacted_artifacts(document["redacted_artifacts"], result)
+                if "redacted_artifacts" in document
+                else None
+            ),
         )
+
+
+def _decode_redacted_artifacts(document: object, result: RunResult) -> Mapping[str, bytes]:
+    if not isinstance(document, dict) or result.offline_research is None:
+        raise SSHExecutionError("remote redacted artifacts are invalid")
+    manifest = {record["path"]: record for record in result.artifacts}
+    if len(manifest) != len(result.artifacts) or set(document) != manifest.keys():
+        raise SSHExecutionError("remote redacted artifacts do not match the result manifest")
+    artifacts = {}
+    remaining = MAX_REMOTE_REDACTED_ARTIFACT_BYTES
+    for path, encoded in document.items():
+        record = manifest[path]
+        size = record.get("size_bytes")
+        if (
+            type(size) is not int
+            or not 0 <= size <= remaining
+            or not isinstance(encoded, str)
+            or len(encoded) != 4 * ((size + 2) // 3)
+        ):
+            raise SSHExecutionError("remote redacted artifact size is invalid")
+        try:
+            content = base64.b64decode(encoded, validate=True)
+        except ValueError as err:
+            raise SSHExecutionError("remote redacted artifact encoding is invalid") from err
+        if len(content) != size or hashlib.sha256(content).hexdigest() != record["sha256"]:
+            raise SSHExecutionError("remote redacted artifact does not match the result manifest")
+        artifacts[path] = content
+        remaining -= size
+    return MappingProxyType(artifacts)
 
 
 class SSHExecutionDispatcher:
@@ -121,6 +163,7 @@ class SSHExecutionDispatcher:
         timeout_seconds: float = 30.0,
         max_output_bytes: int = 65_536,
         request_id: str | None = None,
+        cancellation_event: CancellationSignal | None = None,
     ) -> RemoteAuthorizedRun:
         return self.execute_with_evidence(
             approved_worker_identity=approved_worker_identity,
@@ -129,6 +172,7 @@ class SSHExecutionDispatcher:
             timeout_seconds=timeout_seconds,
             max_output_bytes=max_output_bytes,
             request_id=request_id,
+            cancellation_event=cancellation_event,
         )[0]
 
     def execute_with_evidence(
@@ -140,6 +184,7 @@ class SSHExecutionDispatcher:
         timeout_seconds: float = 30.0,
         max_output_bytes: int = 65_536,
         request_id: str | None = None,
+        cancellation_event: CancellationSignal | None = None,
     ) -> tuple[RemoteAuthorizedRun, dict[str, Any]]:
         """Execute and retain the exact response plus its re-verification context."""
         if not isinstance(approved_worker_identity, str) or not approved_worker_identity:
@@ -148,6 +193,8 @@ class SSHExecutionDispatcher:
             raise SSHExecutionError("authorization_id must be non-empty")
         if not isinstance(action_plan, ActionPlan):
             raise SSHExecutionError("action_plan must be an ActionPlan")
+        if cancellation_event is not None and action_plan.offline_research is None:
+            raise SSHExecutionError("cancellable SSH execution requires the offline research profile")
         _validate_execution_limits(timeout_seconds, max_output_bytes)
         exchange_id = request_id or str(uuid.uuid4())
         try:
@@ -174,6 +221,7 @@ class SSHExecutionDispatcher:
                 "endpoint_identity": endpoint_identity_document,
             },
             request_id=exchange_id,
+            **({"cancellation_event": cancellation_event} if cancellation_event is not None else {}),
         )
         if response.worker_id != approved_worker_identity:
             raise SSHExecutionError("remote response worker identity mismatch")
@@ -240,9 +288,16 @@ def validate_remote_authorized_run(
         result.plan_id == action_plan.plan_id
         and result.engagement_id == action_plan.engagement_id
         and result.worker_identity == approved_worker_identity
+        and (result.offline_research is None) == (action_plan.offline_research is None)
     )
     if not expected_receipt or not expected_result:
         raise SSHExecutionError("remote execution result does not match the approved plan and worker")
+    if (
+        action_plan.offline_research is not None
+        and result.status == "success"
+        and authorized_run.redacted_artifacts is None
+    ):
+        raise SSHExecutionError("successful offline research run is missing redacted artifacts")
     cleanup = authorized_run.cleanup_receipt
     if cleanup is not None:
         try:

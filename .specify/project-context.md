@@ -12,6 +12,13 @@ evidence boundaries; JSON holds catalogs, manifests, package contracts, schemas,
 fixtures, and examples. The operator path uses only the standard library. Pytest
 and pytest-bdd are contributor dependencies for executable acceptance scenarios.
 
+The Linux SSH supervisor supports an explicit owner-configured offline-only
+construction path. Its standard scoped mode remains the default; offline mode
+requires the signed offline research profile and cannot configure external scope,
+credentials or egress. Both retain durable cleanup recovery before admission.
+This does not establish deployed SSH or independently administered observer
+readiness. See [the supervisor guide](../docs/WORKER_SUPERVISOR.md).
+
 `catalog/plugins.json` is the canonical inventory. Each package has a `package.json`
 governance contract, root `plugin.json`, `.claude-plugin/plugin.json`, at least one
 canonical product skill, a safe demo, deterministic checks, and explicit structural,

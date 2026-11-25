@@ -9,7 +9,7 @@ unredacted execution data.
 ## Credential resolution boundary
 
 `cops.execution.ScopedCredentialResolver` accepts the authority-issued
-`ApprovalConsumptionReceipt` returned by the worker's consume-only
+`ApprovalConsumptionReceipt` returned by the worker's
 `ApprovalControl.consume_authorization` call for the current dispatch. A
 caller-created authorization whose fields merely say `consumed` is not authority.
 The resolver is bound to that exact approval-control client. It first calls the

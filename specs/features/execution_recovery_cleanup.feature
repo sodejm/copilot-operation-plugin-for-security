@@ -31,6 +31,12 @@ Feature: Execution Recovery and Cleanup Receipts
     And recovered process identifiers are not signalled
     And persistence failures produce an explicit partial or failed cleanup receipt
 
+  Scenario: Unresolved durable cleanup prevents the supervisor from listening
+    Given a provisioned supervisor with a pending process effect in its cleanup journal
+    When the supervisor restarts
+    Then the supervisor refuses startup before opening the relay listener
+    And the recovered process effect is durably recorded as unresolved
+
   Scenario: Eager staging cleanup remains visible in the final result
     Given executable staging effects were durably cleaned before final rollback
     When the worker emits its final cleanup receipt and run result

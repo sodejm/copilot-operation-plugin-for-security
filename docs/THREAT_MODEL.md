@@ -70,6 +70,7 @@ private payloads and real identifiers must never be copied into this document.
 | Caller-supplied baseline and retest reports, observations, cleanup receipts, and owner assertions → offline retest comparator → private review report → human reviewer | Inputs and report strings remain untrusted. Versioned validation, exact identity and evidence joins, aggregate bounds, and fail-closed closure gates constrain local interpretation. The report does not authenticate sources, authorize execution, prove cleanup, or close findings. |
 
 | Approved local corpus → private Linux worker workspace → offline research adapter → run result | The signed plan binds corpus, inventory, isolation, and executable digests. The worker checks a fresh namespace observation before approval consumption and before each external adapter starts; its own measurements do not independently attest host controls. |
+| Owner-only supervisor execution profile → persistent worker → untrusted relay request | The optional `offline-research/v1` service profile constructs no external scope, credentials or egress capability. The worker requires the signed offline profile before approval consumption, preventing a relay from stripping it to select a broader path. Missing configuration preserves the standard scoped path; unknown or conflicting settings fail startup. Configuration and same-UID process integrity remain trusted-host assumptions. |
 | Operator-supplied synthetic case → runner → agent fixture proposal → authorization gate → MCP stdio fixture → observed state/report | Case text and MCP tool output are untrusted data. The agent child proposes but has no MCP pipe; only the runner can forward a proposal after case-scoped checks. The separate child processes share the host's OS authority, so their stdio boundary is not an OS network sandbox. |
 | Trusted stdio profile and untrusted MCP request → bounded Action Plan compiler → later worker | The compiler binds one exact read-only request to a registered adapter version, source revision, executable digest and no-egress plan assertion. It does not launch a process, authenticate a profile author, attest the executable on a worker, or enforce OS isolation. |
 | Synthetic provider plan and response fixture → exact plan gate → assessment budget ledger → normalized content-free report | Provider-shaped input remains untrusted. Exact environment, scope, endpoint, model, canary, tool and request-digest binding precede reservation and fixture processing. The importer makes no network request and executes no proposed tool. |
@@ -107,6 +108,18 @@ flowchart LR
 ```
 
 The flow table defines the project-specific boundaries behind this overview.
+
+The single-maintainer Ubuntu SSH deployment uses a separate observer service
+account to sign pre-execution isolation measurements. The authority verifies
+the approval-phase observation before consumption, and the supervisor obtains
+a fresh release-phase observation before opening the execution gate. The
+observer key is inaccessible to the worker, relay and authority. Its enforced
+AppArmor profile limits host access to the metadata needed for verification.
+The VM administrator can alter the services, enforcement and evidence across
+these identities. Installed #328 qualification covers separation between
+service accounts and processes under that administrator. Cross-administrator
+assurance remains outside the qualification scope.
+
 Authentication of an upstream service does not make its content trusted. Review
 the effective filesystem path, subprocess arguments, network recipient, cloud
 account and credential recipient rather than only their user-supplied labels.

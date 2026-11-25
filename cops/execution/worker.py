@@ -17,7 +17,7 @@ import platform
 import stat
 import tempfile
 import uuid
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from contextlib import ExitStack
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -35,6 +35,8 @@ from cops.evidence.canonical import digest, utc_now
 if TYPE_CHECKING:
     from cops.laboratory.agent_mcp_worker import AgentMcpEnvelope
     from cops.web_api.worker_replay import WebApiReplayEnvelope
+
+    from .offline_observer import ObserverClient
 
 from .cleanup import (
     PLAN_DECLARED_PROVENANCE_KEY,
@@ -68,6 +70,7 @@ from .offline_research import (
     validate_offline_request,
     verify_isolation_observation,
 )
+from .process import WaitableCancellationSignal
 from .sandbox import ExecutionSandbox, LinuxBubblewrapSandbox, OfflineIsolationViolation
 
 
@@ -100,6 +103,7 @@ class AuthorizedExecution:
     cleanup_receipt: CleanupReceipt
     operation_outputs: Mapping[str, Mapping[str, Any]] = field(default_factory=lambda: MappingProxyType({}))
     attempted_operation_ids: tuple[str, ...] = ()
+    redacted_artifacts: Mapping[str, bytes] | None = None
 
 
 def _supports_secure_evidence_dirs() -> bool:
@@ -290,6 +294,8 @@ class IsolatedWorker:
         egress_trust_domain: str | None = None,
         credential_resolver: ScopedCredentialResolver | None = None,
         agent_mcp_dispatchers: Mapping[str, Any] | None = None,
+        required_execution_profile: str | None = None,
+        offline_observer: ObserverClient | None = None,
     ) -> None:
         if not isinstance(worker_inventory, WorkerCapabilityInventory) or not worker_inventory.is_verified:
             raise WorkerIsolationError("a verified owner-provisioned worker capability inventory is required")
@@ -300,6 +306,16 @@ class IsolatedWorker:
         self.scope_guard = scope_guard
         self.adapter_registry = adapter_registry or ToolAdapterRegistry()
         self.expected_engagement_id = expected_engagement_id
+        if required_execution_profile not in (None, "offline-research/v1"):
+            raise WorkerIsolationError("worker required execution profile is invalid")
+        if required_execution_profile is not None and (
+            scope_guard is not None or credential_resolver is not None or egress_trust_domain is not None
+        ):
+            raise WorkerIsolationError("offline worker cannot configure scope, credentials or egress")
+        if offline_observer is not None and required_execution_profile != "offline-research/v1":
+            raise WorkerIsolationError("offline observer requires a dedicated offline worker")
+        self.required_execution_profile = required_execution_profile
+        self.offline_observer = offline_observer
         if credential_resolver is not None and credential_resolver.approval_control is not approval_control:
             raise WorkerIsolationError("credential resolver and worker must use the same approval control client")
         self.credential_resolver = credential_resolver
@@ -515,7 +531,7 @@ class IsolatedWorker:
         authorization: str,
         workspace_dir: Path | None = None,
         cancel_requested: bool = False,
-        cancellation_event: Event | None = None,
+        cancellation_event: WaitableCancellationSignal | None = None,
         failure_injection: dict[str, Any] | None = None,
     ) -> RunResult:
         """Execute an ActionPlan under a consume-only authorization identifier."""
@@ -535,7 +551,7 @@ class IsolatedWorker:
         authorization_id: str,
         workspace_dir: Path | None = None,
         cancel_requested: bool = False,
-        cancellation_event: Event | None = None,
+        cancellation_event: WaitableCancellationSignal | None = None,
         failure_injection: dict[str, Any] | None = None,
         timeout_seconds: float | None = None,
         max_output_bytes: int | None = None,
@@ -561,7 +577,7 @@ class IsolatedWorker:
         authorization_id: str,
         workspace_dir: Path | None,
         cancel_requested: bool,
-        cancellation_event: Event | None,
+        cancellation_event: WaitableCancellationSignal | None,
         failure_injection: dict[str, Any] | None,
         timeout_seconds: float | None,
         max_output_bytes: int | None,
@@ -586,6 +602,9 @@ class IsolatedWorker:
             # Directly constructed models bypass the validating factory methods.
             # Recheck the full signed snapshot before profile indexing or approval use.
             validate_contract(plan_model.to_dict(), "action_plan")
+
+        if self.required_execution_profile is not None and plan_model.offline_research is None:
+            raise WorkerExecutionError("worker requires offline-research/v1")
 
         if self.expected_engagement_id is not None and plan_model.engagement_id != self.expected_engagement_id:
             raise WorkerExecutionError("action plan engagement does not match the provisioned engagement")
@@ -640,6 +659,9 @@ class IsolatedWorker:
         )
         self._verify_plan_compatibility(plan_model)
 
+        if offline_profile is not None:
+            self.approval_control.verify_authorization(authorization_id, plan_model, self.config.worker_id)
+
         # Compatibility and workspace safety are part of the pre-consumption gate.
         secure_evidence_dirs = _supports_secure_evidence_dirs()
         portable_inert = not secure_evidence_dirs and all(op["tool"] == "inert" for op in plan_model.operations)
@@ -682,6 +704,7 @@ class IsolatedWorker:
         staged_corpora: list[dict[str, str]] = []
         isolation_observation: dict[str, Any] | None = None
         isolation_invocations: list[dict[str, Any]] = []
+        approval_observer_attestation: dict[str, Any] | None = None
         try:
             ledger = SideEffectLedger(
                 plan_id=plan_model.plan_id,
@@ -725,6 +748,26 @@ class IsolatedWorker:
             self.approval_control.assert_ready(self.config.worker_id)
             self.sandbox.assert_ready(self.config.worker_id, cwd=target_workspace, expected_workspace_fd=workspace_fd)
             if offline_profile is not None:
+                approval_gate_authorizer: Callable[[dict[str, int]], None] | None = None
+                if self.offline_observer is not None:
+
+                    def approval_gate_authorizer(gate: dict[str, int]) -> None:
+                        nonlocal approval_observer_attestation
+                        try:
+                            attestation = self.offline_observer.attest(
+                                phase="approval",
+                                authorization_id=authorization_id,
+                                plan_digest=plan_model.plan_digest,
+                                worker_identity=self.config.worker_id,
+                                isolation_digest=offline_profile["isolation_attestation"]["digest"],
+                                gate=gate,
+                            )
+                        except ValueError as err:
+                            raise OfflineResearchError("offline observer approval attestation is unavailable") from err
+                        if not isinstance(attestation, dict) or not attestation:
+                            raise OfflineResearchError("offline observer approval attestation is invalid")
+                        approval_observer_attestation = dict(attestation)
+
                 staged_corpora = stage_corpora(
                     offline_profile, workspace=target_workspace, workspace_fd=workspace_fd, ledger=ledger
                 )
@@ -733,7 +776,10 @@ class IsolatedWorker:
                     sandbox=self.sandbox,
                     workspace=target_workspace,
                     workspace_fd=workspace_fd,
+                    **({"gate_authorizer": approval_gate_authorizer} if approval_gate_authorizer is not None else {}),
                 )
+                if self.offline_observer is not None and approval_observer_attestation is None:
+                    raise OfflineResearchError("offline observer did not attest the approval gate")
                 validate_offline_request(
                     plan_model,
                     worker_identity=self.config.worker_id,
@@ -751,7 +797,17 @@ class IsolatedWorker:
                     "approval_consumption_started",
                     {"plan_digest": plan_model.plan_digest},
                 )
-            receipt = self.approval_control.consume_authorization(authorization_id, plan_model, self.config.worker_id)
+            consumption_arguments = (
+                {"observer_attestation": approval_observer_attestation}
+                if approval_observer_attestation is not None
+                else {}
+            )
+            receipt = self.approval_control.consume_authorization(
+                authorization_id,
+                plan_model,
+                self.config.worker_id,
+                **consumption_arguments,
+            )
             verified_receipt = self.approval_control.validate_receipt_provenance(receipt)
             if verified_receipt is not receipt:
                 raise ApprovalControlError("approval authority receipt provenance is invalid")
@@ -810,6 +866,7 @@ class IsolatedWorker:
                 workspace_dir=target_workspace,
                 expected_workspace_fd=workspace_fd,
                 redactor=redactor,
+                retain_redacted_artifacts=offline_profile is not None,
                 portable_inert=portable_inert,
                 context=EvidenceContext(
                     plan_id=plan_model.plan_id,
@@ -867,6 +924,47 @@ class IsolatedWorker:
 
             # 6. Execute operations in sequence (if checks passed)
             if status == "success":
+
+                def offline_run_arguments(step_id: str, phase: str) -> dict[str, Any]:
+                    if offline_profile is None:
+                        return {}
+                    isolation_digest = offline_profile["isolation_attestation"]["digest"]
+                    invocation: dict[str, Any] = {"step_id": step_id, "phase": phase}
+
+                    def record_observation(observation: dict[str, Any]) -> None:
+                        invocation["observation"] = observation
+                        invocation["matches_approved"] = observation[
+                            "digest"
+                        ] == isolation_digest and LinuxBubblewrapSandbox._offline_network_boundary_restricted(
+                            observation["measured"]
+                        )
+                        isolation_invocations.append(invocation)
+
+                    release_observer = self.offline_observer
+
+                    def authorize_release(gate: dict[str, int]) -> None:
+                        assert release_observer is not None
+                        try:
+                            attestation = release_observer.attest(
+                                phase="release",
+                                authorization_id=authorization_id,
+                                plan_digest=plan_model.plan_digest,
+                                worker_identity=self.config.worker_id,
+                                isolation_digest=isolation_digest,
+                                gate=gate,
+                            )
+                        except ValueError as err:
+                            raise OfflineResearchError("offline observer release attestation is unavailable") from err
+                        if not isinstance(attestation, dict) or not attestation:
+                            raise OfflineResearchError("offline observer release attestation is invalid")
+                        invocation["observer_release_sha256"] = digest(attestation)
+
+                    return {
+                        "expected_isolation_digest": isolation_digest,
+                        "isolation_observer": record_observation,
+                        **({"gate_authorizer": authorize_release} if release_observer is not None else {}),
+                    }
+
                 for operation_index, (op, operation_egress_policy) in enumerate(
                     zip(plan_model.operations, operation_egress_policies, strict=True)
                 ):
@@ -1036,38 +1134,30 @@ class IsolatedWorker:
                                     "offline research cat command differs from the approved profile"
                                 )
 
+                            offline_signal = cancellation_event if offline_profile is not None else None
+                            offline_cancellation = (
+                                {"cancellation_event": offline_signal} if offline_signal is not None else {}
+                            )
+
                             def run_bound_probe(
                                 command: Any,
                                 *,
                                 _step_id: str = step_id,
                                 _operation_workspace_fd: int = operation_workspace_fd,
+                                _offline_signal: WaitableCancellationSignal | None = offline_signal,
                                 **kwargs: Any,
                             ) -> Any:
-                                offline_arguments = (
-                                    {
-                                        "expected_isolation_digest": offline_profile["isolation_attestation"]["digest"],
-                                        "isolation_observer": lambda observation: isolation_invocations.append(
-                                            {
-                                                "step_id": _step_id,
-                                                "phase": "version_probe",
-                                                "observation": observation,
-                                                "matches_approved": observation["digest"]
-                                                == offline_profile["isolation_attestation"]["digest"]
-                                                and LinuxBubblewrapSandbox._offline_network_boundary_restricted(
-                                                    observation["measured"]
-                                                ),
-                                            }
-                                        ),
-                                    }
-                                    if offline_profile is not None
-                                    else {}
-                                )
-                                return self.sandbox.run(
+                                offline_arguments = offline_run_arguments(_step_id, "version_probe")
+                                probe = self.sandbox.run(
                                     command,
                                     expected_workspace_fd=_operation_workspace_fd,
                                     **offline_arguments,
+                                    **({"cancellation_event": _offline_signal} if _offline_signal is not None else {}),
                                     **kwargs,
                                 )
+                                if _offline_signal is not None and _offline_signal.is_set():
+                                    raise KeyboardInterrupt
+                                return probe
 
                             prepared = prepare_executable(
                                 adapter,
@@ -1136,27 +1226,7 @@ class IsolatedWorker:
                                     if invocation_timeout <= 0:
                                         return None
                                     adapter_dispatched = True
-                                    offline_arguments = (
-                                        {
-                                            "expected_isolation_digest": offline_profile["isolation_attestation"][
-                                                "digest"
-                                            ],
-                                            "isolation_observer": lambda observation: isolation_invocations.append(
-                                                {
-                                                    "step_id": _step_id,
-                                                    "phase": "adapter",
-                                                    "observation": observation,
-                                                    "matches_approved": observation["digest"]
-                                                    == offline_profile["isolation_attestation"]["digest"]
-                                                    and LinuxBubblewrapSandbox._offline_network_boundary_restricted(
-                                                        observation["measured"]
-                                                    ),
-                                                }
-                                            ),
-                                        }
-                                        if offline_profile is not None
-                                        else {}
-                                    )
+                                    offline_arguments = offline_run_arguments(_step_id, "adapter")
                                     return self.sandbox.run(
                                         [_prepared.invocation_path, *_cmd[1:]],
                                         cwd=_operation_workspace,
@@ -1171,8 +1241,11 @@ class IsolatedWorker:
 
                                 if operation_egress_policy is None:
                                     proc = run_prepared_adapter(
-                                        **({"operation_env": credential_env} if credential_env else {})
+                                        **({"operation_env": credential_env} if credential_env else {}),
+                                        **offline_cancellation,
                                     )
+                                    if offline_signal is not None and offline_signal.is_set():
+                                        raise KeyboardInterrupt
                                 elif isinstance(operation_egress_policy, (WebApiReplayEnvelope, AgentMcpEnvelope)):
                                     envelope_data = operation_egress_policy.to_dict()
                                     is_laboratory = isinstance(operation_egress_policy, AgentMcpEnvelope)
@@ -1594,4 +1667,9 @@ class IsolatedWorker:
             cleanup_receipt,
             MappingProxyType(operation_outputs),
             tuple(attempted_operation_ids),
+            redacted_artifacts=(
+                MappingProxyType(evidence_recorder.redacted_artifacts)
+                if evidence_recorder.redacted_artifacts is not None
+                else None
+            ),
         )

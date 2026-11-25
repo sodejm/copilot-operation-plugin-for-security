@@ -31,3 +31,15 @@ Feature: Remote Worker SSH Transport
       | response   |
       | diagnostic |
       | time       |
+
+  Scenario Outline: Verifying service socket permissions before listening
+    Given a provisioned "<service>" service socket directory
+    When the service binds a socket with "<mode>" permissions
+    Then the socket listener is "<outcome>" after permission verification
+
+    Examples:
+      | service            | mode     | outcome |
+      | approval authority | exact    | opened  |
+      | approval authority | too open | refused |
+      | worker supervisor  | exact    | opened  |
+      | worker supervisor  | too open | refused |

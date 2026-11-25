@@ -8,10 +8,12 @@ import json
 import platform
 import shlex
 import shutil
+import signal
 import subprocess
 import sys
 from collections.abc import Sequence
 from pathlib import Path
+from threading import Event
 from typing import Any
 
 from .catalog import ROOT, CatalogError, PluginRecord, find_plugin, plugin_records, validate_declared_command
@@ -539,13 +541,22 @@ def command_worker_execute(args: argparse.Namespace) -> int:
 
         endpoint_inventory = SSHRemoteEndpointInventory.from_file(args.ssh_endpoint_inventory)
         dispatcher = SSHExecutionDispatcher(endpoint_inventory)
-        authorized_run = dispatcher.execute(
-            approved_worker_identity=args.worker_id,
-            authorization_id=args.authorization,
-            action_plan=plan,
-            timeout_seconds=float(plan.limits["max_duration_seconds"]),
-            max_output_bytes=int(plan.limits["max_output_bytes"]),
-        )
+        cancellation_event = Event() if getattr(args, "cancel_on_interrupt", False) else None
+        previous_handler = None
+        if cancellation_event is not None:
+            previous_handler = signal.signal(signal.SIGINT, lambda _signum, _frame: cancellation_event.set())
+        try:
+            authorized_run = dispatcher.execute(
+                approved_worker_identity=args.worker_id,
+                authorization_id=args.authorization,
+                action_plan=plan,
+                timeout_seconds=float(plan.limits["max_duration_seconds"]),
+                max_output_bytes=int(plan.limits["max_output_bytes"]),
+                **({"cancellation_event": cancellation_event} if cancellation_event is not None else {}),
+            )
+        finally:
+            if previous_handler is not None:
+                signal.signal(signal.SIGINT, previous_handler)
         result = authorized_run.result
         if getattr(args, "json", False):
             print(json.dumps(result.to_dict(), indent=2))
@@ -553,6 +564,8 @@ def command_worker_execute(args: argparse.Namespace) -> int:
             print(f"Execution complete: {result.result_id} ({result.status})")
             if result.status != "success":
                 print(f"Reason: {result.status_details.get('reason')}")
+        if cancellation_event is not None and result.status == "cancelled":
+            return 130
         return 0 if result.is_successful() else 1
     except Exception as err:
         print(f"error: {err}", file=sys.stderr)
@@ -733,6 +746,9 @@ def build_parser() -> argparse.ArgumentParser:
         dest="explain",
         action="store_true",
         help="preview without execution or approval consumption",
+    )
+    w_exec.add_argument(
+        "--cancel-on-interrupt", action="store_true", help="request cancellation and await offline worker cleanup"
     )
     w_exec.add_argument("--json", action="store_true", help="output structured JSON")
 

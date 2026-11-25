@@ -21,6 +21,12 @@ class CancellationSignal(Protocol):
     def is_set(self) -> bool: ...
 
 
+class WaitableCancellationSignal(CancellationSignal, Protocol):
+    """Cancellation contract for worker step pacing."""
+
+    def wait(self, timeout: float) -> bool: ...
+
+
 @dataclass(frozen=True)
 class BoundedProcessResult:
     stdout: bytes

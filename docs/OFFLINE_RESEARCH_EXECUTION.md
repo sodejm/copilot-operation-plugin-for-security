@@ -12,6 +12,13 @@ authorization, one-use approval, verified worker inventory, and cleanup journal.
 The profile is available through the Python execution API; it does not add a
 general-purpose research command or network fetcher.
 
+The SSH supervisor can construct an offline-only worker when its owner-only v2
+configuration explicitly selects `execution_profile: "offline-research/v1"`.
+The default standard supervisor retains its network scope guard and is not an
+offline-profile worker. Follow the [supervisor profile selection and restart
+procedure](WORKER_SUPERVISOR.md#select-an-offline-only-supervisor); a configured
+profile does not establish installed-host or independent-observer readiness.
+
 ## Prepare the worker and plan
 
 1. Provision a dedicated, unprivileged Linux worker with the production
@@ -30,9 +37,10 @@ general-purpose research command or network fetcher.
 3. Bind `offline_research.profile` to `offline-research`, `version` to `v1`,
    `worker_identity` to the verified inventory identity, and
    `worker_inventory_sha256` to the canonical digest of that inventory. Use a
-   `local:<identifier>` target, no credential references, and
-   `limits.egress_allowed: false`. Operations may only use the credential-free
-   `inert/print_status` fixture or `cat/read_local_corpus` with a filename of
+   `local:<identifier>` target that exactly matches an included target in the
+   provisioned engagement and is absent from its exclusions. Use no credential
+   references and set `limits.egress_allowed: false`. Operations may only use the
+   credential-free `inert/print_status` fixture or `cat/read_local_corpus` with a filename of
    `corpus-<approved-name>`. The `cat` adapter requires the approved GNU
    coreutils 9.4 version and its executable SHA-256 in
    `cat_executable_sha256`. It accepts no URL, destination, proxy, side effect,
@@ -45,9 +53,13 @@ general-purpose research command or network fetcher.
    plan through the normal authorization workflow; profile fields are part of
    the signed snapshot.
 
-The worker validates the profile, corpus digests, adapter pin, and a fresh
-sandbox observation before consuming approval. The observation checks a
-separate network namespace, only the loopback interface, no non-loopback
+The worker asks the protected authority to verify the signed plan, unconsumed
+authorization, and provisioned engagement scope before creating the workspace
+or cleanup journal or opening a corpus. The authority compares local identifiers
+without resolving them. The worker then validates corpus digests, the adapter
+pin, and a fresh sandbox observation. The authority rechecks the authorization
+at one-time consumption and verifies the configured live observer evidence. The
+observation checks a separate network namespace, only the loopback interface, no non-loopback
 routes, and no inherited socket descriptors. The worker repeats that boundary
 measurement while each external adapter version probe and operation is held
 before its executable starts. Bubblewrap PID metadata can arrive during network
@@ -68,6 +80,13 @@ with an explicit `matches_approved` value (including rejected observations),
 the inventory and executable digests, and the staged corpus digests. Compare
 those records with the signed plan and the worker's protected inventory before
 accepting a result. Treat tool output and corpus content as untrusted data.
+
+The authenticated SSH execution API returns finalized redacted output and
+evidence envelopes in `RemoteAuthorizedRun.redacted_artifacts`, a mapping from
+result artifact paths to verified bytes. Retrieve the artifacts from this
+response after ephemeral workspace cleanup. If the bundle exceeds the response
+limit, the result carries the artifact manifest and an explicit unavailability
+reason, and cannot report success.
 
 Repository unit and executable feature tests exercise preflight with synthetic
 files and observations. They do not establish that a particular host actually denied

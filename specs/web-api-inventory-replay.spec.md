@@ -219,7 +219,7 @@ The runtime scope must also explicitly set `egress_allowed` to true; an included
 target alone cannot override a disabled WebSocket egress policy.
 
 Production approval-provider deployment validation is a separate
-Linux integration concern; focused tests use the same consume-only approval
+Linux integration concern; focused tests use the same approval consumption
 protocol with signed authorizations and a persisted one-use approval store. The
 local test authority does not demonstrate a separately administered deployment.
 

@@ -96,6 +96,9 @@ class StepTelemetry:
     truncated_bytes: int = 0
 
 
+MAX_REMOTE_REDACTED_ARTIFACT_BYTES = 512 * 1024
+
+
 class EvidenceRecorder:
     """Captures, redacts, digests, and stores evidence records."""
 
@@ -109,6 +112,7 @@ class EvidenceRecorder:
         ephemeral_workspace: bool = False,
         cleanup_manager: CleanupManager | None = None,
         expected_workspace_fd: int | None = None,
+        retain_redacted_artifacts: bool = False,
     ) -> None:
         self.workspace_dir = Path(workspace_dir)
         self.redactor = redactor or StreamRedactor()
@@ -131,6 +135,8 @@ class EvidenceRecorder:
             )
         self.context = context
         self.artifacts: list[CapturedArtifact] = []
+        self.redacted_artifacts: dict[str, bytes] | None = {} if retain_redacted_artifacts else None
+        self._retained_artifact_bytes = 0
         self.step_telemetry: list[StepTelemetry] = []
         self.evidence_records: list[dict[str, Any]] = []
         self._reservations: dict[str, ArtifactReservation] = {}
@@ -479,6 +485,14 @@ class EvidenceRecorder:
                 size_bytes=len(envelope_bytes),
             )
         )
+
+        if self.redacted_artifacts is not None:
+            self._retained_artifact_bytes += len(redacted_bytes) + len(envelope_bytes)
+            if self._retained_artifact_bytes > MAX_REMOTE_REDACTED_ARTIFACT_BYTES:
+                self.redacted_artifacts = None
+            else:
+                self.redacted_artifacts[artifact.path] = redacted_bytes
+                self.redacted_artifacts[envelope_reservation.path] = envelope_bytes
 
         telemetry = StepTelemetry(
             step_id=step_id,

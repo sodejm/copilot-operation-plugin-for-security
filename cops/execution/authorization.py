@@ -204,6 +204,10 @@ def _engagement_document(
         raise AuthorizationError("authorization requires the plan's active engagement")
     if doc["operator"] != operator:
         raise AuthorizationError("authorization operator does not match the engagement operator")
+    if plan.offline_research is not None:
+        scope = doc["scope"]
+        if plan.target in scope.get("excluded_targets", ()) or plan.target not in scope["included_targets"]:
+            raise AuthorizationError("offline target is outside the provisioned engagement scope")
     try:
         _validate_window(
             doc["window"]["started_at"],

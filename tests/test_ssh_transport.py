@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -281,6 +282,48 @@ def test_transport_enforces_total_timeout_and_suppresses_partial_output(tmp_path
 
     assert time.monotonic() - started < 2
     assert "credential" not in str(raised.value)
+
+
+def test_transport_closes_one_prefixed_request_frame_when_cancelled(tmp_path: Path) -> None:
+    transport, marker, _ = make_transport(tmp_path)
+    cancellation_event = threading.Event()
+    observed_open_frame = threading.Event()
+
+    def cancel_after_the_fake_ssh_observes_the_prefix() -> None:
+        deadline = time.monotonic() + 2
+        while time.monotonic() < deadline:
+            if marker.exists() and marker.read_text(encoding="utf-8") == "prefixed-frame-open":
+                observed_open_frame.set()
+                cancellation_event.set()
+                return
+            time.sleep(0.005)
+
+    trigger = threading.Thread(target=cancel_after_the_fake_ssh_observes_the_prefix)
+    trigger.start()
+    try:
+        response = transport.request(
+            {"action_plan": {"plan_id": "plan-cancel"}},
+            request_id="request-cancel",
+            cancellation_event=cancellation_event,
+        )
+    finally:
+        trigger.join(timeout=2)
+
+    assert observed_open_frame.is_set()
+    assert cancellation_event.is_set()
+    assert marker.read_text(encoding="utf-8") == "prefixed-frame-closed"
+    assert response.payload["result"] == "accepted"
+
+
+def test_transport_rejects_an_already_cancelled_exchange_before_launch(tmp_path: Path) -> None:
+    transport, marker, _ = make_transport(tmp_path)
+    cancellation_event = threading.Event()
+    cancellation_event.set()
+
+    with pytest.raises(SSHTransportError, match="cancelled before dispatch"):
+        transport.request({}, request_id="request-cancelled-before-launch", cancellation_event=cancellation_event)
+
+    assert not marker.exists()
 
 
 def test_transport_does_not_return_remote_diagnostics_or_local_paths(tmp_path: Path) -> None:

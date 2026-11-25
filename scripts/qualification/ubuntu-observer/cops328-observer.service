@@ -1,0 +1,26 @@
+[Unit]
+Description=COPS read-only Bubblewrap qualification observer
+After=apparmor.service
+Requires=apparmor.service
+
+[Service]
+User=cops328-observer
+Group=cops328-observer
+WorkingDirectory=/opt/cops-qual
+Environment=PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1
+ExecStart=/opt/cops-m0-venv314/bin/python -m cops.execution.offline_observer_host --socket-path=/run/cops328-observer/observer.sock --signing-key=/var/lib/cops328-observer/signing-key --worker-uid=997 --worker-gid=987 --worker-identity=cops328-worker
+AppArmorProfile=cops328-observer
+UMask=0117
+NoNewPrivileges=yes
+CapabilityBoundingSet=CAP_SYS_PTRACE CAP_DAC_READ_SEARCH
+AmbientCapabilities=CAP_SYS_PTRACE CAP_DAC_READ_SEARCH
+SystemCallFilter=~ptrace process_vm_readv process_vm_writev pidfd_getfd pidfd_send_signal perf_event_open bpf open_by_handle_at
+RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ReadWritePaths=/run/cops328-observer

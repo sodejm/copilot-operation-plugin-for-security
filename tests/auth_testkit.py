@@ -14,6 +14,7 @@ from cops.evidence.canonical import digest
 from cops.execution.authorization import (
     AuthorizationSigner,
     AuthorizationTrustStore,
+    ExecutionAuthorization,
     TrustedAuthorizationKey,
     create_execution_authorization,
     verify_execution_authorization,
@@ -37,7 +38,7 @@ _TRUST_ENVIRONMENT_NAME = "COPS_TEST_AUTHORIZATION_SECRET"
 class TestApprovalControl:
     """In-process approval authority used only by worker unit tests.
 
-    The fake deliberately exposes the same consume-only surface as the
+    The fake deliberately exposes the same verification and consumption surface as the
     production client. It still verifies and atomically consumes the persisted
     authorization so fail-before-consume assertions exercise the real store
     transition rather than a call counter alone.
@@ -73,14 +74,7 @@ class TestApprovalControl:
         worker_identity: str,
     ) -> ApprovalConsumptionReceipt:
         self.consume_calls.append((authorization_id, action_plan.plan_id, worker_identity))
-        stored = self.store.get_authorization(authorization_id)
-        verified = verify_execution_authorization(
-            stored,
-            action_plan,
-            trust_store=self.trust_store,
-            engagement=self.engagement,
-            worker_identity=worker_identity,
-        )
+        verified = self._verify(authorization_id, action_plan, worker_identity)
         consumed = self.store.atomically_consume(
             authorization_id,
             expected_authorization=verified,
@@ -97,6 +91,19 @@ class TestApprovalControl:
         )
         self._issued_receipts[id(receipt)] = receipt
         return receipt
+
+    def _verify(self, authorization_id: str, action_plan: ActionPlan, worker_identity: str) -> ExecutionAuthorization:
+        return verify_execution_authorization(
+            self.store.get_authorization(authorization_id),
+            action_plan,
+            trust_store=self.trust_store,
+            engagement=self.engagement,
+            worker_identity=worker_identity,
+        )
+
+    def verify_authorization(self, authorization_id: str, action_plan: ActionPlan, worker_identity: str) -> None:
+        self.assert_ready(worker_identity)
+        self._verify(authorization_id, action_plan, worker_identity)
 
     def validate_receipt_provenance(self, receipt: ApprovalConsumptionReceipt) -> ApprovalConsumptionReceipt:
         if self._issued_receipts.get(id(receipt)) is not receipt:

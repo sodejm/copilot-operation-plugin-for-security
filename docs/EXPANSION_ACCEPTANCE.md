@@ -553,3 +553,109 @@ The earlier expansion results in this document do not qualify the subsequent
 Issue #100 isolated-worker integration. Its criterion-by-criterion evidence and
 remaining closure gates are tracked in the [worker qualification contract](../specs/issue-100-worker-qualification.md).
 Record results against the actual integrated revision before claiming completion.
+
+## Offline-only supervisor construction (#328 source increment)
+
+On 2026-10-25, the source increment based on
+`6848fd97a7620fae74566c0afb3d50ff35fb911d` added an explicit owner-provisioned
+`offline-research/v1` supervisor profile. The default standard scoped path is
+unchanged. Offline construction excludes external scope, credentials and egress;
+the worker rejects profile removal before approval consumption. Both modes
+retain durable cleanup recovery before receiver creation and fail startup on
+recovery errors. See [the configuration and restart
+procedure](WORKER_SUPERVISOR.md#select-an-offline-only-supervisor).
+
+The restricted disposable Linux worker passed 74 focused tests with zero skips:
+
+```sh
+"$PYTHON" -m pytest -o addopts= -p no:cacheprovider -q -ra \
+  tests/test_worker_supervisor.py tests/test_offline_research.py \
+  tests/step_defs/test_offline_supervisor_steps.py \
+  tests/step_defs/test_offline_research_execution_steps.py \
+  tests/integration/test_offline_supervisor.py \
+  tests/integration/test_linux_bubblewrap_sandbox.py \
+  tests/integration/test_offline_sandbox_gate.py
+```
+
+The receiver integration read the actual pinned GNU coreutils 9.4 corpus through
+bubblewrap, verified output bytes, approval/result binding, one consumption,
+matching per-invocation isolation observations and removal of its execution
+workspace. It uses an in-process signed test authority, not installed SSH or
+independent-observer acceptance. The worker retained `RestrictSUIDSGID=yes`,
+`NoNewPrivileges=yes`, strict filesystem protection and narrow writable state.
+Runtime: Linux 6.8.0-146-generic aarch64, Python 3.12.3, bubblewrap 0.9.0.
+
+A separate writable Linux Git checkout passed `make check` (4,574 pytest passes,
+12 skips, zero failures/errors), `make check-docs` (58 pages) and Ruff. Skips
+remain native Windows junction/device/PowerShell behavior, optional Evtx, the
+unsupported-platform executable boundary and two pinned-installer scenarios.
+These skips do not count as qualified capabilities. This source increment did
+not include an installed SSH deployment or hosted validation.
+
+### Installed Ubuntu VM qualification (#328)
+
+The dedicated, single-maintainer VM ran Ubuntu 24.04.5 LTS ARM64, Linux
+6.8.0-149-generic, Python 3.14.10, Bubblewrap 0.9.0-1ubuntu0.3 and OpenSSH
+1:9.6p1-3ubuntu13.20 against behavior revision
+`0686a500cf3573e56cb031b0c4fa62c7c8ac017b`. The VM preserved AppArmor enforcement
+with Ubuntu's shipped Bubblewrap user-namespace profile and an enforcing
+read-only observer profile. The common administrator can change policy,
+services and evidence across roles. The qualification covers service-account
+and process separation under that administrator.
+
+The installed fixture passed 16 cases with zero skips. The separate observer
+signed approval and release evidence for the inert pinned GNU cat corpus.
+Signaling the installed CLI after release returned run exit code 130 over the
+authenticated SSH path. The VM verified that cat and both Bubblewrap processes
+were reaped. The signed completed receipt matched the durable v2 journal with
+zero unresolved effects and zero runtime result artifacts. Shutdown removed the
+relay and authority sockets. Startup recovered a journal seeded by a separate
+interrupted worker-role fixture before accepting requests.
+
+The installed matrix covered observer outage, missing and stale approval
+evidence, missing, stale and substituted release evidence, configuration and
+inventory permissions, inventory drift, tool pins, output bounds, destination
+allowlisting and credential exclusion. The unprivileged Ubuntu regression suite
+passed 195 tests with zero skips, including request/response binding, isolation
+and cleanup recovery. Operator provisioning is documented in
+[Worker supervisor](WORKER_SUPERVISOR.md). The
+[#328 evidence record](https://github.com/sodejm/copilot-operations-plugin-for-security/issues/328#issuecomment-7120409198)
+lists regression selectors. The qualification bundle supplied to the maintainer
+records the installed commands, package versions and fixture scripts.
+
+### Installed Ubuntu offline research qualification (#331)
+
+The dedicated single-maintainer Ubuntu VM installed source revision
+`5dcff5f5711cf5df3fa870931630f4d0a0f366ae`. All 16 required #328 cases
+passed with zero required skips before #331 started. The #331 fixture used
+the installed SSH supervisor to read a 65,536-byte synthetic corpus with
+the pinned GNU cat binary. The authenticated response reported exit code 0,
+and the authority journal recorded one approval consumption. The output
+bytes matched the corpus, the signed request and response bindings
+verified, and the completed cleanup receipt matched the durable journal.
+
+The deployed read-only observer signed a sample of the running cat process
+after release and before the authenticated SSH response arrived. It
+measured a separate network namespace with only loopback interfaces and
+routes and zero open socket descriptors. The release digest in the signed
+sample matched the adapter invocation in the authenticated SSH response.
+The qualification fixture briefly delayed output collection to keep the
+child observable. The sample establishes the isolation state at that
+instant. The same VM administrator controls both services, policy and evidence.
+
+The installed worker denied remote URL, proxy and egress-enabled requests
+before consuming approval. Thirteen unprivileged same-VM regressions
+covered DNS, inherited and unmapped descriptors, the explicitly mapped
+broker and the sandbox gate with a fixture observer. Installed timeout
+returned 124 and completed cleanup. An unexpected supervisor exit yielded
+no authenticated result. After the administrator verified and removed the
+stale socket, the restarted supervisor reconciled the journal before
+listening. Both cases reaped all three owned descendants. Recovery
+qualification ends at the new listener. The old authority remained bound
+to the original PID. All six installed cases and 13 Linux regressions
+passed with zero required skips.
+
+The [#331 qualification record](https://github.com/sodejm/copilot-operation-plugin-for-security/issues/331)
+publishes the signed manifest, command selectors and protected transcript
+hashes. The scope covers this installed Linux offline profile and the
+documented single-maintainer trust model.

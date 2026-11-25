@@ -6,7 +6,7 @@ import hashlib
 import os
 import re
 import stat
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -210,9 +210,15 @@ def verify_isolation_observation(
     sandbox: LinuxBubblewrapSandbox,
     workspace: Path,
     workspace_fd: int,
+    gate_authorizer: Callable[[dict[str, int]], None] | None = None,
 ) -> dict[str, Any]:
     """Measure a fresh sandbox and compare it with the approval-bound observation."""
-    observation = sandbox.observe_offline_isolation(cwd=workspace, expected_workspace_fd=workspace_fd)
+    observation_arguments = {"gate_authorizer": gate_authorizer} if gate_authorizer is not None else {}
+    observation = sandbox.observe_offline_isolation(
+        cwd=workspace,
+        expected_workspace_fd=workspace_fd,
+        **observation_arguments,
+    )
     if observation["digest"] != profile["isolation_attestation"]["digest"]:
         raise OfflineResearchError("offline isolation observation does not match the approved attestation")
     return observation
