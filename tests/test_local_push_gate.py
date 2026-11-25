@@ -113,6 +113,154 @@ class PolicyTests(unittest.TestCase):
         self.assertIn((coverage_runs[0][0], "-m", "coverage", "report"), commands)
 
 
+def handoff_record(code, stage):
+    """Describe an ordinary callable and its two observable outcomes."""
+    paths = [code, "tests/test_behavior.py"]
+    return {
+        "stage": stage,
+        "request": "Clamp a negative count to zero while preserving positive counts.",
+        "scope": "Expose clamp_count in the count module and exercise its public input.",
+        "setup": "Use Python 3 and the standard library unittest runner.",
+        "constraints": "Return integers and accept zero as a valid count.",
+        "steps": [
+            {
+                "action": "Define clamp_count(value) and add positive and negative input tests.",
+                "paths": paths,
+                "verify": {
+                    "command": "python3 -m unittest discover -s tests -p test_behavior.py",
+                    "expected": "Both tests pass for positive and negative inputs.",
+                },
+            }
+        ],
+        "acceptance": [
+            {
+                "kind": kind,
+                "entrypoint": "clamp_count(value)",
+                "given": given,
+                "when": "Call clamp_count with the given integer.",
+                "then": expected,
+                "paths": paths,
+                "runner": "unittest",
+                "test": "tests/test_behavior.py::Counts::test_" + kind,
+            }
+            for kind, given, expected in [
+                ("success", "A count of 4", "Return 4"),
+                ("boundary", "A count of -1", "Return 0"),
+            ]
+        ],
+        "pending": [],
+    }
+
+
+def write_handoff(root, record):
+    """Write the feature's versioned plan in the fixture repository."""
+    path = root / "docs/session-plans/clamp-count.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(record) + "\n", encoding="utf-8")
+
+
+def write_count(root, code, boundary="self.assertEqual(clamp(-1), 0)"):
+    """Install the public function and separate executable acceptance cases."""
+    source = root / code
+    source.parent.mkdir(parents=True, exist_ok=True)
+    source.write_text(
+        "def clamp_count(value):\n    return max(0, value)\n", encoding="utf-8"
+    )
+    suite = root / "tests/test_behavior.py"
+    suite.parent.mkdir(exist_ok=True)
+    suite.write_text(
+        "import runpy\nimport unittest\n"
+        f"clamp = runpy.run_path({code!r})['clamp_count']\n"
+        "class Counts(unittest.TestCase):\n"
+        "    def test_success(self):\n        self.assertEqual(clamp(4), 4)\n"
+        f"    def test_boundary(self):\n        {boundary}\n",
+        encoding="utf-8",
+    )
+
+
+def exercise_handoff_success(root, git, code):
+    """Commit a plan for future files and push it, then implement and push the feature."""
+    before = git("rev-parse", "HEAD").stdout
+    write_handoff(root, {"stage": "plan"})
+    git("add", "docs")
+    write_handoff(root, handoff_record(code, "plan"))
+    result = git("commit", "-m", "Incomplete staged plan", success=False)
+    assert result.returncode and b"request needs concrete text" in result.stderr, (
+        result.stderr
+    )
+    assert git("rev-parse", "HEAD").stdout == before
+    incomplete = handoff_record(code, "plan")
+    incomplete["steps"][0]["verify"] = {"command": "python3 -m unittest"}
+    write_handoff(root, incomplete)
+    git("add", "docs")
+    result = git("commit", "-m", "Omit the expected result", success=False)
+    assert result.returncode and b"step.verify.expected" in result.stderr
+    assert git("rev-parse", "HEAD").stdout == before
+    write_handoff(root, handoff_record(code, "plan"))
+    git("add", "docs")
+    git("commit", "-m", "Plan count behavior")
+    git("push", "origin", "feature/gate")
+    write_count(root, code)
+    git("add", code, "tests/test_behavior.py")
+    result = git("commit", "-m", "Implementation without mapping", success=False)
+    assert (
+        result.returncode
+        and b"missing implementation acceptance coverage" in result.stderr
+    )
+    write_handoff(root, handoff_record(code, "implementation"))
+    git("add", "docs")
+    git("commit", "-m", "Implement count behavior")
+    git("push", "origin", "feature/gate")
+    assert (
+        git("rev-parse", "HEAD").stdout.strip()
+        in git("ls-remote", "origin", "feature/gate").stdout
+    )
+
+
+def exercise_handoff_rejections(root, git, code):
+    """Keep the remote branch absent for skipped, failing, and missing acceptance."""
+    record = handoff_record(code, "implementation")
+    write_handoff(root, record)
+    for body, expected in [
+        ("pass", b"empty acceptance test"),
+        ("self.skipTest('unavailable')", b"required test did not pass"),
+        ("self.assertEqual(clamp(-1), 7)", b"required test did not pass"),
+    ]:
+        write_count(root, code, body)
+        git("add", "docs", code, "tests/test_behavior.py")
+        git("commit", "-m", "Record a boundary case")
+        result = git("push", "origin", "feature/gate", success=False)
+        assert result.returncode and expected in result.stderr + result.stdout, (
+            result.stderr
+        )
+        assert not git("ls-remote", "origin", "feature/gate").stdout
+    write_count(root, code)
+    (root / code).write_text(
+        "def clamp_count(value):\n    return value\n", encoding="utf-8"
+    )
+    git("add", code, "tests/test_behavior.py")
+    git("commit", "-m", "Remove the clamp while retaining its tests")
+    result = git("push", "origin", "feature/gate", success=False)
+    assert (
+        result.returncode
+        and b"required test did not pass" in result.stdout + result.stderr
+    )
+    assert not git("ls-remote", "origin", "feature/gate").stdout
+    # Restore the implementation so the next failure isolates the missing selector.
+    write_count(root, code)
+    git("add", code)
+    record["acceptance"][1]["test"] = "tests/test_missing.py::Counts::test_boundary"
+    write_handoff(root, record)
+    git("add", "docs")
+    git("commit", "-m", "Point to missing selector")
+    result = git("push", "origin", "feature/gate", success=False)
+    assert (
+        result.returncode
+        and b"missing acceptance test" in result.stderr + result.stdout
+    ), result.stderr
+    assert not git("ls-remote", "origin", "feature/gate").stdout
+
+
 class RemoteTests(unittest.TestCase):
     """Disposable remotes prove nonzero gates prevent remote updates.
 
@@ -168,6 +316,17 @@ class RemoteTests(unittest.TestCase):
                 ]
             ],
         }
+        if self._testMethodName.startswith("test_handoff"):
+            policy["session_handoffs"] = True
+            policy["checks"] = [
+                [
+                    "{python}",
+                    "tools/push_gate/session_delivery.py",
+                    "push",
+                    "{base}",
+                    "{sha}",
+                ]
+            ]
         (self.repo / "tools/push_gate/policy.json").write_text(json.dumps(policy))
         self.commit("fixture baseline")
         self.command("git", "push", "--quiet", "origin", "main")
@@ -212,6 +371,18 @@ if pathlib.Path(name+'-fail').exists(): sys.exit(1)
         return self.command(
             "git", "ls-remote", "origin", "refs/heads/feature/gate"
         ).stdout
+
+    def fixture_git(self, *args, success=True):
+        """Invoke the installed hooks with the disposable Git configuration."""
+        return self.command("git", *args, success=success)
+
+    def test_handoff_success(self):
+        """Deliver a planning-only change and its eventual working implementation."""
+        exercise_handoff_success(self.repo, self.fixture_git, "implementation.py")
+
+    def test_handoff_rejections(self):
+        """Refuse skipped, failing, and missing selectors even with a passing neighbor."""
+        exercise_handoff_rejections(self.repo, self.fixture_git, "implementation.py")
 
     def test_success_uses_pushed_commit_with_dirty_worktree(self):
         sha = self.commit("successful fixture")

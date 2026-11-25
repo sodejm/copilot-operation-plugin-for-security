@@ -1,5 +1,6 @@
 {
   "default_branch": "main",
+  "session_handoffs": true,
   "tools": {
     "semgrep": "1.182.0",
     "trivy": "0.76.1"

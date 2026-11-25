@@ -1,0 +1,128 @@
+{
+  "stage": "implementation",
+  "request": "Give agents an executable definition of done and leave a detailed plan an implementation-focused model can follow.",
+  "scope": "Check planning handoffs before commit and exercise each requested behavior before push via the existing Git hooks.",
+  "setup": "Run commands from the COPS repository root. Install Git and the project Python dependencies, then enable hooks with python3 tools/push_gate/gate.py install. Gate regression tests use temporary local repositories.",
+  "constraints": "Read the exact staged or committed inputs. Preserve existing checks. Run named tests using fixed runner commands. Keep plan-only work deliverable before its implementation exists.",
+  "steps": [
+    {
+      "action": "Read the current hook configuration and add a fast index check that rejects incomplete handoffs and unmapped behavior changes. Make branch plans available to later commits.",
+      "paths": [
+        ".pre-commit-config.yaml",
+        "tools/push_gate/session_delivery.py",
+        "tools/push_gate/gate.py",
+        "tools/push_gate/policy.json"
+      ],
+      "verify": {
+        "command": "python3 tools/push_gate/session_delivery.py plan docs/session-plans/behavior-handoff-gates.json",
+        "expected": "Exit zero for this complete handoff."
+      }
+    },
+    {
+      "action": "Extend the existing push gate to execute the exact named cases from the proposed commit and propagate any failures. Preserve the repository checks already attached to push.",
+      "paths": [
+        "tools/push_gate/checks.py",
+        "tools/push_gate/session_delivery.py"
+      ],
+      "verify": {
+        "command": "python3 -m unittest discover -s tests -p test_local_push_gate.py -k test_handoff_rejections",
+        "expected": "The test passes after observing each invalid push fail and the remote reference stay absent."
+      }
+    },
+    {
+      "action": "Add real Git fixtures for planning, valid implementation and broken behavior. Document the commands and the handoff lifecycle for the next implementer.",
+      "paths": [
+        "tests/test_local_push_gate.py",
+        "AGENTS.md",
+        "docs/SESSION_HANDOFF.md",
+        "docs/HOOKS.md"
+      ],
+      "verify": {
+        "command": "python3 -m unittest discover -s tests -p test_local_push_gate.py",
+        "expected": "All Git fixtures pass, including acceptance through staged commits and pushes to a bare remote."
+      }
+    },
+    {
+      "action": "Route the existing make setup-hooks installer to the reviewed gate and propagate its arguments and errors.",
+      "paths": [
+        "scripts/agent/install_hooks.py",
+        "tests/test_session_hook_installer.py"
+      ],
+      "verify": {
+        "command": "python3 -m unittest discover -s tests -p test_session_hook_installer.py -k test_forwards_revision_and_status",
+        "expected": "The test passes after observing the legacy installer return the canonical installer status."
+      }
+    },
+    {
+      "action": "Allow a handoff-only commit through issue coverage before implementation tests exist. Retain existing requirements for code and other documents.",
+      "paths": [
+        "scripts/agent/check_issue_coverage.py",
+        "tests/test_session_hook_installer.py"
+      ],
+      "verify": {
+        "command": "python3 -m unittest discover -s tests -p test_session_hook_installer.py -k test_plan_only_coverage",
+        "expected": "The handoff-only change passes coverage and the mixed change reports missing tests."
+      }
+    }
+  ],
+  "acceptance": [
+    {
+      "kind": "success",
+      "entrypoint": "git commit and git push to a local bare repository",
+      "given": "The staged plan names a count function and two future acceptance tests.",
+      "when": "Commit and push the plan, implement the function and tests, then commit and push the implementation.",
+      "then": "Both planned and implemented states reach the remote. Unmapped staged implementation is rejected before its commit.",
+      "paths": [
+        ".pre-commit-config.yaml",
+        "tools/push_gate/session_delivery.py",
+        "tools/push_gate/gate.py",
+        "tools/push_gate/policy.json",
+        "tools/push_gate/checks.py",
+        "tests/test_local_push_gate.py"
+      ],
+      "runner": "unittest",
+      "test": "tests/test_local_push_gate.py::RemoteTests::test_handoff_success"
+    },
+    {
+      "kind": "boundary",
+      "entrypoint": "git push to a local bare repository",
+      "given": "The public count function must clamp a negative value; a positive result alone is insufficient.",
+      "when": "Push variants with a missing, skipped, empty or failing boundary, then remove the clamp with the original assertions in place.",
+      "then": "Each push exits unsuccessfully and leaves the target reference absent.",
+      "paths": [
+        "tools/push_gate/checks.py",
+        "tools/push_gate/session_delivery.py",
+        "tests/test_local_push_gate.py"
+      ],
+      "runner": "unittest",
+      "test": "tests/test_local_push_gate.py::RemoteTests::test_handoff_rejections"
+    },
+    {
+      "kind": "boundary",
+      "entrypoint": "scripts/agent/install_hooks.py",
+      "given": "The canonical installer returns exit code 7 when called with an explicit revision.",
+      "when": "Invoke the existing Python installer from outside the repository root.",
+      "then": "It runs in the root with install --revision HEAD and exits with code 7.",
+      "runner": "unittest",
+      "test": "tests/test_session_hook_installer.py::InstallerTests::test_forwards_revision_and_status",
+      "paths": [
+        "scripts/agent/install_hooks.py",
+        "tests/test_session_hook_installer.py"
+      ]
+    },
+    {
+      "kind": "success",
+      "entrypoint": "COPS issue coverage check",
+      "given": "The changed paths contain a single handoff JSON file.",
+      "when": "Evaluate the plan and then the same change with app.py alongside it.",
+      "then": "The plan alone passes; the mixed change reports missing tests.",
+      "paths": [
+        "scripts/agent/check_issue_coverage.py",
+        "tests/test_session_hook_installer.py"
+      ],
+      "runner": "unittest",
+      "test": "tests/test_session_hook_installer.py::InstallerTests::test_plan_only_coverage"
+    }
+  ],
+  "pending": []
+}

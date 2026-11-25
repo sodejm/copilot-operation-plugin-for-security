@@ -148,7 +148,10 @@ def evaluate_coverage(
         result.errors.append(f"Missing documentation changes for {issue_label}")
 
     # Validate tests
-    if not result.test_files and not result.test_exempt:
+    plan_only = bool(modified_files) and all(
+        re.fullmatch(r"docs/session-plans/[^/]+\.json", name) for name in modified_files
+    )
+    if not result.test_files and not result.test_exempt and not plan_only:
         result.errors.append(f"Missing test case changes for {issue_label}")
 
     return result
@@ -165,23 +168,33 @@ def get_git_diff_files(base: str | None, head: str, staged: bool) -> list[str]:
     files = set()
 
     # 1. Committed diff between base and head
-    res = subprocess.run(["git", "diff", "--name-only", f"{base_ref}...{head}"], cwd=ROOT, capture_output=True, text=True, check=False)
+    res = subprocess.run(
+        ["git", "diff", "--name-only", f"{base_ref}...{head}"], cwd=ROOT, capture_output=True, text=True, check=False
+    )
     if res.returncode == 0:
         files.update(line.strip() for line in res.stdout.splitlines() if line.strip())
     elif base:
-        res = subprocess.run(["git", "diff", "--name-only", base_ref, head], cwd=ROOT, capture_output=True, text=True, check=False)
+        res = subprocess.run(
+            ["git", "diff", "--name-only", base_ref, head], cwd=ROOT, capture_output=True, text=True, check=False
+        )
         if res.returncode == 0:
             files.update(line.strip() for line in res.stdout.splitlines() if line.strip())
 
     # 2. If inspecting HEAD in working tree, also check unstaged/staged working tree modifications and untracked files
     if head == "HEAD":
-        res_worktree = subprocess.run(["git", "diff", "--name-only"], cwd=ROOT, capture_output=True, text=True, check=False)
+        res_worktree = subprocess.run(
+            ["git", "diff", "--name-only"], cwd=ROOT, capture_output=True, text=True, check=False
+        )
         if res_worktree.returncode == 0:
             files.update(line.strip() for line in res_worktree.stdout.splitlines() if line.strip())
-        res_cached = subprocess.run(["git", "diff", "--name-only", "--cached"], cwd=ROOT, capture_output=True, text=True, check=False)
+        res_cached = subprocess.run(
+            ["git", "diff", "--name-only", "--cached"], cwd=ROOT, capture_output=True, text=True, check=False
+        )
         if res_cached.returncode == 0:
             files.update(line.strip() for line in res_cached.stdout.splitlines() if line.strip())
-        res_untracked = subprocess.run(["git", "ls-files", "--others", "--exclude-standard"], cwd=ROOT, capture_output=True, text=True, check=False)
+        res_untracked = subprocess.run(
+            ["git", "ls-files", "--others", "--exclude-standard"], cwd=ROOT, capture_output=True, text=True, check=False
+        )
         if res_untracked.returncode == 0:
             files.update(line.strip() for line in res_untracked.stdout.splitlines() if line.strip())
 
@@ -205,7 +218,9 @@ def get_git_commit_messages(base: str | None, head: str, staged: bool) -> list[s
 
 
 def get_current_branch() -> str:
-    res = subprocess.run(["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=ROOT, capture_output=True, text=True, check=False)
+    res = subprocess.run(
+        ["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=ROOT, capture_output=True, text=True, check=False
+    )
     return res.stdout.strip() if res.returncode == 0 else "unknown"
 
 
@@ -249,10 +264,16 @@ def main() -> int:
     print(f"Branch:            {branch}")
     print(f"Detected Issue:    {result.issue_id or 'none detected'}")
     print(f"Files Modified:    {len(files)}")
-    print(f"Docs Modified:     {len(result.doc_files)}" + (f" (Exemption: {result.doc_exempt_reason})" if result.doc_exempt else ""))
+    print(
+        f"Docs Modified:     {len(result.doc_files)}"
+        + (f" (Exemption: {result.doc_exempt_reason})" if result.doc_exempt else "")
+    )
     for doc in result.doc_files:
         print(f"  - {doc}")
-    print(f"Tests Modified:    {len(result.test_files)}" + (f" (Exemption: {result.test_exempt_reason})" if result.test_exempt else ""))
+    print(
+        f"Tests Modified:    {len(result.test_files)}"
+        + (f" (Exemption: {result.test_exempt_reason})" if result.test_exempt else "")
+    )
     for test in result.test_files:
         print(f"  - {test}")
 
@@ -263,7 +284,10 @@ def main() -> int:
         print("\nRemediation per AGENTS.md and Constitution:", file=sys.stderr)
         print("  1. Update affected documentation in docs/, specs/, or root markdown files.", file=sys.stderr)
         print("  2. Add or update behavioral tests in tests/ or specs/features/.", file=sys.stderr)
-        print("  3. For documented exceptions, include '[skip-docs: <rationale>]' or '[skip-tests: <rationale>]' in commit message.", file=sys.stderr)
+        print(
+            "  3. For documented exceptions, include '[skip-docs: <rationale>]' or '[skip-tests: <rationale>]' in commit message.",
+            file=sys.stderr,
+        )
         return 1
 
     print("\n[PASSED] Issue documentation and test case requirements satisfied.")

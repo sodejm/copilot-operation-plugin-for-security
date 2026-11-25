@@ -179,6 +179,20 @@ def install(root, replace=False, revision="HEAD"):
         destination.write_bytes(git(root, "cat-file", "blob", oid))
         destination.chmod(0o755 if mode == "100755" else 0o644)
     (state / "manifest.json").write_text(json.dumps(manifest, sort_keys=True) + "\n")
+    original_commit_hook = (
+        Path(json.loads(recovery.read_text())["previous_hooks"]) / "pre-commit"
+    )
+    prior = shlex.quote(str(original_commit_hook))
+    before_commit = hooks / "pre-commit"
+    chain = f'#!/bin/sh\nset -e\nif [ -x {prior} ]; then {prior} "$@"; fi\n'
+    if json.loads((state / "policy.json").read_text()).get("session_handoffs"):
+        chain += (
+            "exec "
+            + shlex.join([sys.executable, str(state / "session_delivery.py"), "quick"])
+            + "\n"
+        )
+    before_commit.write_text(chain)
+    before_commit.chmod(0o755)
     hook = hooks / "pre-push"
     hook.write_text(shell_forward([sys.executable, state / "gate.py", "hook"]))
     hook.chmod(0o755)
@@ -237,7 +251,7 @@ def executable_test(path, before, after):
         def assertions(source):
             try:
                 parsed = ast.parse(source)
-            except (SyntaxError, ValueError):
+            except SyntaxError, ValueError:
                 return set()
             return {
                 ast.dump(node, include_attributes=False)
