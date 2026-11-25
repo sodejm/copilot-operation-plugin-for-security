@@ -622,3 +622,40 @@ and cleanup recovery. Operator provisioning is documented in
 [#328 evidence record](https://github.com/sodejm/copilot-operations-plugin-for-security/issues/328#issuecomment-7120409198)
 lists regression selectors. The qualification bundle supplied to the maintainer
 records the installed commands, package versions and fixture scripts.
+
+### Installed Ubuntu offline research qualification (#331)
+
+The dedicated single-maintainer Ubuntu VM installed source revision
+`5dcff5f5711cf5df3fa870931630f4d0a0f366ae`. All 16 required #328 cases
+passed with zero required skips before #331 started. The #331 fixture used
+the installed SSH supervisor to read a 65,536-byte synthetic corpus with
+the pinned GNU cat binary. The authenticated response reported exit code 0,
+and the authority journal recorded one approval consumption. The output
+bytes matched the corpus, the signed request and response bindings
+verified, and the completed cleanup receipt matched the durable journal.
+
+The deployed read-only observer signed a sample of the running cat process
+after release and before the authenticated SSH response arrived. It
+measured a separate network namespace with only loopback interfaces and
+routes and zero open socket descriptors. The release digest in the signed
+sample matched the adapter invocation in the authenticated SSH response.
+The qualification fixture briefly delayed output collection to keep the
+child observable. The sample establishes the isolation state at that
+instant. The same VM administrator controls both services, policy and evidence.
+
+The installed worker denied remote URL, proxy and egress-enabled requests
+before consuming approval. Thirteen unprivileged same-VM regressions
+covered DNS, inherited and unmapped descriptors, the explicitly mapped
+broker and the sandbox gate with a fixture observer. Installed timeout
+returned 124 and completed cleanup. An unexpected supervisor exit yielded
+no authenticated result. After the administrator verified and removed the
+stale socket, the restarted supervisor reconciled the journal before
+listening. Both cases reaped all three owned descendants. Recovery
+qualification ends at the new listener. The old authority remained bound
+to the original PID. All six installed cases and 13 Linux regressions
+passed with zero required skips.
+
+The [#331 qualification record](https://github.com/sodejm/copilot-operation-plugin-for-security/issues/331)
+publishes the signed manifest, command selectors and protected transcript
+hashes. The scope covers this installed Linux offline profile and the
+documented single-maintainer trust model.
