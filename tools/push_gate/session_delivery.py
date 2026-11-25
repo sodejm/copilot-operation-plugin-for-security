@@ -27,10 +27,17 @@ def git(*args):
 
 def quick_base():
     """Choose the branch baseline for the staged handoff check."""
-    for ref in ("refs/remotes/origin/main", "refs/heads/main", "HEAD"):
+    for ref in ("refs/remotes/origin/main", "refs/heads/main"):
         base = subprocess.run(["git", "merge-base", "HEAD", ref], capture_output=True)
         if base.returncode == 0:
             return base.stdout.decode().strip()
+    if (
+        subprocess.run(
+            ["git", "rev-parse", "--verify", "--quiet", "HEAD"], capture_output=True
+        ).returncode
+        == 0
+    ):
+        return "HEAD"
     return (
         subprocess.check_output(
             ["git", "hash-object", "-t", "tree", "--stdin"], input=b""
@@ -124,14 +131,37 @@ def behavior(path):
     p = PurePosixPath(path)
     if path.startswith(PLAN_DIR):
         return False
-    document = path.startswith("docs/") or p.name in {
-        "AGENTS.md",
-        "README.md",
-        "CONTRIBUTING.md",
-        "CHANGELOG.md",
-        "LICENSE.txt",
-    }
+    document = (
+        "docs" in p.parts[:-1]
+        or (p.parts[0] == "specs" and p.parts[1:2] != ("features",))
+        or path
+        in {
+            "ARCHITECTURE.md",
+            "CODE_OF_CONDUCT.md",
+            "GOVERNANCE.md",
+            "SECURITY.md",
+            "THIRD_PARTY_NOTICES.md",
+        }
+        or p.name
+        in {
+            "AGENTS.md",
+            "README.md",
+            "CONTRIBUTING.md",
+            "CHANGELOG.md",
+            "LICENSE.txt",
+        }
+    )
     return not (document and p.suffix.lower() in {".md", ".rst", ".txt"})
+
+
+def read_handoff(path, prefix):
+    """Validate a handoff from the Git index or a named tree."""
+    try:
+        plan = json.loads(git("show", prefix + path))
+        validate(plan)
+    except (ValueError, AttributeError, TypeError) as exc:
+        raise ValueError(f"{path}: {exc}") from exc
+    return plan
 
 
 def inspect_range(base, head=None):
@@ -151,12 +181,7 @@ def inspect_range(base, head=None):
         if path.startswith(PLAN_DIR) and status != "D":
             if not path.endswith(".json"):
                 raise ValueError(f"{path}: session handoffs must be JSON files")
-            try:
-                plan = json.loads(git("show", prefix + path))
-                validate(plan)
-            except (ValueError, AttributeError, TypeError) as exc:
-                raise ValueError(f"{path}: {exc}") from exc
-            records[path] = plan
+            records[path] = read_handoff(path, prefix)
     legacy = [
         p
         for p, s in changed.items()
@@ -175,6 +200,19 @@ def inspect_range(base, head=None):
         for case in plan["acceptance"]
         for path in case["paths"]
     }
+    # Without a main ref, the staged diff cannot include earlier task commits.
+    # Reuse indexed implementation records only for their named paths. Push still
+    # validates the complete change against the remote default branch.
+    if head is None and base == "HEAD" and product - covered:
+        for raw_path in git("ls-files", "-z", "--", PLAN_DIR).split(b"\0"):
+            path = os.fsdecode(raw_path)
+            if path in changed or not path.endswith(".json"):
+                continue
+            plan = read_handoff(path, prefix)
+            if plan["stage"] == "implementation":
+                covered.update(p for case in plan["acceptance"] for p in case["paths"])
+            if not product - covered:
+                break
     if product - covered:
         raise ValueError(
             "missing implementation acceptance coverage for "

@@ -122,6 +122,32 @@
       ],
       "runner": "unittest",
       "test": "tests/test_session_hook_installer.py::InstallerTests::test_plan_only_coverage"
+    },
+    {
+      "kind": "boundary",
+      "entrypoint": "Installed pre-commit and pre-push hooks in a disposable Git repository",
+      "given": "A security policy and a plugin operations guide change.",
+      "when": "Commit and push the guides, then try to commit an unmapped plugin command.",
+      "then": "The guides reach the remote. The command commit reports missing implementation coverage.",
+      "paths": [
+        "tools/push_gate/session_delivery.py",
+        "tests/test_local_push_gate.py"
+      ],
+      "runner": "unittest",
+      "test": "tests/test_local_push_gate.py::RemoteTests::test_handoff_documentation_and_prompt"
+    },
+    {
+      "kind": "success",
+      "entrypoint": "Installed pre-commit and pre-push hooks in a disposable Git repository",
+      "given": "An implementation handoff and its named paths have been committed on a feature branch.",
+      "when": "Remove both local main references, refine a covered path, push, and then stage an unrelated file.",
+      "then": "The refinement commits and pushes. The unrelated file is rejected by the commit hook.",
+      "paths": [
+        "tools/push_gate/session_delivery.py",
+        "tests/test_local_push_gate.py"
+      ],
+      "runner": "unittest",
+      "test": "tests/test_local_push_gate.py::RemoteTests::test_handoff_incremental_without_main"
     }
   ],
   "pending": []

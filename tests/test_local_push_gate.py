@@ -292,8 +292,7 @@ class RemoteTests(unittest.TestCase):
         shutil.copytree(ROOT / "tools/push_gate", self.repo / "tools/push_gate")
         (self.repo / "tests").mkdir()
         (self.repo / "tests/test_local_push_gate.py").write_text(
-            "import unittest\nclass T(unittest.TestCase):\n"
-            " def test_ok(self):\n  self.assertTrue(True)\n"
+            "import unittest\nclass T(unittest.TestCase):\n def test_ok(self):\n  self.assertTrue(True)\n"
         )
         (self.repo / "implementation.py").write_text("VALUE = 1\n")
         (self.repo / ".gitattributes").write_text("committed-only.py export-ignore\n")
@@ -379,6 +378,49 @@ if pathlib.Path(name+'-fail').exists(): sys.exit(1)
     def test_handoff_success(self):
         """Deliver a planning-only change and its eventual working implementation."""
         exercise_handoff_success(self.repo, self.fixture_git, "implementation.py")
+
+    def test_handoff_documentation_and_prompt(self):
+        """Ordinary docs pass alone while a plugin command still needs coverage."""
+        nested = self.repo / "plugins/example/docs/operations.md"
+        nested.parent.mkdir(parents=True)
+        nested.write_text("# Operations guide\n")
+        (self.repo / "SECURITY.md").write_text("# Reporting a concern\n")
+        self.fixture_git("add", "SECURITY.md", "plugins")
+        self.fixture_git("commit", "-m", "Update the security and operations guides")
+        self.fixture_git("push", "origin", "feature/gate")
+        prompt = self.repo / "plugins/example/commands/count.md"
+        prompt.parent.mkdir()
+        prompt.write_text("Count the selected items.\n")
+        self.fixture_git("add", "plugins")
+        result = self.fixture_git(
+            "commit", "-m", "Change command behavior", success=False
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(b"missing implementation acceptance coverage", result.stderr)
+
+    def test_handoff_incremental_without_main(self):
+        """A previously committed implementation record covers only its named paths."""
+        code = "implementation.py"
+        write_handoff(self.repo, handoff_record(code, "implementation"))
+        write_count(self.repo, code)
+        self.commit("Implement count behavior")
+        self.fixture_git("update-ref", "-d", "refs/remotes/origin/main")
+        self.fixture_git("branch", "-D", "main")
+        (self.repo / code).write_text(
+            "def clamp_count(value):\n    return max(value, 0)\n"
+        )
+        self.fixture_git("add", code)
+        self.fixture_git("commit", "-m", "Refine the same count behavior")
+        self.fixture_git("push", "origin", "feature/gate")
+        (self.repo / "other.py").write_text("VALUE = 2\n")
+        self.fixture_git("add", "other.py")
+        result = self.fixture_git(
+            "commit", "-m", "Add an unrelated behavior", success=False
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            b"missing implementation acceptance coverage for other.py", result.stderr
+        )
 
     def test_handoff_rejections(self):
         """Refuse skipped, failing, and missing selectors even with a passing neighbor."""
