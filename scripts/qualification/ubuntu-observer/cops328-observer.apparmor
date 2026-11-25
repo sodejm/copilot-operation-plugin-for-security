@@ -17,6 +17,7 @@ profile cops328-observer flags=(attach_disconnected,mediate_deleted) {
   /opt/hostedtoolcache/Python/3.14.10/arm64/lib/** mr,
   /usr/bin/bwrap r,
   /usr/bin/cat r,
+  /cops/tool r,
   /opt/cops-qual/ r,
   /opt/cops-qual/cops/ r,
 

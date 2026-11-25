@@ -1,3 +1,5 @@
+import hashlib
+import os
 from pathlib import Path
 
 import pytest
@@ -6,7 +8,9 @@ from cops.evidence.canonical import digest
 from cops.execution import offline_observer_host as observer
 
 
-@pytest.mark.parametrize("changed", [None, "socket", "lineage", "namespace", "executable", "child_identity", "profile"])
+@pytest.mark.parametrize(
+    "changed", [None, "socket", "lineage", "namespace", "executable", "digest", "child_identity", "profile"]
+)
 def test_live_sample_requires_the_same_restricted_pinned_process(tmp_path, monkeypatch, changed):
     task = tmp_path / "42/task/42"
     task.mkdir(parents=True)
@@ -17,8 +21,10 @@ def test_live_sample_requires_the_same_restricted_pinned_process(tmp_path, monke
     (child / "attr/current").write_text("bwrap//&unpriv_bwrap (enforce)\n", encoding="ascii")
     (child / "ns/net").symlink_to("net:[101]")
     pinned = child / "exe"
-    pinned.touch()
-    inode = pinned.stat()
+    approved_bytes = b"approved executable"
+    pinned.write_bytes(b"X" + approved_bytes[1:] if changed == "digest" else approved_bytes)
+    readlink = os.readlink
+    monkeypatch.setattr(observer.os, "readlink", lambda path: "/cops/tool" if path == pinned else readlink(path))
     monkeypatch.setattr(observer, "Path", lambda path: tmp_path if path == "/proc" else Path(path))
 
     lineage = [(42, (12, 100)), (12, (1, 90))]
@@ -42,7 +48,7 @@ def test_live_sample_requires_the_same_restricted_pinned_process(tmp_path, monke
             (child / "ns/net").symlink_to("net:[102]")
         if changed == "executable":
             replacement = child / "replacement"
-            replacement.touch()
+            replacement.write_bytes(approved_bytes)
             replacement.replace(pinned)
         if changed == "profile":
             (child / "attr/current").write_text("unconfined\n", encoding="ascii")
@@ -50,8 +56,8 @@ def test_live_sample_requires_the_same_restricted_pinned_process(tmp_path, monke
 
     monkeypatch.setattr(observer.LinuxBubblewrapSandbox, "_measure_network_boundary", measure)
     release = {"gate": {"child_pid": 42}, "worker_pid": 12, "isolation_digest": digest(approved_isolation)}
-    pin = "a" * 64
-    sample = observer._sample_live_cat(release, lineage, "net:[101]", (inode.st_dev, inode.st_ino), pin)
+    pin = hashlib.sha256(approved_bytes).hexdigest()
+    sample = observer._sample_live_cat(release, lineage, "net:[101]", len(approved_bytes), pin)
 
     if changed:
         assert sample is None

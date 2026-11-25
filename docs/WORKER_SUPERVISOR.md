@@ -201,16 +201,20 @@ accounts and pinned SSH route to qualify #328. Start #331 only after the complet
 For the installed inert-corpus qualification, append
 `--live-cat-sha256=<approved SHA-256 of /usr/bin/cat>` to the observer service's
 `ExecStart` in a root-owned systemd override. The observer verifies the root-owned
-executable at startup. After a release attestation it samples the running pinned
-child of the release gate in the same worker lineage and network namespace. A
-qualifying sample requires the enforcing Ubuntu Bubblewrap profile stack,
-loopback-only interfaces and routes, and zero socket descriptors. The observer signs the sample and writes it to its own
-service journal with the digest of the signed release attestation.
+executable at startup. After a release attestation it hashes the running child's
+loaded executable through `/proc/<pid>/exe`, which resolves to the read-only
+staged copy at `/cops/tool`. A qualifying sample requires the approved digest,
+unchanged process and executable identities, the same worker lineage and
+network namespace as the release gate, the enforcing Ubuntu Bubblewrap profile
+stack, loopback-only interfaces and routes, and zero socket descriptors. The
+observer signs the sample and records it in its service journal with the digest
+of the signed release attestation.
 
 For #331, verify the journal signature with the configured observer public key,
 then match the release digest to `observer_release_sha256` on the corpus
-invocation in the authenticated SSH result. Verify the approval consumption, output, telemetry and cleanup receipt for
-that same run. A missing live sample leaves qualification incomplete. The sample
+invocation in the authenticated SSH result. Verify the approval consumption,
+output, telemetry and cleanup receipt for that same run. A missing live sample
+leaves qualification incomplete. The sample
 records process isolation at a point in time. The enforcement configuration and
 channel-denial checks establish the rest of the network boundary. The dedicated
 VM administrator controls the observer, its journal, and the enforcement policy.

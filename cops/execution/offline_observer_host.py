@@ -27,6 +27,7 @@ _BUBBLEWRAP = Path("/usr/bin/bwrap")
 _CAT = Path("/usr/bin/cat")
 _PROFILE = "bwrap (enforce)"
 _LIVE_CAT_PROFILE = "bwrap//&unpriv_bwrap (enforce)"
+_STAGED_TOOL = "/cops/tool"
 _LIVE_SAMPLE_SCHEMA = "cops.offline-observer-live-sample/v1"
 
 
@@ -92,7 +93,7 @@ def _measure_gate(request: dict[str, Any], worker_pid: int) -> list[tuple[int, t
     return lineage
 
 
-def _pin_cat(expected_sha256: str) -> tuple[int, int]:
+def _pin_cat(expected_sha256: str) -> int:
     fd = os.open(_CAT, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
     with os.fdopen(fd, "rb") as executable:
         info = os.fstat(executable.fileno())
@@ -103,14 +104,18 @@ def _pin_cat(expected_sha256: str) -> tuple[int, int]:
             or hashlib.file_digest(executable, "sha256").hexdigest() != expected_sha256
         ):
             raise ValueError("live sample executable does not match the root-owned cat pin")
-        return info.st_dev, info.st_ino
+        return info.st_size
+
+
+def _executable_identity(info: os.stat_result) -> tuple[int, int, int, int, int]:
+    return info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns
 
 
 def _sample_live_cat(
     release: dict[str, Any],
     lineage: list[tuple[int, tuple[int, int]]],
     network_namespace: str,
-    cat_inode: tuple[int, int],
+    cat_size: int,
     cat_sha256: str,
 ) -> dict[str, Any] | None:
     gate_pid = release["gate"]["child_pid"]
@@ -129,28 +134,38 @@ def _sample_live_cat(
             if (
                 identity[0] == gate_pid
                 and (proc / "attr/current").read_text(encoding="ascii").strip() == _LIVE_CAT_PROFILE
+                and os.readlink(proc / "exe") == _STAGED_TOOL
             ):
-                executable = (proc / "exe").stat()
-                if (executable.st_dev, executable.st_ino) == cat_inode:
-                    break
+                break
         time.sleep(0.001)
     else:
         return None
 
-    if os.readlink(proc / "ns/net") != network_namespace:
-        return None
-    measured = LinuxBubblewrapSandbox._measure_network_boundary(child_pid)
-    executable = (proc / "exe").stat()
-    if (
-        not LinuxBubblewrapSandbox._offline_network_boundary_restricted(measured)
-        or digest(measured) != release["isolation_digest"]
-        or (executable.st_dev, executable.st_ino) != cat_inode
-        or os.readlink(proc / "ns/net") != network_namespace
-        or (proc / "attr/current").read_text(encoding="ascii").strip() != _LIVE_CAT_PROFILE
-        or _process_identity(child_pid) != identity
-        or _worker_lineage(gate_pid, worker_pid) != lineage
-    ):
-        return None
+    # Bubblewrap binds a staged copy of the approved executable at /cops/tool.
+    # Keep its proc descriptor open while measuring its bytes and network state.
+    exe_path = proc / "exe"
+    fd = os.open(exe_path, os.O_RDONLY | os.O_NONBLOCK | os.O_CLOEXEC)
+    with os.fdopen(fd, "rb") as source:
+        info = os.fstat(source.fileno())
+        if (
+            not stat.S_ISREG(info.st_mode)
+            or info.st_size != cat_size
+            or hashlib.sha256(source.read(cat_size + 1)).hexdigest() != cat_sha256
+            or os.readlink(proc / "ns/net") != network_namespace
+        ):
+            return None
+        measured = LinuxBubblewrapSandbox._measure_network_boundary(child_pid)
+        if (
+            not LinuxBubblewrapSandbox._offline_network_boundary_restricted(measured)
+            or digest(measured) != release["isolation_digest"]
+            or _executable_identity(exe_path.stat()) != _executable_identity(info)
+            or os.readlink(exe_path) != _STAGED_TOOL
+            or os.readlink(proc / "ns/net") != network_namespace
+            or (proc / "attr/current").read_text(encoding="ascii").strip() != _LIVE_CAT_PROFILE
+            or _process_identity(child_pid) != identity
+            or _worker_lineage(gate_pid, worker_pid) != lineage
+        ):
+            return None
     return {
         "schema_version": _LIVE_SAMPLE_SCHEMA,
         "release_sha256": digest(release),
@@ -170,7 +185,7 @@ def _exchange(
     worker_gid: int,
     worker_identity: str,
     signing_key: Ed25519PrivateKey,
-    live_cat: tuple[tuple[int, int], str] | None = None,
+    live_cat: tuple[int, str] | None = None,
 ) -> None:
     credentials = connection.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, struct.calcsize("3i"))
     pid, uid, gid = struct.unpack("3i", credentials)
