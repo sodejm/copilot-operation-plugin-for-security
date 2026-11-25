@@ -924,23 +924,46 @@ class IsolatedWorker:
 
             # 6. Execute operations in sequence (if checks passed)
             if status == "success":
-                release_gate_authorizer: Callable[[dict[str, int]], None] | None = None
-                if offline_profile is not None and self.offline_observer is not None:
 
-                    def release_gate_authorizer(gate: dict[str, int]) -> None:
+                def offline_run_arguments(step_id: str, phase: str) -> dict[str, Any]:
+                    if offline_profile is None:
+                        return {}
+                    isolation_digest = offline_profile["isolation_attestation"]["digest"]
+                    invocation: dict[str, Any] = {"step_id": step_id, "phase": phase}
+
+                    def record_observation(observation: dict[str, Any]) -> None:
+                        invocation["observation"] = observation
+                        invocation["matches_approved"] = observation[
+                            "digest"
+                        ] == isolation_digest and LinuxBubblewrapSandbox._offline_network_boundary_restricted(
+                            observation["measured"]
+                        )
+                        isolation_invocations.append(invocation)
+
+                    release_observer = self.offline_observer
+
+                    def authorize_release(gate: dict[str, int]) -> None:
+                        assert release_observer is not None
                         try:
-                            attestation = self.offline_observer.attest(
+                            attestation = release_observer.attest(
                                 phase="release",
                                 authorization_id=authorization_id,
                                 plan_digest=plan_model.plan_digest,
                                 worker_identity=self.config.worker_id,
-                                isolation_digest=offline_profile["isolation_attestation"]["digest"],
+                                isolation_digest=isolation_digest,
                                 gate=gate,
                             )
                         except ValueError as err:
                             raise OfflineResearchError("offline observer release attestation is unavailable") from err
                         if not isinstance(attestation, dict) or not attestation:
                             raise OfflineResearchError("offline observer release attestation is invalid")
+                        invocation["observer_release_sha256"] = digest(attestation)
+
+                    return {
+                        "expected_isolation_digest": isolation_digest,
+                        "isolation_observer": record_observation,
+                        **({"gate_authorizer": authorize_release} if release_observer is not None else {}),
+                    }
 
                 for operation_index, (op, operation_egress_policy) in enumerate(
                     zip(plan_model.operations, operation_egress_policies, strict=True)
@@ -1124,30 +1147,7 @@ class IsolatedWorker:
                                 _offline_signal: WaitableCancellationSignal | None = offline_signal,
                                 **kwargs: Any,
                             ) -> Any:
-                                offline_arguments = (
-                                    {
-                                        "expected_isolation_digest": offline_profile["isolation_attestation"]["digest"],
-                                        "isolation_observer": lambda observation: isolation_invocations.append(
-                                            {
-                                                "step_id": _step_id,
-                                                "phase": "version_probe",
-                                                "observation": observation,
-                                                "matches_approved": observation["digest"]
-                                                == offline_profile["isolation_attestation"]["digest"]
-                                                and LinuxBubblewrapSandbox._offline_network_boundary_restricted(
-                                                    observation["measured"]
-                                                ),
-                                            }
-                                        ),
-                                        **(
-                                            {"gate_authorizer": release_gate_authorizer}
-                                            if release_gate_authorizer is not None
-                                            else {}
-                                        ),
-                                    }
-                                    if offline_profile is not None
-                                    else {}
-                                )
+                                offline_arguments = offline_run_arguments(_step_id, "version_probe")
                                 probe = self.sandbox.run(
                                     command,
                                     expected_workspace_fd=_operation_workspace_fd,
@@ -1226,32 +1226,7 @@ class IsolatedWorker:
                                     if invocation_timeout <= 0:
                                         return None
                                     adapter_dispatched = True
-                                    offline_arguments = (
-                                        {
-                                            "expected_isolation_digest": offline_profile["isolation_attestation"][
-                                                "digest"
-                                            ],
-                                            "isolation_observer": lambda observation: isolation_invocations.append(
-                                                {
-                                                    "step_id": _step_id,
-                                                    "phase": "adapter",
-                                                    "observation": observation,
-                                                    "matches_approved": observation["digest"]
-                                                    == offline_profile["isolation_attestation"]["digest"]
-                                                    and LinuxBubblewrapSandbox._offline_network_boundary_restricted(
-                                                        observation["measured"]
-                                                    ),
-                                                }
-                                            ),
-                                            **(
-                                                {"gate_authorizer": release_gate_authorizer}
-                                                if release_gate_authorizer is not None
-                                                else {}
-                                            ),
-                                        }
-                                        if offline_profile is not None
-                                        else {}
-                                    )
+                                    offline_arguments = offline_run_arguments(_step_id, "adapter")
                                     return self.sandbox.run(
                                         [_prepared.invocation_path, *_cmd[1:]],
                                         cwd=_operation_workspace,

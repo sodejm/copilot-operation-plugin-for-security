@@ -26,6 +26,7 @@ _LOG = logging.getLogger(__name__)
 _BUBBLEWRAP = Path("/usr/bin/bwrap")
 _CAT = Path("/usr/bin/cat")
 _PROFILE = "bwrap (enforce)"
+_LIVE_CAT_PROFILE = "bwrap//&unpriv_bwrap (enforce)"
 _LIVE_SAMPLE_SCHEMA = "cops.offline-observer-live-sample/v1"
 
 
@@ -112,16 +113,26 @@ def _sample_live_cat(
     cat_inode: tuple[int, int],
     cat_sha256: str,
 ) -> dict[str, Any] | None:
-    child_pid = release["gate"]["child_pid"]
+    gate_pid = release["gate"]["child_pid"]
     worker_pid = release["worker_pid"]
-    proc = Path("/proc") / str(child_pid)
+    proc_root = Path("/proc")
+    children_path = proc_root / str(gate_pid) / "task" / str(gate_pid) / "children"
     deadline = time.monotonic() + 0.25
     while time.monotonic() < deadline:
-        if _worker_lineage(child_pid, worker_pid) != lineage:
+        if _worker_lineage(gate_pid, worker_pid) != lineage:
             return None
-        executable = (proc / "exe").stat()
-        if (executable.st_dev, executable.st_ino) == cat_inode:
-            break
+        children = " ".join(LinuxBubblewrapSandbox._read_proc_lines(children_path)).split()
+        if len(children) == 1:
+            child_pid = int(children[0])
+            proc = proc_root / str(child_pid)
+            identity = _process_identity(child_pid)
+            if (
+                identity[0] == gate_pid
+                and (proc / "attr/current").read_text(encoding="ascii").strip() == _LIVE_CAT_PROFILE
+            ):
+                executable = (proc / "exe").stat()
+                if (executable.st_dev, executable.st_ino) == cat_inode:
+                    break
         time.sleep(0.001)
     else:
         return None
@@ -135,16 +146,18 @@ def _sample_live_cat(
         or digest(measured) != release["isolation_digest"]
         or (executable.st_dev, executable.st_ino) != cat_inode
         or os.readlink(proc / "ns/net") != network_namespace
-        or (proc / "attr/current").read_text(encoding="ascii").strip() != _PROFILE
-        or _worker_lineage(child_pid, worker_pid) != lineage
+        or (proc / "attr/current").read_text(encoding="ascii").strip() != _LIVE_CAT_PROFILE
+        or _process_identity(child_pid) != identity
+        or _worker_lineage(gate_pid, worker_pid) != lineage
     ):
         return None
     return {
         "schema_version": _LIVE_SAMPLE_SCHEMA,
         "release_sha256": digest(release),
         "observed_monotonic_ns": time.monotonic_ns(),
+        "gate_pid": gate_pid,
         "child_pid": child_pid,
-        "child_start_ticks": lineage[0][1][1],
+        "child_start_ticks": identity[1],
         "executable_sha256": cat_sha256,
         "isolation": measured,
     }
@@ -191,7 +204,7 @@ def _exchange(
         connection.shutdown(socket.SHUT_WR)
         try:
             sample = _sample_live_cat(statement, lineage, network_namespace, *live_cat)
-        except (OSError, ValueError, SandboxReadinessError):
+        except OSError, ValueError, SandboxReadinessError:
             sample = None
         if sample is not None:
             signed_sample = {**sample, "signature": signing_key.sign(canonical(sample)).hex()}
