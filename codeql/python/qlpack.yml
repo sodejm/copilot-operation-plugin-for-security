@@ -1,0 +1,6 @@
+name: cops/evidence-guards
+version: 0.1.0
+extractor: python
+dependencies:
+  codeql/python-all: "*"
+defaultSuiteFile: evidence-guards.qls

@@ -1,0 +1,6 @@
+name: COPS Python evidence and extended security
+queries:
+  - uses: security-extended
+  - uses: ./codeql/python/queries
+paths-ignore:
+  - codeql/python/tests

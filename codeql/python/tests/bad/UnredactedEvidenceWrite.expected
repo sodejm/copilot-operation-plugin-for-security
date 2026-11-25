@@ -1,0 +1,206 @@
+edges
+| cops/execution/evidence.py:14:34:14:39 | ControlFlowNode for stdout | cops/execution/evidence.py:17:60:17:65 | ControlFlowNode for stdout | provenance |  |
+| cops/execution/evidence.py:14:42:14:47 | ControlFlowNode for stderr | cops/execution/evidence.py:21:52:21:57 | ControlFlowNode for stderr | provenance |  |
+| cops/execution/evidence.py:14:42:14:47 | ControlFlowNode for stderr | cops/execution/evidence.py:46:23:46:44 | ControlFlowNode for Attribute() | provenance |  |
+| cops/execution/evidence.py:14:50:14:54 | ControlFlowNode for error | cops/execution/evidence.py:24:91:24:95 | ControlFlowNode for error | provenance |  |
+| cops/execution/evidence.py:14:57:14:62 | ControlFlowNode for action | cops/execution/evidence.py:27:76:27:81 | ControlFlowNode for action | provenance |  |
+| cops/execution/evidence.py:14:65:14:80 | ControlFlowNode for artifact_outputs | cops/execution/evidence.py:30:30:30:45 | ControlFlowNode for artifact_outputs | provenance |  |
+| cops/execution/evidence.py:24:9:24:16 | ControlFlowNode for envelope | cops/execution/evidence.py:25:62:25:69 | ControlFlowNode for envelope | provenance |  |
+| cops/execution/evidence.py:24:20:24:112 | ControlFlowNode for build_envelope() | cops/execution/evidence.py:24:9:24:16 | ControlFlowNode for envelope | provenance |  |
+| cops/execution/evidence.py:24:43:24:111 | ControlFlowNode for Dict | cops/execution/evidence.py:24:20:24:112 | ControlFlowNode for build_envelope() | provenance | Config |
+| cops/execution/evidence.py:24:43:24:111 | ControlFlowNode for Dict [Dictionary element at key streams, Dictionary element at key error, Dictionary element at key sha256] | cops/execution/evidence.py:24:20:24:112 | ControlFlowNode for build_envelope() | provenance | Config |
+| cops/execution/evidence.py:24:43:24:111 | ControlFlowNode for Dict [Dictionary element at key streams, Dictionary element at key error] | cops/execution/evidence.py:24:20:24:112 | ControlFlowNode for build_envelope() | provenance | Config |
+| cops/execution/evidence.py:24:43:24:111 | ControlFlowNode for Dict [Dictionary element at key streams] | cops/execution/evidence.py:24:20:24:112 | ControlFlowNode for build_envelope() | provenance | Config |
+| cops/execution/evidence.py:24:55:24:110 | ControlFlowNode for Dict | cops/execution/evidence.py:24:43:24:111 | ControlFlowNode for Dict | provenance | Config |
+| cops/execution/evidence.py:24:55:24:110 | ControlFlowNode for Dict | cops/execution/evidence.py:24:43:24:111 | ControlFlowNode for Dict [Dictionary element at key streams] | provenance |  |
+| cops/execution/evidence.py:24:55:24:110 | ControlFlowNode for Dict [Dictionary element at key error, Dictionary element at key sha256] | cops/execution/evidence.py:24:43:24:111 | ControlFlowNode for Dict | provenance | Config |
+| cops/execution/evidence.py:24:55:24:110 | ControlFlowNode for Dict [Dictionary element at key error, Dictionary element at key sha256] | cops/execution/evidence.py:24:43:24:111 | ControlFlowNode for Dict [Dictionary element at key streams, Dictionary element at key error, Dictionary element at key sha256] | provenance |  |
+| cops/execution/evidence.py:24:55:24:110 | ControlFlowNode for Dict [Dictionary element at key error] | cops/execution/evidence.py:24:43:24:111 | ControlFlowNode for Dict | provenance | Config |
+| cops/execution/evidence.py:24:55:24:110 | ControlFlowNode for Dict [Dictionary element at key error] | cops/execution/evidence.py:24:43:24:111 | ControlFlowNode for Dict [Dictionary element at key streams, Dictionary element at key error] | provenance |  |
+| cops/execution/evidence.py:24:65:24:109 | ControlFlowNode for Dict | cops/execution/evidence.py:24:55:24:110 | ControlFlowNode for Dict | provenance | Config |
+| cops/execution/evidence.py:24:65:24:109 | ControlFlowNode for Dict | cops/execution/evidence.py:24:55:24:110 | ControlFlowNode for Dict [Dictionary element at key error] | provenance |  |
+| cops/execution/evidence.py:24:65:24:109 | ControlFlowNode for Dict [Dictionary element at key sha256] | cops/execution/evidence.py:24:55:24:110 | ControlFlowNode for Dict | provenance | Config |
+| cops/execution/evidence.py:24:65:24:109 | ControlFlowNode for Dict [Dictionary element at key sha256] | cops/execution/evidence.py:24:55:24:110 | ControlFlowNode for Dict [Dictionary element at key error, Dictionary element at key sha256] | provenance |  |
+| cops/execution/evidence.py:24:76:24:96 | ControlFlowNode for Attribute() | cops/execution/evidence.py:24:76:24:108 | ControlFlowNode for Attribute() | provenance | Config |
+| cops/execution/evidence.py:24:76:24:108 | ControlFlowNode for Attribute() | cops/execution/evidence.py:24:65:24:109 | ControlFlowNode for Dict | provenance | Config |
+| cops/execution/evidence.py:24:76:24:108 | ControlFlowNode for Attribute() | cops/execution/evidence.py:24:65:24:109 | ControlFlowNode for Dict [Dictionary element at key sha256] | provenance |  |
+| cops/execution/evidence.py:24:91:24:95 | ControlFlowNode for error | cops/execution/evidence.py:24:76:24:96 | ControlFlowNode for Attribute() | provenance | Config |
+| cops/execution/evidence.py:25:62:25:69 | ControlFlowNode for envelope | cops/execution/evidence.py:25:52:25:70 | ControlFlowNode for serialize() | provenance | Config |
+| cops/execution/evidence.py:27:9:27:23 | ControlFlowNode for action_envelope | cops/execution/evidence.py:28:46:28:60 | ControlFlowNode for action_envelope | provenance |  |
+| cops/execution/evidence.py:27:27:27:84 | ControlFlowNode for build_envelope() | cops/execution/evidence.py:27:9:27:23 | ControlFlowNode for action_envelope | provenance |  |
+| cops/execution/evidence.py:27:50:27:83 | ControlFlowNode for Dict | cops/execution/evidence.py:27:27:27:84 | ControlFlowNode for build_envelope() | provenance | Config |
+| cops/execution/evidence.py:27:50:27:83 | ControlFlowNode for Dict [Dictionary element at key provenance, Dictionary element at key action] | cops/execution/evidence.py:27:27:27:84 | ControlFlowNode for build_envelope() | provenance | Config |
+| cops/execution/evidence.py:27:50:27:83 | ControlFlowNode for Dict [Dictionary element at key provenance] | cops/execution/evidence.py:27:27:27:84 | ControlFlowNode for build_envelope() | provenance | Config |
+| cops/execution/evidence.py:27:65:27:82 | ControlFlowNode for Dict | cops/execution/evidence.py:27:50:27:83 | ControlFlowNode for Dict | provenance | Config |
+| cops/execution/evidence.py:27:65:27:82 | ControlFlowNode for Dict | cops/execution/evidence.py:27:50:27:83 | ControlFlowNode for Dict [Dictionary element at key provenance] | provenance |  |
+| cops/execution/evidence.py:27:65:27:82 | ControlFlowNode for Dict [Dictionary element at key action] | cops/execution/evidence.py:27:50:27:83 | ControlFlowNode for Dict | provenance | Config |
+| cops/execution/evidence.py:27:65:27:82 | ControlFlowNode for Dict [Dictionary element at key action] | cops/execution/evidence.py:27:50:27:83 | ControlFlowNode for Dict [Dictionary element at key provenance, Dictionary element at key action] | provenance |  |
+| cops/execution/evidence.py:27:76:27:81 | ControlFlowNode for action | cops/execution/evidence.py:27:65:27:82 | ControlFlowNode for Dict | provenance | Config |
+| cops/execution/evidence.py:27:76:27:81 | ControlFlowNode for action | cops/execution/evidence.py:27:65:27:82 | ControlFlowNode for Dict [Dictionary element at key action] | provenance |  |
+| cops/execution/evidence.py:28:36:28:61 | ControlFlowNode for serialize() | cops/execution/evidence.py:50:37:50:43 | ControlFlowNode for content | provenance |  |
+| cops/execution/evidence.py:28:46:28:60 | ControlFlowNode for action_envelope | cops/execution/evidence.py:28:36:28:61 | ControlFlowNode for serialize() | provenance | Config |
+| cops/execution/evidence.py:30:13:30:16 | ControlFlowNode for path | cops/execution/evidence.py:38:25:38:28 | ControlFlowNode for path | provenance |  |
+| cops/execution/evidence.py:30:13:30:25 | ControlFlowNode for Tuple | cops/execution/evidence.py:30:13:30:16 | ControlFlowNode for path | provenance |  |
+| cops/execution/evidence.py:30:13:30:25 | ControlFlowNode for Tuple | cops/execution/evidence.py:30:19:30:25 | ControlFlowNode for content | provenance |  |
+| cops/execution/evidence.py:30:13:30:25 | ControlFlowNode for Tuple [Tuple element at index 0] | cops/execution/evidence.py:30:13:30:16 | ControlFlowNode for path | provenance |  |
+| cops/execution/evidence.py:30:13:30:25 | ControlFlowNode for Tuple [Tuple element at index 1] | cops/execution/evidence.py:30:19:30:25 | ControlFlowNode for content | provenance |  |
+| cops/execution/evidence.py:30:13:30:25 | IterableElement | cops/execution/evidence.py:30:13:30:25 | ControlFlowNode for Tuple [Tuple element at index 0] | provenance |  |
+| cops/execution/evidence.py:30:13:30:25 | IterableElement | cops/execution/evidence.py:30:13:30:25 | ControlFlowNode for Tuple [Tuple element at index 1] | provenance |  |
+| cops/execution/evidence.py:30:13:30:25 | IterableSequence [Tuple element at index 1] | cops/execution/evidence.py:30:13:30:25 | ControlFlowNode for Tuple [Tuple element at index 1] | provenance |  |
+| cops/execution/evidence.py:30:19:30:25 | ControlFlowNode for content | cops/execution/evidence.py:34:50:34:56 | ControlFlowNode for content | provenance |  |
+| cops/execution/evidence.py:30:30:30:45 | ControlFlowNode for artifact_outputs | cops/execution/evidence.py:30:30:30:53 | ControlFlowNode for Attribute() | provenance | dict.items |
+| cops/execution/evidence.py:30:30:30:45 | ControlFlowNode for artifact_outputs | cops/execution/evidence.py:30:30:30:53 | ControlFlowNode for Attribute() [List element, Tuple element at index 1] | provenance | dict.items |
+| cops/execution/evidence.py:30:30:30:53 | ControlFlowNode for Attribute() | cops/execution/evidence.py:30:13:30:16 | ControlFlowNode for path | provenance |  |
+| cops/execution/evidence.py:30:30:30:53 | ControlFlowNode for Attribute() | cops/execution/evidence.py:30:13:30:25 | ControlFlowNode for Tuple | provenance |  |
+| cops/execution/evidence.py:30:30:30:53 | ControlFlowNode for Attribute() | cops/execution/evidence.py:30:13:30:25 | IterableElement | provenance |  |
+| cops/execution/evidence.py:30:30:30:53 | ControlFlowNode for Attribute() | cops/execution/evidence.py:30:19:30:25 | ControlFlowNode for content | provenance |  |
+| cops/execution/evidence.py:30:30:30:53 | ControlFlowNode for Attribute() [List element, Tuple element at index 1] | cops/execution/evidence.py:30:13:30:25 | ControlFlowNode for Tuple [Tuple element at index 1] | provenance |  |
+| cops/execution/evidence.py:30:30:30:53 | ControlFlowNode for Attribute() [List element, Tuple element at index 1] | cops/execution/evidence.py:30:13:30:25 | IterableSequence [Tuple element at index 1] | provenance |  |
+| cops/execution/evidence.py:32:13:32:29 | ControlFlowNode for artifact_envelope | cops/execution/evidence.py:36:66:36:82 | ControlFlowNode for artifact_envelope | provenance |  |
+| cops/execution/evidence.py:32:33:35:16 | ControlFlowNode for build_envelope() | cops/execution/evidence.py:32:13:32:29 | ControlFlowNode for artifact_envelope | provenance |  |
+| cops/execution/evidence.py:32:56:35:15 | ControlFlowNode for Dict | cops/execution/evidence.py:32:33:35:16 | ControlFlowNode for build_envelope() | provenance | Config |
+| cops/execution/evidence.py:32:56:35:15 | ControlFlowNode for Dict [Dictionary element at key artifacts, List element, Dictionary element at key content_sha256] | cops/execution/evidence.py:32:33:35:16 | ControlFlowNode for build_envelope() | provenance | Config |
+| cops/execution/evidence.py:32:56:35:15 | ControlFlowNode for Dict [Dictionary element at key artifacts, List element] | cops/execution/evidence.py:32:33:35:16 | ControlFlowNode for build_envelope() | provenance | Config |
+| cops/execution/evidence.py:32:56:35:15 | ControlFlowNode for Dict [Dictionary element at key artifacts] | cops/execution/evidence.py:32:33:35:16 | ControlFlowNode for build_envelope() | provenance | Config |
+| cops/execution/evidence.py:32:70:35:14 | ControlFlowNode for List | cops/execution/evidence.py:32:56:35:15 | ControlFlowNode for Dict | provenance | Config |
+| cops/execution/evidence.py:32:70:35:14 | ControlFlowNode for List | cops/execution/evidence.py:32:56:35:15 | ControlFlowNode for Dict [Dictionary element at key artifacts] | provenance |  |
+| cops/execution/evidence.py:32:70:35:14 | ControlFlowNode for List [List element, Dictionary element at key content_sha256] | cops/execution/evidence.py:32:56:35:15 | ControlFlowNode for Dict | provenance | Config |
+| cops/execution/evidence.py:32:70:35:14 | ControlFlowNode for List [List element, Dictionary element at key content_sha256] | cops/execution/evidence.py:32:56:35:15 | ControlFlowNode for Dict [Dictionary element at key artifacts, List element, Dictionary element at key content_sha256] | provenance |  |
+| cops/execution/evidence.py:32:70:35:14 | ControlFlowNode for List [List element] | cops/execution/evidence.py:32:56:35:15 | ControlFlowNode for Dict | provenance | Config |
+| cops/execution/evidence.py:32:70:35:14 | ControlFlowNode for List [List element] | cops/execution/evidence.py:32:56:35:15 | ControlFlowNode for Dict [Dictionary element at key artifacts, List element] | provenance |  |
+| cops/execution/evidence.py:32:71:35:13 | ControlFlowNode for Dict | cops/execution/evidence.py:32:70:35:14 | ControlFlowNode for List | provenance | Config |
+| cops/execution/evidence.py:32:71:35:13 | ControlFlowNode for Dict | cops/execution/evidence.py:32:70:35:14 | ControlFlowNode for List [List element] | provenance |  |
+| cops/execution/evidence.py:32:71:35:13 | ControlFlowNode for Dict [Dictionary element at key content_sha256] | cops/execution/evidence.py:32:70:35:14 | ControlFlowNode for List | provenance | Config |
+| cops/execution/evidence.py:32:71:35:13 | ControlFlowNode for Dict [Dictionary element at key content_sha256] | cops/execution/evidence.py:32:70:35:14 | ControlFlowNode for List [List element, Dictionary element at key content_sha256] | provenance |  |
+| cops/execution/evidence.py:34:35:34:57 | ControlFlowNode for Attribute() | cops/execution/evidence.py:34:35:34:69 | ControlFlowNode for Attribute() | provenance | Config |
+| cops/execution/evidence.py:34:35:34:69 | ControlFlowNode for Attribute() | cops/execution/evidence.py:32:71:35:13 | ControlFlowNode for Dict | provenance | Config |
+| cops/execution/evidence.py:34:35:34:69 | ControlFlowNode for Attribute() | cops/execution/evidence.py:32:71:35:13 | ControlFlowNode for Dict [Dictionary element at key content_sha256] | provenance |  |
+| cops/execution/evidence.py:34:50:34:56 | ControlFlowNode for content | cops/execution/evidence.py:34:35:34:57 | ControlFlowNode for Attribute() | provenance | Config |
+| cops/execution/evidence.py:36:66:36:82 | ControlFlowNode for artifact_envelope | cops/execution/evidence.py:36:56:36:83 | ControlFlowNode for serialize() | provenance | Config |
+| cops/execution/evidence.py:37:13:37:25 | ControlFlowNode for path_envelope | cops/execution/evidence.py:41:75:41:87 | ControlFlowNode for path_envelope | provenance |  |
+| cops/execution/evidence.py:37:29:40:16 | ControlFlowNode for build_envelope() | cops/execution/evidence.py:37:13:37:25 | ControlFlowNode for path_envelope | provenance |  |
+| cops/execution/evidence.py:37:52:40:15 | ControlFlowNode for Dict | cops/execution/evidence.py:37:29:40:16 | ControlFlowNode for build_envelope() | provenance | Config |
+| cops/execution/evidence.py:37:52:40:15 | ControlFlowNode for Dict [Dictionary element at key artifacts, List element, Dictionary element at key path] | cops/execution/evidence.py:37:29:40:16 | ControlFlowNode for build_envelope() | provenance | Config |
+| cops/execution/evidence.py:37:52:40:15 | ControlFlowNode for Dict [Dictionary element at key artifacts, List element] | cops/execution/evidence.py:37:29:40:16 | ControlFlowNode for build_envelope() | provenance | Config |
+| cops/execution/evidence.py:37:52:40:15 | ControlFlowNode for Dict [Dictionary element at key artifacts] | cops/execution/evidence.py:37:29:40:16 | ControlFlowNode for build_envelope() | provenance | Config |
+| cops/execution/evidence.py:37:66:40:14 | ControlFlowNode for List | cops/execution/evidence.py:37:52:40:15 | ControlFlowNode for Dict | provenance | Config |
+| cops/execution/evidence.py:37:66:40:14 | ControlFlowNode for List | cops/execution/evidence.py:37:52:40:15 | ControlFlowNode for Dict [Dictionary element at key artifacts] | provenance |  |
+| cops/execution/evidence.py:37:66:40:14 | ControlFlowNode for List [List element, Dictionary element at key path] | cops/execution/evidence.py:37:52:40:15 | ControlFlowNode for Dict | provenance | Config |
+| cops/execution/evidence.py:37:66:40:14 | ControlFlowNode for List [List element, Dictionary element at key path] | cops/execution/evidence.py:37:52:40:15 | ControlFlowNode for Dict [Dictionary element at key artifacts, List element, Dictionary element at key path] | provenance |  |
+| cops/execution/evidence.py:37:66:40:14 | ControlFlowNode for List [List element] | cops/execution/evidence.py:37:52:40:15 | ControlFlowNode for Dict | provenance | Config |
+| cops/execution/evidence.py:37:66:40:14 | ControlFlowNode for List [List element] | cops/execution/evidence.py:37:52:40:15 | ControlFlowNode for Dict [Dictionary element at key artifacts, List element] | provenance |  |
+| cops/execution/evidence.py:37:67:40:13 | ControlFlowNode for Dict | cops/execution/evidence.py:37:66:40:14 | ControlFlowNode for List | provenance | Config |
+| cops/execution/evidence.py:37:67:40:13 | ControlFlowNode for Dict | cops/execution/evidence.py:37:66:40:14 | ControlFlowNode for List [List element] | provenance |  |
+| cops/execution/evidence.py:37:67:40:13 | ControlFlowNode for Dict [Dictionary element at key path] | cops/execution/evidence.py:37:66:40:14 | ControlFlowNode for List | provenance | Config |
+| cops/execution/evidence.py:37:67:40:13 | ControlFlowNode for Dict [Dictionary element at key path] | cops/execution/evidence.py:37:66:40:14 | ControlFlowNode for List [List element, Dictionary element at key path] | provenance |  |
+| cops/execution/evidence.py:38:25:38:28 | ControlFlowNode for path | cops/execution/evidence.py:37:67:40:13 | ControlFlowNode for Dict | provenance | Config |
+| cops/execution/evidence.py:38:25:38:28 | ControlFlowNode for path | cops/execution/evidence.py:37:67:40:13 | ControlFlowNode for Dict [Dictionary element at key path] | provenance |  |
+| cops/execution/evidence.py:41:75:41:87 | ControlFlowNode for path_envelope | cops/execution/evidence.py:41:65:41:88 | ControlFlowNode for serialize() | provenance | Config |
+| cops/execution/evidence.py:44:9:44:13 | ControlFlowNode for mixed | cops/execution/evidence.py:48:62:48:66 | ControlFlowNode for mixed | provenance |  |
+| cops/execution/evidence.py:44:17:47:11 | ControlFlowNode for build_envelope() | cops/execution/evidence.py:44:9:44:13 | ControlFlowNode for mixed | provenance |  |
+| cops/execution/evidence.py:44:40:47:10 | ControlFlowNode for Dict | cops/execution/evidence.py:44:17:47:11 | ControlFlowNode for build_envelope() | provenance | Config |
+| cops/execution/evidence.py:44:40:47:10 | ControlFlowNode for Dict [Dictionary element at key streams, Dictionary element at key stderr] | cops/execution/evidence.py:44:17:47:11 | ControlFlowNode for build_envelope() | provenance | Config |
+| cops/execution/evidence.py:44:40:47:10 | ControlFlowNode for Dict [Dictionary element at key streams] | cops/execution/evidence.py:44:17:47:11 | ControlFlowNode for build_envelope() | provenance | Config |
+| cops/execution/evidence.py:44:52:47:9 | ControlFlowNode for Dict | cops/execution/evidence.py:44:40:47:10 | ControlFlowNode for Dict | provenance | Config |
+| cops/execution/evidence.py:44:52:47:9 | ControlFlowNode for Dict | cops/execution/evidence.py:44:40:47:10 | ControlFlowNode for Dict [Dictionary element at key streams] | provenance |  |
+| cops/execution/evidence.py:44:52:47:9 | ControlFlowNode for Dict [Dictionary element at key stderr] | cops/execution/evidence.py:44:40:47:10 | ControlFlowNode for Dict | provenance | Config |
+| cops/execution/evidence.py:44:52:47:9 | ControlFlowNode for Dict [Dictionary element at key stderr] | cops/execution/evidence.py:44:40:47:10 | ControlFlowNode for Dict [Dictionary element at key streams, Dictionary element at key stderr] | provenance |  |
+| cops/execution/evidence.py:46:23:46:44 | ControlFlowNode for Attribute() | cops/execution/evidence.py:44:52:47:9 | ControlFlowNode for Dict | provenance | Config |
+| cops/execution/evidence.py:46:23:46:44 | ControlFlowNode for Attribute() | cops/execution/evidence.py:44:52:47:9 | ControlFlowNode for Dict [Dictionary element at key stderr] | provenance |  |
+| cops/execution/evidence.py:48:62:48:66 | ControlFlowNode for mixed | cops/execution/evidence.py:48:52:48:67 | ControlFlowNode for serialize() | provenance | Config |
+| cops/execution/evidence.py:50:37:50:43 | ControlFlowNode for content | cops/execution/evidence.py:51:52:51:58 | ControlFlowNode for content | provenance |  |
+nodes
+| cops/execution/evidence.py:14:34:14:39 | ControlFlowNode for stdout | semmle.label | ControlFlowNode for stdout |
+| cops/execution/evidence.py:14:42:14:47 | ControlFlowNode for stderr | semmle.label | ControlFlowNode for stderr |
+| cops/execution/evidence.py:14:50:14:54 | ControlFlowNode for error | semmle.label | ControlFlowNode for error |
+| cops/execution/evidence.py:14:57:14:62 | ControlFlowNode for action | semmle.label | ControlFlowNode for action |
+| cops/execution/evidence.py:14:65:14:80 | ControlFlowNode for artifact_outputs | semmle.label | ControlFlowNode for artifact_outputs |
+| cops/execution/evidence.py:17:60:17:65 | ControlFlowNode for stdout | semmle.label | ControlFlowNode for stdout |
+| cops/execution/evidence.py:21:52:21:57 | ControlFlowNode for stderr | semmle.label | ControlFlowNode for stderr |
+| cops/execution/evidence.py:24:9:24:16 | ControlFlowNode for envelope | semmle.label | ControlFlowNode for envelope |
+| cops/execution/evidence.py:24:20:24:112 | ControlFlowNode for build_envelope() | semmle.label | ControlFlowNode for build_envelope() |
+| cops/execution/evidence.py:24:43:24:111 | ControlFlowNode for Dict | semmle.label | ControlFlowNode for Dict |
+| cops/execution/evidence.py:24:43:24:111 | ControlFlowNode for Dict [Dictionary element at key streams, Dictionary element at key error, Dictionary element at key sha256] | semmle.label | ControlFlowNode for Dict [Dictionary element at key streams, Dictionary element at key error, Dictionary element at key sha256] |
+| cops/execution/evidence.py:24:43:24:111 | ControlFlowNode for Dict [Dictionary element at key streams, Dictionary element at key error] | semmle.label | ControlFlowNode for Dict [Dictionary element at key streams, Dictionary element at key error] |
+| cops/execution/evidence.py:24:43:24:111 | ControlFlowNode for Dict [Dictionary element at key streams] | semmle.label | ControlFlowNode for Dict [Dictionary element at key streams] |
+| cops/execution/evidence.py:24:55:24:110 | ControlFlowNode for Dict | semmle.label | ControlFlowNode for Dict |
+| cops/execution/evidence.py:24:55:24:110 | ControlFlowNode for Dict [Dictionary element at key error, Dictionary element at key sha256] | semmle.label | ControlFlowNode for Dict [Dictionary element at key error, Dictionary element at key sha256] |
+| cops/execution/evidence.py:24:55:24:110 | ControlFlowNode for Dict [Dictionary element at key error] | semmle.label | ControlFlowNode for Dict [Dictionary element at key error] |
+| cops/execution/evidence.py:24:65:24:109 | ControlFlowNode for Dict | semmle.label | ControlFlowNode for Dict |
+| cops/execution/evidence.py:24:65:24:109 | ControlFlowNode for Dict [Dictionary element at key sha256] | semmle.label | ControlFlowNode for Dict [Dictionary element at key sha256] |
+| cops/execution/evidence.py:24:76:24:96 | ControlFlowNode for Attribute() | semmle.label | ControlFlowNode for Attribute() |
+| cops/execution/evidence.py:24:76:24:108 | ControlFlowNode for Attribute() | semmle.label | ControlFlowNode for Attribute() |
+| cops/execution/evidence.py:24:91:24:95 | ControlFlowNode for error | semmle.label | ControlFlowNode for error |
+| cops/execution/evidence.py:25:52:25:70 | ControlFlowNode for serialize() | semmle.label | ControlFlowNode for serialize() |
+| cops/execution/evidence.py:25:62:25:69 | ControlFlowNode for envelope | semmle.label | ControlFlowNode for envelope |
+| cops/execution/evidence.py:27:9:27:23 | ControlFlowNode for action_envelope | semmle.label | ControlFlowNode for action_envelope |
+| cops/execution/evidence.py:27:27:27:84 | ControlFlowNode for build_envelope() | semmle.label | ControlFlowNode for build_envelope() |
+| cops/execution/evidence.py:27:50:27:83 | ControlFlowNode for Dict | semmle.label | ControlFlowNode for Dict |
+| cops/execution/evidence.py:27:50:27:83 | ControlFlowNode for Dict [Dictionary element at key provenance, Dictionary element at key action] | semmle.label | ControlFlowNode for Dict [Dictionary element at key provenance, Dictionary element at key action] |
+| cops/execution/evidence.py:27:50:27:83 | ControlFlowNode for Dict [Dictionary element at key provenance] | semmle.label | ControlFlowNode for Dict [Dictionary element at key provenance] |
+| cops/execution/evidence.py:27:65:27:82 | ControlFlowNode for Dict | semmle.label | ControlFlowNode for Dict |
+| cops/execution/evidence.py:27:65:27:82 | ControlFlowNode for Dict [Dictionary element at key action] | semmle.label | ControlFlowNode for Dict [Dictionary element at key action] |
+| cops/execution/evidence.py:27:76:27:81 | ControlFlowNode for action | semmle.label | ControlFlowNode for action |
+| cops/execution/evidence.py:28:36:28:61 | ControlFlowNode for serialize() | semmle.label | ControlFlowNode for serialize() |
+| cops/execution/evidence.py:28:46:28:60 | ControlFlowNode for action_envelope | semmle.label | ControlFlowNode for action_envelope |
+| cops/execution/evidence.py:30:13:30:16 | ControlFlowNode for path | semmle.label | ControlFlowNode for path |
+| cops/execution/evidence.py:30:13:30:25 | ControlFlowNode for Tuple | semmle.label | ControlFlowNode for Tuple |
+| cops/execution/evidence.py:30:13:30:25 | ControlFlowNode for Tuple [Tuple element at index 0] | semmle.label | ControlFlowNode for Tuple [Tuple element at index 0] |
+| cops/execution/evidence.py:30:13:30:25 | ControlFlowNode for Tuple [Tuple element at index 1] | semmle.label | ControlFlowNode for Tuple [Tuple element at index 1] |
+| cops/execution/evidence.py:30:13:30:25 | IterableElement | semmle.label | IterableElement |
+| cops/execution/evidence.py:30:13:30:25 | IterableSequence [Tuple element at index 1] | semmle.label | IterableSequence [Tuple element at index 1] |
+| cops/execution/evidence.py:30:19:30:25 | ControlFlowNode for content | semmle.label | ControlFlowNode for content |
+| cops/execution/evidence.py:30:30:30:45 | ControlFlowNode for artifact_outputs | semmle.label | ControlFlowNode for artifact_outputs |
+| cops/execution/evidence.py:30:30:30:53 | ControlFlowNode for Attribute() | semmle.label | ControlFlowNode for Attribute() |
+| cops/execution/evidence.py:30:30:30:53 | ControlFlowNode for Attribute() [List element, Tuple element at index 1] | semmle.label | ControlFlowNode for Attribute() [List element, Tuple element at index 1] |
+| cops/execution/evidence.py:32:13:32:29 | ControlFlowNode for artifact_envelope | semmle.label | ControlFlowNode for artifact_envelope |
+| cops/execution/evidence.py:32:33:35:16 | ControlFlowNode for build_envelope() | semmle.label | ControlFlowNode for build_envelope() |
+| cops/execution/evidence.py:32:56:35:15 | ControlFlowNode for Dict | semmle.label | ControlFlowNode for Dict |
+| cops/execution/evidence.py:32:56:35:15 | ControlFlowNode for Dict [Dictionary element at key artifacts, List element, Dictionary element at key content_sha256] | semmle.label | ControlFlowNode for Dict [Dictionary element at key artifacts, List element, Dictionary element at key content_sha256] |
+| cops/execution/evidence.py:32:56:35:15 | ControlFlowNode for Dict [Dictionary element at key artifacts, List element] | semmle.label | ControlFlowNode for Dict [Dictionary element at key artifacts, List element] |
+| cops/execution/evidence.py:32:56:35:15 | ControlFlowNode for Dict [Dictionary element at key artifacts] | semmle.label | ControlFlowNode for Dict [Dictionary element at key artifacts] |
+| cops/execution/evidence.py:32:70:35:14 | ControlFlowNode for List | semmle.label | ControlFlowNode for List |
+| cops/execution/evidence.py:32:70:35:14 | ControlFlowNode for List [List element, Dictionary element at key content_sha256] | semmle.label | ControlFlowNode for List [List element, Dictionary element at key content_sha256] |
+| cops/execution/evidence.py:32:70:35:14 | ControlFlowNode for List [List element] | semmle.label | ControlFlowNode for List [List element] |
+| cops/execution/evidence.py:32:71:35:13 | ControlFlowNode for Dict | semmle.label | ControlFlowNode for Dict |
+| cops/execution/evidence.py:32:71:35:13 | ControlFlowNode for Dict [Dictionary element at key content_sha256] | semmle.label | ControlFlowNode for Dict [Dictionary element at key content_sha256] |
+| cops/execution/evidence.py:34:35:34:57 | ControlFlowNode for Attribute() | semmle.label | ControlFlowNode for Attribute() |
+| cops/execution/evidence.py:34:35:34:69 | ControlFlowNode for Attribute() | semmle.label | ControlFlowNode for Attribute() |
+| cops/execution/evidence.py:34:50:34:56 | ControlFlowNode for content | semmle.label | ControlFlowNode for content |
+| cops/execution/evidence.py:36:56:36:83 | ControlFlowNode for serialize() | semmle.label | ControlFlowNode for serialize() |
+| cops/execution/evidence.py:36:66:36:82 | ControlFlowNode for artifact_envelope | semmle.label | ControlFlowNode for artifact_envelope |
+| cops/execution/evidence.py:37:13:37:25 | ControlFlowNode for path_envelope | semmle.label | ControlFlowNode for path_envelope |
+| cops/execution/evidence.py:37:29:40:16 | ControlFlowNode for build_envelope() | semmle.label | ControlFlowNode for build_envelope() |
+| cops/execution/evidence.py:37:52:40:15 | ControlFlowNode for Dict | semmle.label | ControlFlowNode for Dict |
+| cops/execution/evidence.py:37:52:40:15 | ControlFlowNode for Dict [Dictionary element at key artifacts, List element, Dictionary element at key path] | semmle.label | ControlFlowNode for Dict [Dictionary element at key artifacts, List element, Dictionary element at key path] |
+| cops/execution/evidence.py:37:52:40:15 | ControlFlowNode for Dict [Dictionary element at key artifacts, List element] | semmle.label | ControlFlowNode for Dict [Dictionary element at key artifacts, List element] |
+| cops/execution/evidence.py:37:52:40:15 | ControlFlowNode for Dict [Dictionary element at key artifacts] | semmle.label | ControlFlowNode for Dict [Dictionary element at key artifacts] |
+| cops/execution/evidence.py:37:66:40:14 | ControlFlowNode for List | semmle.label | ControlFlowNode for List |
+| cops/execution/evidence.py:37:66:40:14 | ControlFlowNode for List [List element, Dictionary element at key path] | semmle.label | ControlFlowNode for List [List element, Dictionary element at key path] |
+| cops/execution/evidence.py:37:66:40:14 | ControlFlowNode for List [List element] | semmle.label | ControlFlowNode for List [List element] |
+| cops/execution/evidence.py:37:67:40:13 | ControlFlowNode for Dict | semmle.label | ControlFlowNode for Dict |
+| cops/execution/evidence.py:37:67:40:13 | ControlFlowNode for Dict [Dictionary element at key path] | semmle.label | ControlFlowNode for Dict [Dictionary element at key path] |
+| cops/execution/evidence.py:38:25:38:28 | ControlFlowNode for path | semmle.label | ControlFlowNode for path |
+| cops/execution/evidence.py:41:65:41:88 | ControlFlowNode for serialize() | semmle.label | ControlFlowNode for serialize() |
+| cops/execution/evidence.py:41:75:41:87 | ControlFlowNode for path_envelope | semmle.label | ControlFlowNode for path_envelope |
+| cops/execution/evidence.py:44:9:44:13 | ControlFlowNode for mixed | semmle.label | ControlFlowNode for mixed |
+| cops/execution/evidence.py:44:17:47:11 | ControlFlowNode for build_envelope() | semmle.label | ControlFlowNode for build_envelope() |
+| cops/execution/evidence.py:44:40:47:10 | ControlFlowNode for Dict | semmle.label | ControlFlowNode for Dict |
+| cops/execution/evidence.py:44:40:47:10 | ControlFlowNode for Dict [Dictionary element at key streams, Dictionary element at key stderr] | semmle.label | ControlFlowNode for Dict [Dictionary element at key streams, Dictionary element at key stderr] |
+| cops/execution/evidence.py:44:40:47:10 | ControlFlowNode for Dict [Dictionary element at key streams] | semmle.label | ControlFlowNode for Dict [Dictionary element at key streams] |
+| cops/execution/evidence.py:44:52:47:9 | ControlFlowNode for Dict | semmle.label | ControlFlowNode for Dict |
+| cops/execution/evidence.py:44:52:47:9 | ControlFlowNode for Dict [Dictionary element at key stderr] | semmle.label | ControlFlowNode for Dict [Dictionary element at key stderr] |
+| cops/execution/evidence.py:46:23:46:44 | ControlFlowNode for Attribute() | semmle.label | ControlFlowNode for Attribute() |
+| cops/execution/evidence.py:48:52:48:67 | ControlFlowNode for serialize() | semmle.label | ControlFlowNode for serialize() |
+| cops/execution/evidence.py:48:62:48:66 | ControlFlowNode for mixed | semmle.label | ControlFlowNode for mixed |
+| cops/execution/evidence.py:50:37:50:43 | ControlFlowNode for content | semmle.label | ControlFlowNode for content |
+| cops/execution/evidence.py:51:52:51:58 | ControlFlowNode for content | semmle.label | ControlFlowNode for content |
+subpaths
+#select
+| cops/execution/evidence.py:17:60:17:65 | ControlFlowNode for stdout | cops/execution/evidence.py:14:34:14:39 | ControlFlowNode for stdout | cops/execution/evidence.py:17:60:17:65 | ControlFlowNode for stdout | Operation evidence from $@ reaches persistent storage without using a returned redacted value. | cops/execution/evidence.py:14:34:14:39 | ControlFlowNode for stdout | this captured value |
+| cops/execution/evidence.py:21:52:21:57 | ControlFlowNode for stderr | cops/execution/evidence.py:14:42:14:47 | ControlFlowNode for stderr | cops/execution/evidence.py:21:52:21:57 | ControlFlowNode for stderr | Operation evidence from $@ reaches persistent storage without using a returned redacted value. | cops/execution/evidence.py:14:42:14:47 | ControlFlowNode for stderr | this captured value |
+| cops/execution/evidence.py:25:52:25:70 | ControlFlowNode for serialize() | cops/execution/evidence.py:14:50:14:54 | ControlFlowNode for error | cops/execution/evidence.py:25:52:25:70 | ControlFlowNode for serialize() | Operation evidence from $@ reaches persistent storage without using a returned redacted value. | cops/execution/evidence.py:14:50:14:54 | ControlFlowNode for error | this captured value |
+| cops/execution/evidence.py:36:56:36:83 | ControlFlowNode for serialize() | cops/execution/evidence.py:14:65:14:80 | ControlFlowNode for artifact_outputs | cops/execution/evidence.py:36:56:36:83 | ControlFlowNode for serialize() | Operation evidence from $@ reaches persistent storage without using a returned redacted value. | cops/execution/evidence.py:14:65:14:80 | ControlFlowNode for artifact_outputs | this captured value |
+| cops/execution/evidence.py:41:65:41:88 | ControlFlowNode for serialize() | cops/execution/evidence.py:14:65:14:80 | ControlFlowNode for artifact_outputs | cops/execution/evidence.py:41:65:41:88 | ControlFlowNode for serialize() | Operation evidence from $@ reaches persistent storage without using a returned redacted value. | cops/execution/evidence.py:14:65:14:80 | ControlFlowNode for artifact_outputs | this captured value |
+| cops/execution/evidence.py:48:52:48:67 | ControlFlowNode for serialize() | cops/execution/evidence.py:14:42:14:47 | ControlFlowNode for stderr | cops/execution/evidence.py:48:52:48:67 | ControlFlowNode for serialize() | Operation evidence from $@ reaches persistent storage without using a returned redacted value. | cops/execution/evidence.py:14:42:14:47 | ControlFlowNode for stderr | this captured value |
+| cops/execution/evidence.py:51:52:51:58 | ControlFlowNode for content | cops/execution/evidence.py:14:57:14:62 | ControlFlowNode for action | cops/execution/evidence.py:51:52:51:58 | ControlFlowNode for content | Operation evidence from $@ reaches persistent storage without using a returned redacted value. | cops/execution/evidence.py:14:57:14:62 | ControlFlowNode for action | this captured value |
