@@ -83,3 +83,9 @@ boundary. The worker's own measurements cover each sandbox before the tool runs;
 they do not independently attest the host, image, network policy over time, or
 the provenance of a host-mounted corpus. A dedicated worker UID and trusted host
 provisioning remain required.
+#331 qualification on the installed Ubuntu VM requires a signed live
+isolation sample from the separately deployed observer. Bind the sample to
+the pinned corpus invocation through the release attestation digest and verify
+it alongside the authenticated SSH response, output provenance and cleanup
+receipt. The sample must show the restricted network namespace and no socket
+descriptors while the pinned executable is running.

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import logging
 import os
 import signal
@@ -23,7 +24,9 @@ from .sandbox import LinuxBubblewrapSandbox, SandboxReadinessError
 
 _LOG = logging.getLogger(__name__)
 _BUBBLEWRAP = Path("/usr/bin/bwrap")
+_CAT = Path("/usr/bin/cat")
 _PROFILE = "bwrap (enforce)"
+_LIVE_SAMPLE_SCHEMA = "cops.offline-observer-live-sample/v1"
 
 
 def _load_key(path: Path) -> Ed25519PrivateKey:
@@ -61,7 +64,7 @@ def _worker_lineage(pid: int, worker_pid: int) -> list[tuple[int, tuple[int, int
     raise ValueError("paused child does not belong to the worker")
 
 
-def _measure_gate(request: dict[str, Any], worker_pid: int) -> None:
+def _measure_gate(request: dict[str, Any], worker_pid: int) -> list[tuple[int, tuple[int, int]]]:
     gate = request["gate"]
     child_pid = gate["child_pid"]
     lineage = _worker_lineage(child_pid, worker_pid)
@@ -85,6 +88,66 @@ def _measure_gate(request: dict[str, Any], worker_pid: int) -> None:
         or not LinuxBubblewrapSandbox._execution_gate_is_blocked(**gate)
     ):
         raise ValueError("paused child does not match the requested isolation")
+    return lineage
+
+
+def _pin_cat(expected_sha256: str) -> tuple[int, int]:
+    fd = os.open(_CAT, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
+    with os.fdopen(fd, "rb") as executable:
+        info = os.fstat(executable.fileno())
+        if (
+            not stat.S_ISREG(info.st_mode)
+            or info.st_uid != 0
+            or info.st_mode & 0o6022
+            or hashlib.file_digest(executable, "sha256").hexdigest() != expected_sha256
+        ):
+            raise ValueError("live sample executable does not match the root-owned cat pin")
+        return info.st_dev, info.st_ino
+
+
+def _sample_live_cat(
+    release: dict[str, Any],
+    lineage: list[tuple[int, tuple[int, int]]],
+    network_namespace: str,
+    cat_inode: tuple[int, int],
+    cat_sha256: str,
+) -> dict[str, Any] | None:
+    child_pid = release["gate"]["child_pid"]
+    worker_pid = release["worker_pid"]
+    proc = Path("/proc") / str(child_pid)
+    deadline = time.monotonic() + 0.25
+    while time.monotonic() < deadline:
+        if _worker_lineage(child_pid, worker_pid) != lineage:
+            return None
+        executable = (proc / "exe").stat()
+        if (executable.st_dev, executable.st_ino) == cat_inode:
+            break
+        time.sleep(0.001)
+    else:
+        return None
+
+    if os.readlink(proc / "ns/net") != network_namespace:
+        return None
+    measured = LinuxBubblewrapSandbox._measure_network_boundary(child_pid)
+    executable = (proc / "exe").stat()
+    if (
+        not LinuxBubblewrapSandbox._offline_network_boundary_restricted(measured)
+        or digest(measured) != release["isolation_digest"]
+        or (executable.st_dev, executable.st_ino) != cat_inode
+        or os.readlink(proc / "ns/net") != network_namespace
+        or (proc / "attr/current").read_text(encoding="ascii").strip() != _PROFILE
+        or _worker_lineage(child_pid, worker_pid) != lineage
+    ):
+        return None
+    return {
+        "schema_version": _LIVE_SAMPLE_SCHEMA,
+        "release_sha256": digest(release),
+        "observed_monotonic_ns": time.monotonic_ns(),
+        "child_pid": child_pid,
+        "child_start_ticks": lineage[0][1][1],
+        "executable_sha256": cat_sha256,
+        "isolation": measured,
+    }
 
 
 def _exchange(
@@ -94,6 +157,7 @@ def _exchange(
     worker_gid: int,
     worker_identity: str,
     signing_key: Ed25519PrivateKey,
+    live_cat: tuple[tuple[int, int], str] | None = None,
 ) -> None:
     credentials = connection.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, struct.calcsize("3i"))
     pid, uid, gid = struct.unpack("3i", credentials)
@@ -110,7 +174,10 @@ def _exchange(
     request = parse_observer_request(bytes(frame))
     if request["worker_pid"] != pid or request["worker_identity"] != worker_identity:
         raise ValueError("observer peer binding mismatch")
-    _measure_gate(request, pid)
+    lineage = _measure_gate(request, pid)
+    sample_release = live_cat is not None and request["phase"] == "release"
+    if sample_release:
+        network_namespace = os.readlink(Path("/proc") / str(request["gate"]["child_pid"]) / "ns/net")
     body = {**request, "schema_version": ATTESTATION_SCHEMA, "observed_monotonic_ns": time.monotonic_ns()}
     statement = {**body, "signature": signing_key.sign(canonical(body)).hex()}
     response = canonical(statement) + b"\n"
@@ -119,6 +186,16 @@ def _exchange(
     connection.settimeout(deadline - time.monotonic())
     connection.sendall(response)
     _LOG.info("observed phase=%s plan=%s isolation=%s", body["phase"], body["plan_digest"], body["isolation_digest"])
+    if live_cat is not None and sample_release:
+        # Deliver EOF to the verifier so the worker can open the gate.
+        connection.shutdown(socket.SHUT_WR)
+        try:
+            sample = _sample_live_cat(statement, lineage, network_namespace, *live_cat)
+        except (OSError, ValueError, SandboxReadinessError):
+            sample = None
+        if sample is not None:
+            signed_sample = {**sample, "signature": signing_key.sign(canonical(sample)).hex()}
+            _LOG.info("observed live cat %s", canonical(signed_sample).decode("ascii"))
 
 
 def main() -> int:
@@ -128,6 +205,7 @@ def main() -> int:
     parser.add_argument("--worker-uid", type=int, required=True)
     parser.add_argument("--worker-gid", type=int, required=True)
     parser.add_argument("--worker-identity", required=True)
+    parser.add_argument("--live-cat-sha256", help="pin /usr/bin/cat for signed live qualification samples")
     args = parser.parse_args()
     uid = os.geteuid()
     if (
@@ -141,6 +219,9 @@ def main() -> int:
         parser.error("absolute paths and distinct non-root observer and worker accounts are required")
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     signing_key = _load_key(args.signing_key)
+    live_cat = None
+    if args.live_cat_sha256 is not None:
+        live_cat = (_pin_cat(args.live_cat_sha256), args.live_cat_sha256)
     directory_fd = open_directory_no_symlinks(args.socket_path.parent)
     try:
         directory_info = os.fstat(directory_fd)
@@ -172,6 +253,7 @@ def main() -> int:
                             worker_gid=args.worker_gid,
                             worker_identity=args.worker_identity,
                             signing_key=signing_key,
+                            live_cat=live_cat,
                         )
                     except (OSError, ValueError, SandboxReadinessError) as error:
                         _LOG.warning("observer denied request (%s)", type(error).__name__)

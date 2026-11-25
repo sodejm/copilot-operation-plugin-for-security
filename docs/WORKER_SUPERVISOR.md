@@ -198,6 +198,23 @@ test covers its local Linux path. Use the installed services across the distinct
 accounts and pinned SSH route to qualify #328. Start #331 only after the complete
 #328 acceptance checklist passes with zero required skips.
 
+For the installed inert-corpus qualification, append
+`--live-cat-sha256=<approved SHA-256 of /usr/bin/cat>` to the observer service's
+`ExecStart` in a root-owned systemd override. The observer verifies the root-owned
+executable at startup. After a release attestation it samples the running pinned
+process in the same worker lineage and network namespace. A qualifying sample
+requires enforcing AppArmor, loopback-only interfaces and routes, and zero
+socket descriptors. The observer signs the sample and writes it to its own
+service journal with the digest of the signed release attestation.
+
+For #331, verify the journal signature with the configured observer public key,
+then match the release digest to the corpus invocation of the authenticated SSH
+run. Verify the approval consumption, output, telemetry and cleanup receipt for
+that same run. A missing live sample leaves qualification incomplete. The sample
+records process isolation at a point in time. The enforcement configuration and
+channel-denial checks establish the rest of the network boundary. The dedicated
+VM administrator controls the observer, its journal, and the enforcement policy.
+
 `egress_trust_domain` and `credential_manifest_path` are optional. Omit the
 manifest path when no operation uses a credential. For credentialed operations,
 provision the manifest as a supervisor-owned regular JSON file with mode `0600`:
