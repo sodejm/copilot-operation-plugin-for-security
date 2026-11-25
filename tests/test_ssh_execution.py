@@ -274,6 +274,15 @@ def test_offline_receiver_authenticates_output_and_enforces_response_limit(tmp_p
     path = "artifacts/step-1_output.txt"
     sha256 = hashlib.sha256(content).hexdigest()
     isolation = profile["isolation_attestation"]
+    observation = {
+        **isolation,
+        "observation_scope": "pre_exec_actual_sandbox",
+        "measured": {
+            "interfaces": ["lo"], "routes": [], "ipv6_routes": [],
+            "socket_fds": 0, "separate_network_namespace": True,
+        },
+    }
+    release_sha256 = hashlib.sha256(b"observer release fixture").hexdigest()
     result = replace(
         _result(plan),
         artifacts=[{"name": "step-1_output.txt", "path": path, "sha256": sha256, "size_bytes": len(content)}],
@@ -283,15 +292,14 @@ def test_offline_receiver_authenticates_output_and_enforces_response_limit(tmp_p
             "worker_inventory_sha256": profile["worker_inventory_sha256"],
             "approved_isolation_attestation": isolation["digest"],
             "corpora": [{"name": "sample", "sha256": sha256}],
-            "isolation_observation": {
-                **isolation,
-                "observation_scope": "pre_exec_actual_sandbox",
-                "measured": {
-                    "interfaces": ["lo"], "routes": [], "ipv6_routes": [],
-                    "socket_fds": 0, "separate_network_namespace": True,
-                },
-            },
-            "isolation_invocations": [],
+            "isolation_observation": observation,
+            "isolation_invocations": [{
+                "step_id": "step-1",
+                "phase": "adapter",
+                "observation": observation,
+                "matches_approved": True,
+                "observer_release_sha256": release_sha256,
+            }],
         },
     )
     approval = _receipt(plan)
@@ -334,6 +342,7 @@ def test_offline_receiver_authenticates_output_and_enforces_response_limit(tmp_p
     payload = respond(1024 * 1024)
     run = RemoteAuthorizedRun.from_dict(verify(payload))
     assert run.redacted_artifacts == {path: content}
+    assert run.result.offline_research["isolation_invocations"][0]["observer_release_sha256"] == release_sha256
     payload["authorized_run"]["redacted_artifacts"][path] = base64.b64encode(b"x" * len(content)).decode()
     with pytest.raises(SupervisorAttestationError, match="binding mismatch"):
         verify(payload)

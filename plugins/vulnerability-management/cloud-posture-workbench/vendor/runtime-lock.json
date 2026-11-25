@@ -26,7 +26,7 @@
     "catalog/schemas/purple-team-handoff.schema.json": "73096cab230f0ac8111af8ce57dae4375bb5aacbd9e743f5071bb9be493d5e35",
     "catalog/schemas/retest-input.schema.json": "1a92e5c49a52b7ae546b96ec1071eec51ace26577e89aee63052bbb70b0a145a",
     "catalog/schemas/retest-report.schema.json": "763ef256c4f5648ec9fb9a28cc8cdaca2ee0731b0e4450a684cee7d58987db6c",
-    "catalog/schemas/run-result.schema.json": "3f6bcb52b264f9ba1bbfa00ccf090e7f30a044a176075ff29bc4110fa13e3ab1",
+    "catalog/schemas/run-result.schema.json": "fbcf621c3e9433b866f95d029a45f0f9b4a98a8e7940c792e13165187ac13729",
     "catalog/schemas/scenario-contract.schema.json": "2cd77820309970a320b65f52e264f50e9452af6850c616d13bfd356719f1a1ed",
     "catalog/schemas/scenario-registry.schema.json": "b25d5b357aed611bb2e95a8844299e5c5d2c1bac2103352ffddb0664e5bf284c",
     "catalog/schemas/specialist-handoff.schema.json": "c4988163d3c853153e5a78a6e35288cb7b74a3f51ccae31d71ec9402046e84ce",
