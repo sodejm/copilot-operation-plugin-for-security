@@ -295,3 +295,12 @@ Squad prompts, templates, skills, ceremonies, and model defaults. In particular:
 
 This project uses Squad. To run the Squad coordinator in OpenAI Codex, use the `squad` custom agent defined in `.codex/agents/squad.toml` with the team defined in `.squad/team.md`. Shared state is served by the `squad_state` MCP server in `.codex/config.toml`.
 <!-- squad:end:codex -->
+
+## Session plans and acceptance
+
+For planning or implementation requests, save the handoff under
+`docs/session-plans/` before calling the session complete, including sessions
+that end before a commit. Follow [Session handoffs](docs/SESSION_HANDOFF.md).
+Map each requested outcome to an observable assertion through its normal entry
+point. Record the failing baseline and passing result when implementing it.
+Report outstanding manual or platform checks explicitly.
