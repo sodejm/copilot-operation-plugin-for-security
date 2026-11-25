@@ -103,6 +103,7 @@ class AuthorizedExecution:
     cleanup_receipt: CleanupReceipt
     operation_outputs: Mapping[str, Mapping[str, Any]] = field(default_factory=lambda: MappingProxyType({}))
     attempted_operation_ids: tuple[str, ...] = ()
+    redacted_artifacts: Mapping[str, bytes] | None = None
 
 
 def _supports_secure_evidence_dirs() -> bool:
@@ -658,6 +659,9 @@ class IsolatedWorker:
         )
         self._verify_plan_compatibility(plan_model)
 
+        if offline_profile is not None:
+            self.approval_control.verify_authorization(authorization_id, plan_model, self.config.worker_id)
+
         # Compatibility and workspace safety are part of the pre-consumption gate.
         secure_evidence_dirs = _supports_secure_evidence_dirs()
         portable_inert = not secure_evidence_dirs and all(op["tool"] == "inert" for op in plan_model.operations)
@@ -862,6 +866,7 @@ class IsolatedWorker:
                 workspace_dir=target_workspace,
                 expected_workspace_fd=workspace_fd,
                 redactor=redactor,
+                retain_redacted_artifacts=offline_profile is not None,
                 portable_inert=portable_inert,
                 context=EvidenceContext(
                     plan_id=plan_model.plan_id,
@@ -1687,4 +1692,9 @@ class IsolatedWorker:
             cleanup_receipt,
             MappingProxyType(operation_outputs),
             tuple(attempted_operation_ids),
+            redacted_artifacts=(
+                MappingProxyType(evidence_recorder.redacted_artifacts)
+                if evidence_recorder.redacted_artifacts is not None
+                else None
+            ),
         )

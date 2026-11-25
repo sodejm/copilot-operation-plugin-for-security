@@ -389,7 +389,11 @@ def build_receiver(config: WorkerSupervisorConfig) -> SSHRemoteExecutionReceiver
         required_execution_profile="offline-research/v1" if offline_only else None,
         offline_observer=observer,
     )
-    worker.recover_pending_cleanup()
+    if any(
+        receipt.status not in {"completed", "not_required"} or receipt.unresolved_effects
+        for receipt in worker.recover_pending_cleanup()
+    ):
+        raise WorkerSupervisorError("worker cleanup recovery is incomplete")
     return SSHRemoteExecutionReceiver(
         expected_host=config.expected_host,
         expected_worker_identity=config.worker_identity,
@@ -498,12 +502,12 @@ def serve_forever(
             os.umask(old_umask)
         bound = os.lstat(config.socket_path)
         try:
-            if not stat.S_ISSOCK(bound.st_mode) or (bound.st_uid, bound.st_gid) != (
-                config.supervisor_uid,
-                config.supervisor_gid,
+            if (
+                not stat.S_ISSOCK(bound.st_mode)
+                or (bound.st_uid, bound.st_gid) != (config.supervisor_uid, config.supervisor_gid)
+                or stat.S_IMODE(bound.st_mode) != 0o660
             ):
-                raise WorkerSupervisorError("bound supervisor socket identity is unsafe")
-            os.chmod(config.socket_path, 0o660, follow_symlinks=False)
+                raise WorkerSupervisorError("bound supervisor socket identity or mode is unsafe")
             listener.listen(8)
             if stop_requested is not None:
                 listener.settimeout(0.25)

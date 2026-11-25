@@ -12,8 +12,8 @@ import stat
 import struct
 import sys
 import time
-from collections.abc import Callable
-from dataclasses import dataclass, field
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, BinaryIO, Protocol
 
@@ -39,6 +39,8 @@ DEFAULT_REMOTE_WORKER_RELAY_CONFIG = Path("/etc/cops/remote-worker.json")
 _MAX_RELAY_CONFIG_BYTES = 16 * 1024
 _DEFAULT_MAX_REQUEST_BYTES = 64 * 1024
 _DEFAULT_MAX_RESPONSE_BYTES = 1024 * 1024
+# The attestation repeats selected request fields and adds fixed-size digests.
+_SUPERVISOR_ATTESTATION_RESERVE_BYTES = _DEFAULT_MAX_REQUEST_BYTES + 4096
 _SUPERVISOR_OVERHEAD_SECONDS = 5.0
 _IDENTITY = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,127}")
 
@@ -150,6 +152,7 @@ class AuthorizedRunLike(Protocol):
     result: RunResult
     approval_receipt: ApprovalConsumptionReceipt
     cleanup_receipt: CleanupReceipt | None
+    redacted_artifacts: Mapping[str, bytes] | None
 
 
 class ReceiptExecutingWorker(Protocol):
@@ -204,6 +207,7 @@ def handle_remote_execution_request(
     worker: ReceiptExecutingWorker,
     workspace_dir: Path | str | None = None,
     cancellation_event: WaitableCancellationSignal | None = None,
+    max_response_bytes: int = _DEFAULT_MAX_RESPONSE_BYTES,
 ) -> dict[str, Any]:
     request = _validate_remote_execution_request(
         document,
@@ -220,24 +224,62 @@ def handle_remote_execution_request(
         max_output_bytes=request.max_output_bytes,
         **({"cancellation_event": cancellation_event} if cancellation_event is not None else {}),
     )
+    offline = request.action_plan.offline_research is not None
     authorized_run = RemoteAuthorizedRun(
         result=executed.result,
         approval_receipt=executed.approval_receipt,
         cleanup_receipt=executed.cleanup_receipt,
+        redacted_artifacts=executed.redacted_artifacts if offline else None,
     )
-    validate_remote_authorized_run(
-        authorized_run,
-        approved_worker_identity=expected_worker_identity,
-        authorization_id=request.authorization_id,
-        action_plan=request.action_plan,
-    )
-    return {
+    response = {
         "protocol": SSH_PROTOCOL,
         "request_id": request.request_id,
         "host": expected_host,
         "worker_id": expected_worker_identity,
         "payload": authorized_run.to_dict(),
     }
+    if offline and (
+        authorized_run.redacted_artifacts is None
+        or (
+            authorized_run.redacted_artifacts
+            and len(_encode_remote_response(response)) > max_response_bytes - _SUPERVISOR_ATTESTATION_RESERVE_BYTES
+        )
+    ):
+        authorized_run = _without_redacted_artifacts(authorized_run)
+        response["payload"] = authorized_run.to_dict()
+    validate_remote_authorized_run(
+        authorized_run,
+        approved_worker_identity=expected_worker_identity,
+        authorization_id=request.authorization_id,
+        action_plan=request.action_plan,
+    )
+    return response
+
+
+def _without_redacted_artifacts(run: RemoteAuthorizedRun) -> RemoteAuthorizedRun:
+    result = run.result
+    status = "partial" if result.status == "success" else result.status
+    status_details = {
+        **result.status_details,
+        "summary": f"Execution finished with status '{status}'",
+        "reason": " ".join(
+            filter(None, (result.status_details.get("reason"), "Redacted artifacts exceed the response byte limit."))
+        ),
+    }
+    return replace(
+        run,
+        result=replace(
+            result,
+            status=status,
+            exit_code=125 if result.status == "success" else result.exit_code,
+            status_details=status_details,
+        ),
+        redacted_artifacts=None,
+    )
+
+
+def _encode_remote_response(response: dict[str, Any]) -> bytes:
+    return json.dumps(response, sort_keys=True, separators=(",", ":")).encode("utf-8") + b"\n"
 
 
 def _validate_remote_execution_request(
@@ -331,8 +373,9 @@ def serve_one_remote_execution_request(
         worker=worker,
         workspace_dir=workspace_dir,
         cancellation_event=cancellation_event,
+        max_response_bytes=max_response_bytes,
     )
-    encoded = json.dumps(response, sort_keys=True, separators=(",", ":")).encode("utf-8") + b"\n"
+    encoded = _encode_remote_response(response)
     if len(encoded) > max_response_bytes:
         raise SSHExecutionError("remote execution response exceeds the byte limit")
     output_stream.write(encoded)

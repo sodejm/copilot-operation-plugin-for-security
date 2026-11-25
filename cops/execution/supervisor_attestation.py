@@ -258,9 +258,8 @@ def _build_claims(
     validate_exchange_nonce(exchange_nonce)
     if not isinstance(action_plan, Mapping) or not isinstance(authorized_run, Mapping):
         raise SupervisorAttestationError("supervisor attestation binding document is invalid")
-    legacy_fields = {"schema_version", "result", "approval_receipt"}
-    cleanup_fields = legacy_fields | {"cleanup_receipt"}
-    if set(authorized_run) not in (legacy_fields, cleanup_fields):
+    required = {"schema_version", "result", "approval_receipt"}
+    if not required <= set(authorized_run) <= (required | {"cleanup_receipt", "redacted_artifacts"}):
         raise SupervisorAttestationError("supervisor authorized run fields are invalid")
     result = authorized_run["result"]
     receipt = authorized_run["approval_receipt"]
@@ -289,6 +288,11 @@ def _build_claims(
             if not isinstance(cleanup, Mapping):
                 raise SupervisorAttestationError("supervisor cleanup receipt is invalid")
             claims["cleanup_receipt_digest"] = digest(dict(cleanup))
+        if "redacted_artifacts" in authorized_run:
+            artifacts = authorized_run["redacted_artifacts"]
+            if not isinstance(artifacts, dict):
+                raise SupervisorAttestationError("supervisor redacted artifacts are invalid")
+            claims["redacted_artifacts_digest"] = digest(artifacts)
         if endpoint_identity_digest is not None:
             claims["endpoint_identity_digest"] = endpoint_identity_digest
         return claims

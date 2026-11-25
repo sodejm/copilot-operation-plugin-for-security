@@ -50,6 +50,13 @@ and accepts one bounded, versioned JSON response.
    - Malformed JSON, a non-zero SSH exit, or a protocol or identity mismatch
      fails closed without returning a response payload.
 
+4. **Restricted service sockets**
+   - The supervisor and approval authority bind their Unix sockets with mode
+     `0660` from creation using a restrictive bind umask.
+   - Before listening, each service verifies that the new path is a Unix socket
+     with mode `0660` and the configured owner and dedicated group. A mismatch
+     stops startup.
+
 ## Security boundary
 
 This module authenticates the configured SSH host key and application worker

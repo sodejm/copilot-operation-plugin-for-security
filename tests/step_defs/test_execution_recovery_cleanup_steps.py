@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 from pytest_bdd import given, parsers, scenarios, then, when
 
+from cops import worker_supervisor as supervisor
 from cops.contracts.models import ActionPlan, CleanupReceipt, RunResult
 from cops.execution import (
     ApprovalStore,
@@ -28,6 +29,7 @@ from tests.auth_testkit import (
     authorize_test_plan,
     worker_inventory_for_plan,
 )
+from tests.test_worker_supervisor import _config_document, _test_receiver
 
 scenarios("../../specs/features/execution_recovery_cleanup.feature")
 
@@ -336,6 +338,60 @@ def then_persistence_failure_is_explicit(recovery_ctx):
         unresolved["resource_type"] == "cleanup_journal" and "receipt persistence failed" in unresolved["reason"]
         for unresolved in receipt.unresolved_effects
     )
+
+
+@given("a provisioned supervisor with a pending process effect in its cleanup journal")
+def given_supervisor_with_pending_cleanup(recovery_ctx, tmp_path, monkeypatch):
+    context = _test_receiver(tmp_path, monkeypatch)
+    journal = context.receiver.worker.cleanup_journal
+    ledger = SideEffectLedger(
+        context.plan.plan_id,
+        context.plan.engagement_id,
+        context.config.worker_identity,
+        journal=journal,
+    )
+    effect = ledger.record_effect(
+        step_id="step-interrupted",
+        resource_type="process",
+        target=str(os.getpid()),
+        cleanup_action="terminate",
+    )
+    config_path = tmp_path / "supervisor.json"
+    config_path.write_text(json.dumps(_config_document(context.config)), encoding="utf-8")
+    config_path.chmod(0o600)
+    monkeypatch.setattr(os, "kill", lambda *_args: pytest.fail("recovered process signalled"))
+    monkeypatch.setattr(supervisor, "serve_forever", lambda *_args, **_kwargs: pytest.fail("relay listener opened"))
+    recovery_ctx.update(
+        supervisor_config_path=config_path,
+        supervisor_journal_path=journal.path,
+        supervisor_run_id=ledger.run_id,
+        supervisor_effect_id=effect.effect_id,
+    )
+
+
+@when("the supervisor restarts")
+def when_supervisor_restarts(recovery_ctx):
+    recovery_ctx["startup_status"] = supervisor.main(["--config", str(recovery_ctx["supervisor_config_path"])])
+
+
+@then("the supervisor refuses startup before opening the relay listener")
+def then_supervisor_refuses_startup(recovery_ctx):
+    assert recovery_ctx["startup_status"] == 1
+
+
+@then("the recovered process effect is durably recorded as unresolved")
+def then_supervisor_persists_unresolved_effect(recovery_ctx):
+    with sqlite3.connect(recovery_ctx["supervisor_journal_path"]) as connection:
+        (payload,) = connection.execute(
+            "SELECT payload_json FROM cleanup_events WHERE run_id = ? AND event_type = 'cleanup_receipt'",
+            (recovery_ctx["supervisor_run_id"],),
+        ).fetchone()
+    receipt = CleanupReceipt.from_dict(json.loads(payload))
+    assert receipt.status == "failed"
+    assert len(receipt.unresolved_effects) == 1
+    effect = receipt.unresolved_effects[0]
+    assert effect["effect_id"] == recovery_ctx["supervisor_effect_id"]
+    assert "cannot be verified after worker restart" in effect["reason"]
 
 
 @given("executable staging effects were durably cleaned before final rollback")

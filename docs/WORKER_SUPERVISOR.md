@@ -4,8 +4,10 @@ The production execution path uses three distinct, unprivileged Linux accounts:
 an SSH relay account, a worker supervisor account, and an approval authority
 account. The relay accepts one host-key-authenticated SSH request and forwards it
 to the supervisor Unix socket. The supervisor validates the request and runs the
-isolated worker. The approval authority independently verifies and atomically
-consumes the signed authorization through its consume-only control socket.
+isolated worker. For offline research, the approval authority verifies the
+signed authorization through a read-only preflight. The same control socket
+checks the pinned supervisor peer for each request, including the later atomic
+consumption of the authorization.
 
 The relay account must not read the engagement, worker inventory, executable
 pins, verifier trust store, signing secret, or approval database. The supervisor
@@ -23,9 +25,10 @@ socket with mode `0660`; group members can connect but cannot list, unlink, or
 replace the socket. Provision the authority socket directory as a real,
 authority-owned directory with the supervisor group and mode `2710`. The
 authority's socket must be authority-owned, in the supervisor group, and mode
-`0660`. Neither socket path may already exist when its service starts. Keep all
-ancestor directories free of symbolic links and writable only by trusted
-administrators.
+`0660`. Both services apply a restrictive umask at bind and verify the socket
+type, ownership, and mode before listening. Neither socket path may already
+exist when its service starts. Keep all ancestor directories free of symbolic
+links and writable only by trusted administrators.
 
 The supervisor reads an owner-only JSON configuration file and owner-only
 inventory and engagement files. Use absolute paths and mode `0600`; the loader
@@ -59,11 +62,11 @@ The v2 supervisor configuration requires `cleanup_journal_path`. Provision its
 parent as a real, supervisor-owned directory with mode `0700`. Keep the SQLite
 journal outside execution workspaces on durable storage, owned by the supervisor
 with mode `0600`, and retain it across process restarts. The worker records
-cleanup transitions before acting and recovers pending work before accepting
-another relay request. An invalid journal path,
-unsafe ownership or permissions, or unreadable recovery state stops supervisor
-startup. Review unresolved cleanup receipts and unknown effects before repeating
-an operation; recovery does not prove an interrupted external effect rolled back.
+cleanup transitions before acting and recovers pending work before opening the
+relay listener. An invalid journal path, unsafe ownership or permissions,
+unreadable recovery state, or incomplete recovery receipt stops supervisor
+startup. Review unresolved receipts and unknown effects during host recovery
+before returning the supervisor to service.
 
 ### Select an offline-only supervisor
 

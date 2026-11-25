@@ -225,7 +225,8 @@ The [worker supervisor](WORKER_SUPERVISOR.md) runs under a separate unprivileged
 account. It owns the worker inventory and execution inputs, checks plan scope and
 isolation, and asks the independent approval authority to consume the authorization.
 Only that authority account owns verifier keys, the trust store, and the approval
-database; the worker account has consume-only access to its control socket.
+database. The worker account can verify offline plans and consume authorizations
+through the authority's peer-authenticated control socket.
 
 Provision executable pins on that remote worker from the exact approved binary. For
 example, on Linux:
@@ -283,11 +284,13 @@ Library callers must pass the `WorkerCapabilityInventory` loaded by
 inventories and mutable `WorkerConfig` values are not accepted at the worker
 boundary.
 
-The independent approval authority consumes the authorization through the
-worker's consume-only `ApprovalControl` immediately before dispatch and returns a
-validated `ApprovalConsumptionReceipt`. The remote supervisor hosts this authority
-for SSH execution. Its backing approval store performs the consumption in a SQLite
-transaction, so a second attempt with the same authorization fails as replay. Keep
+The worker asks the independent approval authority to verify an offline plan before
+staging its corpus or journaling the workspace. Immediately before dispatch, the
+authority verifies the authorization again, checks the configured observer's
+attestation, and consumes the authorization through `ApprovalControl`. The worker
+receives a validated `ApprovalConsumptionReceipt`. The backing approval store
+performs the consumption in a SQLite transaction, so a second attempt with the
+same authorization fails as replay. Keep
 the approval database on durable storage owned by the authority account and protect
 it with the same access controls as other execution records.
 

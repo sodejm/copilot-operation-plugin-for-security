@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import base64
+import hashlib
 import io
 import json
 import stat
@@ -21,7 +23,11 @@ from cops.execution.ssh_execution import (
     validate_remote_authorized_run,
 )
 from cops.execution.ssh_transport import SSH_PROTOCOL, SSHRemoteEndpoint, SSHRemoteResponse
-from cops.execution.supervisor_attestation import SupervisorResponseAttestor
+from cops.execution.supervisor_attestation import (
+    SupervisorAttestationError,
+    SupervisorResponseAttestor,
+    verify_attested_authorized_run,
+)
 from cops.remote_worker import (
     RemoteWorkerRelayConfig,
     _validate_supervisor_socket_metadata,
@@ -29,6 +35,8 @@ from cops.remote_worker import (
     relay_remote_execution_request,
     serve_one_remote_execution_request,
 )
+from tests.test_offline_research import _plan as _offline_plan
+from tests.test_offline_research import _profile as _offline_profile
 
 FIXTURES = Path("cops/contracts/fixtures")
 ATTESTATION_KEY_ID = "supervisor-key-01"
@@ -253,6 +261,92 @@ def test_receiver_executes_once_and_derives_response_identity_locally() -> None:
     authorized_run = RemoteAuthorizedRun.from_dict(response["payload"])
     assert authorized_run.approval_receipt.worker_identity == "worker-lab-01"
     assert authorized_run.result.plan_id == plan.plan_id
+    assert "redacted_artifacts" not in response["payload"]
+
+
+def test_offline_receiver_authenticates_output_and_enforces_response_limit(tmp_path) -> None:
+    source = tmp_path / "corpus.txt"
+    content = b"synthetic offline fixture\n"
+    source.write_bytes(content)
+    worker_id = "worker-lab-01"
+    profile = {**_offline_profile(source), "worker_identity": worker_id}
+    plan = _offline_plan(profile)
+    path = "artifacts/step-1_output.txt"
+    sha256 = hashlib.sha256(content).hexdigest()
+    isolation = profile["isolation_attestation"]
+    result = replace(
+        _result(plan),
+        artifacts=[{"name": "step-1_output.txt", "path": path, "sha256": sha256, "size_bytes": len(content)}],
+        offline_research={
+            "profile": profile["profile"],
+            "version": profile["version"],
+            "worker_inventory_sha256": profile["worker_inventory_sha256"],
+            "approved_isolation_attestation": isolation["digest"],
+            "corpora": [{"name": "sample", "sha256": sha256}],
+            "isolation_observation": {
+                **isolation,
+                "observation_scope": "pre_exec_actual_sandbox",
+                "measured": {
+                    "interfaces": ["lo"], "routes": [], "ipv6_routes": [],
+                    "socket_fds": 0, "separate_network_namespace": True,
+                },
+            },
+            "isolation_invocations": [],
+        },
+    )
+    approval = _receipt(plan)
+    cleanup = _cleanup_receipt(plan, result)
+    executed = RemoteAuthorizedRun(result, approval, cleanup, {path: content})
+    worker = SimpleNamespace(execute_plan_with_receipt=lambda *_args, **_kwargs: executed)
+    request = _envelope(plan)
+    frame = canonical(request) + b"\n"
+    attestor = SupervisorResponseAttestor(ATTESTATION_KEY_ID, ATTESTATION_KEY)
+
+    def respond(max_response_bytes: int) -> dict:
+        output = io.BytesIO()
+        serve_one_remote_execution_request(
+            expected_host=request["expected_host"],
+            expected_worker_identity=worker_id,
+            worker=worker,
+            input_stream=io.BytesIO(frame),
+            output_stream=output,
+            max_response_bytes=max_response_bytes,
+        )
+        signed = attestor.attest(frame, output.getvalue())
+        assert len(signed) <= max_response_bytes
+        return json.loads(signed)["payload"]
+
+    def verify(payload):
+        return verify_attested_authorized_run(
+            payload,
+            attestation_key_id=ATTESTATION_KEY_ID,
+            attestation_key=ATTESTATION_KEY,
+            request_id=request["request_id"],
+            exchange_nonce=EXCHANGE_NONCE,
+            host=request["expected_host"],
+            worker_identity=worker_id,
+            authorization_id=approval.authorization_id,
+            action_plan_document=plan.to_dict(),
+            timeout_seconds=2.0,
+            max_output_bytes=1024,
+        )
+
+    payload = respond(1024 * 1024)
+    run = RemoteAuthorizedRun.from_dict(verify(payload))
+    assert run.redacted_artifacts == {path: content}
+    payload["authorized_run"]["redacted_artifacts"][path] = base64.b64encode(b"x" * len(content)).decode()
+    with pytest.raises(SupervisorAttestationError, match="binding mismatch"):
+        verify(payload)
+    with pytest.raises(SSHExecutionError, match="does not match the result manifest"):
+        RemoteAuthorizedRun.from_dict(payload["authorized_run"])
+
+    limited = RemoteAuthorizedRun.from_dict(verify(respond(8 * 1024)))
+    assert limited.result.status == "partial"
+    assert limited.result.exit_code == 125
+    assert "exceed the response byte limit" in limited.result.status_details["reason"]
+    assert limited.result.artifacts == run.result.artifacts
+    assert limited.cleanup_receipt == cleanup
+    assert limited.redacted_artifacts is None
 
 
 def test_receiver_rejects_endpoint_identity_before_authority_consumption() -> None:

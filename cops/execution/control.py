@@ -1,4 +1,4 @@
-"""Consume-only approval authority boundary for isolated workers.
+"""Approval verification and consumption boundary for isolated workers.
 
 The authority process is the only process which loads verification keys or opens
 the approval database.  Workers submit an authorization identifier and the exact
@@ -21,7 +21,7 @@ from pathlib import Path
 from threading import Event
 from typing import TYPE_CHECKING, Any, Protocol
 
-from cops.contracts.models import ActionPlan
+from cops.contracts.models import ActionPlan, ExecutionAuthorization
 from cops.evidence.canonical import digest
 
 from .authorization import AuthorizationTrustStore, verify_execution_authorization
@@ -76,6 +76,8 @@ class ApprovalControl(Protocol):
     """The only approval capability exposed to an execution worker."""
 
     def assert_ready(self, worker_identity: str) -> None: ...
+
+    def verify_authorization(self, authorization_id: str, action_plan: ActionPlan, worker_identity: str) -> None: ...
 
     def consume_authorization(
         self, authorization_id: str, action_plan: ActionPlan, worker_identity: str
@@ -185,15 +187,15 @@ class ApprovalAuthority:
             raise ApprovalControlError("approval authority requires a pinned non-root worker UID, GID, and PID")
         self.store.assert_protected_owner(self.authority_uid)
 
-    def consume_document(
+    def _validated_plan(
         self,
         document: dict[str, Any],
         *,
+        operation: str,
         peer_pid: int,
         peer_uid: int,
         peer_gid: int,
-    ) -> dict[str, Any]:
-        """Validate an exact plan/worker binding before atomic consumption."""
+    ) -> ActionPlan:
         self.assert_ready()
         expected_keys = {
             "schema_version",
@@ -203,15 +205,16 @@ class ApprovalAuthority:
             "worker_identity",
             "action_plan",
         }
-        if self.offline_observer is not None:
+        requires_observer = operation == "consume" and self.offline_observer is not None
+        if requires_observer:
             expected_keys.add("observer_attestation")
         if set(document) != expected_keys:
-            if self.offline_observer is not None and "observer_attestation" not in document:
+            if requires_observer and "observer_attestation" not in document:
                 raise ApprovalControlError("offline observer attestation is required")
-            if self.offline_observer is None and "observer_attestation" in document:
+            if operation == "consume" and "observer_attestation" in document and not requires_observer:
                 raise ApprovalControlError("observer attestation is unsupported without an offline observer")
             raise ApprovalControlError("approval control request has unexpected or missing fields")
-        if document["schema_version"] != REQUEST_SCHEMA or document["operation"] != "consume":
+        if document["schema_version"] != REQUEST_SCHEMA or document["operation"] != operation:
             raise ApprovalControlError("unsupported approval control request")
         try:
             uuid.UUID(document["request_id"])
@@ -228,10 +231,53 @@ class ApprovalAuthority:
         if not isinstance(document["authorization_id"], str) or not document["authorization_id"]:
             raise ApprovalControlError("approval control authorization_id must be non-empty")
         try:
-            plan = ActionPlan.from_dict(document["action_plan"])
+            return ActionPlan.from_dict(document["action_plan"])
         except (KeyError, TypeError, ValueError) as err:
             raise ApprovalControlError("approval control action plan is invalid") from err
 
+    def _verify_authorization(self, authorization_id: str, plan: ActionPlan) -> ExecutionAuthorization:
+        try:
+            return verify_execution_authorization(
+                self.store.get_authorization(authorization_id),
+                plan,
+                trust_store=self.trust_store,
+                engagement=self.engagement,
+                worker_identity=self.worker_identity,
+            )
+        except Exception as err:
+            raise ApprovalControlError(
+                "approval authorization did not verify for the requested plan and worker"
+            ) from err
+
+    def verify_document(
+        self,
+        document: dict[str, Any],
+        *,
+        peer_pid: int,
+        peer_uid: int,
+        peer_gid: int,
+    ) -> dict[str, Any]:
+        """Verify an offline authorization without issuing a receipt or consuming it."""
+        plan = self._validated_plan(
+            document, operation="verify", peer_pid=peer_pid, peer_uid=peer_uid, peer_gid=peer_gid
+        )
+        if plan.offline_research is None:
+            raise ApprovalControlError("approval preflight requires an offline-research profile")
+        self._verify_authorization(document["authorization_id"], plan)
+        return {"schema_version": RESPONSE_SCHEMA, "request_id": document["request_id"], "ok": True}
+
+    def consume_document(
+        self,
+        document: dict[str, Any],
+        *,
+        peer_pid: int,
+        peer_uid: int,
+        peer_gid: int,
+    ) -> dict[str, Any]:
+        """Validate an exact plan/worker binding before atomic consumption."""
+        plan = self._validated_plan(
+            document, operation="consume", peer_pid=peer_pid, peer_uid=peer_uid, peer_gid=peer_gid
+        )
         request_digest = digest(document)
         receipt_bindings = {
             "request_digest": request_digest,
@@ -272,15 +318,8 @@ class ApprovalAuthority:
             isolation_digest = candidate_digest
 
         try:
-            stored = self.store.get_authorization(document["authorization_id"])
-            verified = verify_execution_authorization(
-                stored,
-                plan,
-                trust_store=self.trust_store,
-                engagement=self.engagement,
-                worker_identity=self.worker_identity,
-            )
-        except Exception as err:
+            verified = self._verify_authorization(document["authorization_id"], plan)
+        except ApprovalControlError:
             # A concurrent first attempt can commit after the lookup above but
             # before this attempt reads the one-time authorization. Recover
             # only an exact, durably recorded retry.
@@ -290,9 +329,7 @@ class ApprovalAuthority:
             )
             if prior is not None:
                 return _consumption_response(document["request_id"], prior)
-            raise ApprovalControlError(
-                "approval authorization did not verify for the requested plan and worker"
-            ) from err
+            raise
 
         if self.offline_observer is not None:
             # This follows the exact durable-retry lookup above so an already
@@ -330,7 +367,8 @@ class ApprovalAuthority:
         try:
             document = _read_json_line(connection)
             request_id = document.get("request_id")
-            response = self.consume_document(
+            handler = self.verify_document if document.get("operation") == "verify" else self.consume_document
+            response = handler(
                 document,
                 peer_pid=peer_pid,
                 peer_uid=peer_uid,
@@ -398,10 +436,8 @@ class ApprovalAuthorityServer:
                 raise ApprovalControlError("approval control socket is not authority-owned")
             if bound.st_gid != self.authority.worker_gid:
                 raise ApprovalControlError("approval control socket group is not the configured worker group")
-            os.chmod(self.socket_path, 0o660, follow_symlinks=False)
-            current = os.lstat(self.socket_path)
-            if (current.st_dev, current.st_ino) != (bound.st_dev, bound.st_ino) or stat.S_IMODE(current.st_mode) != 0o660:
-                raise ApprovalControlError("approval control socket identity or mode changed during setup")
+            if stat.S_IMODE(bound.st_mode) != 0o660:
+                raise ApprovalControlError("approval control socket must have mode 0660")
             listener.listen(self.backlog)
             yield listener
         finally:
@@ -447,7 +483,7 @@ class ApprovalAuthorityServer:
 
 @dataclass(frozen=True)
 class ApprovalControlClient:
-    """Worker-side consume-only client for a separately owned Unix socket."""
+    """Worker-side approval client for a separately owned Unix socket."""
 
     socket_path: Path
     expected_authority_uid: int
@@ -520,6 +556,34 @@ class ApprovalControlClient:
                 "approval control transport failed before a complete response"
             ) from err
 
+    def _request_document(
+        self,
+        operation: str,
+        authorization_id: str,
+        action_plan: ActionPlan,
+        worker_identity: str,
+    ) -> dict[str, Any]:
+        self.assert_ready(worker_identity)
+        return {
+            "schema_version": REQUEST_SCHEMA,
+            "request_id": str(uuid.uuid4()),
+            "operation": operation,
+            "authorization_id": authorization_id,
+            "worker_identity": worker_identity,
+            "action_plan": action_plan.to_dict(),
+        }
+
+    def verify_authorization(self, authorization_id: str, action_plan: ActionPlan, worker_identity: str) -> None:
+        request = self._request_document("verify", authorization_id, action_plan, worker_identity)
+        response = self._exchange(request)
+        if (
+            set(response) != {"schema_version", "request_id", "ok"}
+            or response["schema_version"] != RESPONSE_SCHEMA
+            or response["request_id"] != request["request_id"]
+            or response["ok"] is not True
+        ):
+            raise ApprovalControlError("approval authority did not confirm offline preflight")
+
     def consume_authorization(
         self,
         authorization_id: str,
@@ -528,16 +592,8 @@ class ApprovalControlClient:
         *,
         observer_attestation: dict[str, Any] | None = None,
     ) -> ApprovalConsumptionReceipt:
-        self.assert_ready(worker_identity)
-        request_id = str(uuid.uuid4())
-        request = {
-            "schema_version": REQUEST_SCHEMA,
-            "request_id": request_id,
-            "operation": "consume",
-            "authorization_id": authorization_id,
-            "worker_identity": worker_identity,
-            "action_plan": action_plan.to_dict(),
-        }
+        request = self._request_document("consume", authorization_id, action_plan, worker_identity)
+        request_id = request["request_id"]
         if observer_attestation is not None:
             request["observer_attestation"] = observer_attestation
         response: dict[str, Any] | None = None
