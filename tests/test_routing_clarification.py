@@ -19,6 +19,7 @@ from cops.routing.cli import main as routing_main
         ("Can you look at this incident timeline?", None, "cops-incident-responder"),
         ("Can you look at this detection rule?", None, "cops-detection-engineer"),
         ("Can you look at this KQL query?", None, "cops-sentinel-kql-engineer"),
+        ("I have a Sentinel KQL query", None, "cops-sentinel-kql-engineer"),
         ("Can you look at this policy document?", None, "cops-compliance-auditor"),
     ],
 )

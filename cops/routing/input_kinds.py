@@ -29,7 +29,7 @@ _INPUT_GUIDANCE = {
     ),
     "sentinel-query": (
         "cops-sentinel-kql-engineer",
-        ("kql query", "sentinel query"),
+        ("sentinel kql query", "kql query", "sentinel query"),
         "The redacted query, expected result, and any relevant table names.",
     ),
     "policy-document": (
