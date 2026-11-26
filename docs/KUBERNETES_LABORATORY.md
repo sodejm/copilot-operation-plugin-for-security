@@ -14,13 +14,28 @@ a production execution worker. The node has no published ports, host path mounts
 host PID namespace, or external network. It is limited to 2 CPUs, 3 GiB of memory,
 and 768 processes. The unprivileged service laboratory remains a separate container.
 
-Provision the service runtime described in [service laboratories](SERVICE_LABORATORY.md).
-Before starting acceptance, explicitly pull the three publisher manifests listed
+Before starting Kubernetes acceptance, explicitly pull the three publisher manifests listed
 for the Docker daemon's architecture in `IMAGE_PINS` in
 `cops/laboratory/kubernetes_lab.py`. Those digest pins identify K3s
 `v1.34.12-k3s1`, pause `3.10.2`, and Python `3.14.6-slim`; Linux arm64 and amd64
 are registered. Pulling is a provisioning action with network access. The adapter
 itself never pulls, installs dependencies, or uses a floating tag.
+
+The **Isolated Kubernetes containment** CI job runs on its own Ubuntu runner.
+To run the same check on a disposable Linux Docker VM, install the Python
+dependencies and provision the pinned images, then run:
+
+```console
+python -m cops.laboratory.kubernetes_lab --timeout 480
+```
+
+The job summary reports each completed lifecycle case, isolation and cleanup
+verification, and the case and checkpoint for any failure. It withholds raw
+Docker and Kubernetes output, probe paths, and audit records. A failed check
+exits with code 1. A missing prerequisite exits with code 2.
+
+For composite acceptance, also provision the runtime described in
+[service laboratories](SERVICE_LABORATORY.md) and run:
 
 ```console
 make check-laboratory LABORATORY_ARGS='--runtime docker --image sha256:<service-runtime-id> --kubernetes-timeout 480'
@@ -30,7 +45,7 @@ The Kubernetes deadline accepts 180–600 seconds. Cleanup has a separate 90-sec
 budget. Missing images, unsupported platforms, unavailable Docker, or incomplete
 isolation evidence leave acceptance incomplete. The strict composite gate requires
 all twelve service-container cases and the Kubernetes case; a partial case list
-cannot pass.
+cannot pass. The composite gate still runs its own Kubernetes check.
 
 ## Hardening walkthrough
 

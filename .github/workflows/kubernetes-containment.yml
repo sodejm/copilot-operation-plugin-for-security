@@ -1,0 +1,39 @@
+name: Kubernetes containment
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  kubernetes-containment:
+    name: Isolated Kubernetes containment
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+      - name: Install containment dependencies
+        run: python -m pip install cryptography==50.0.2 jsonschema==4.26.0
+      - name: Provision pinned Kubernetes fixture images
+        run: |
+          python - <<'PY'
+          import subprocess
+
+          from cops.laboratory.kubernetes_lab import IMAGE_PINS
+
+          for image in IMAGE_PINS["amd64"]:
+              subprocess.run(["docker", "pull", image], check=True)
+          PY
+      - name: Verify containment and cleanup
+        run: |
+          set -o pipefail
+          python -m cops.laboratory.kubernetes_lab | tee -a "$GITHUB_STEP_SUMMARY"

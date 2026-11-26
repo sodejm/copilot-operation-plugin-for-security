@@ -189,3 +189,60 @@ def test_cleanup_has_one_shared_deadline(monkeypatch: pytest.MonkeyPatch, tmp_pa
     clock[0] = 191.0
     with pytest.raises(TimeoutError):
         node.command("inspect")
+
+
+def test_cli_reports_checkpoint_without_runtime_output(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture) -> None:
+    monkeypatch.setattr(lab.shutil, "which", lambda _: "docker")
+    monkeypatch.setattr(
+        lab,
+        "_docker_command",
+        lambda *_args, **_kwargs: SimpleNamespace(returncode=0, stdout="private-runtime-output"),
+    )
+
+    assert lab.main([]) == 2
+    output = capsys.readouterr().out
+    assert "private-runtime-output" not in output
+    summary = json.loads(output)
+    assert summary["status"] == "blocked"
+    assert summary["cleanup_verified"] is True
+    assert summary["blockers"] == [
+        "Kubernetes laboratory prerequisites: inspect Docker platform failed (JSONDecodeError); raw runtime output withheld"
+    ]
+
+
+@pytest.mark.parametrize("cleanup_verified", [True, False])
+def test_cli_requires_complete_evidence_and_omits_raw_case_records(
+    cleanup_verified: bool,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture,
+) -> None:
+    report = {
+        "status": "passed",
+        "cases": [
+            {
+                "mode": mode,
+                "workflow_status": status,
+                "namespace_removed": True,
+                "passed": True,
+                "server_events": ["private-runtime-output"],
+            }
+            for mode, status in {"success": "success", "failure": "partial_failure", "cancellation": "cancelled"}.items()
+        ],
+        "failures": [],
+        "blockers": [],
+        "isolation": {"verified": True},
+        "cleanup": {"verified": cleanup_verified},
+    }
+
+    def run(*, timeout: int) -> dict:
+        assert timeout == 180
+        return report
+
+    monkeypatch.setattr(lab, "run_kubernetes_laboratory", run)
+    assert lab.main(["--timeout", "180"]) == (0 if cleanup_verified else 1)
+    output = capsys.readouterr().out
+    assert "private-runtime-output" not in output
+    summary = json.loads(output)
+    assert len(summary["cases"]) == 3
+    assert summary["cleanup_verified"] is cleanup_verified
+    assert summary["failures"] == ([] if cleanup_verified else ["Kubernetes lifecycle evidence is incomplete"])

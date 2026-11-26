@@ -6,6 +6,7 @@ for fixed synthetic pods, not a production worker sandbox or a cluster connector
 
 from __future__ import annotations
 
+import argparse
 import copy
 import ipaddress
 import json
@@ -31,6 +32,7 @@ from cops.workflows.runtime import StageExecutionResult, WorkflowRunner
 
 ADAPTER_ID = "isolated-k3s-containment/v1"
 STAGES = ("snapshot", "review", "propose", "lab_apply", "verify")
+_EXPECTED_STATES = MappingProxyType({"success": "success", "failure": "partial_failure", "cancellation": "cancelled"})
 # Platform-specific manifests, resolved from the publishers' OCI indexes. Pulls
 # are an explicit provisioning step; this adapter never pulls or builds images.
 IMAGE_PINS = MappingProxyType(
@@ -236,6 +238,7 @@ class _Node:
         self.cleaning = False
         self.cleanup_deadline: float | None = None
         self.namespace = ""
+        self.checkpoint = "inspect Docker platform"
 
     def command(self, *arguments: str, seconds: int = 30, check: bool = True) -> subprocess.CompletedProcess[str]:
         if self.cleaning and self.cleanup_deadline is None:
@@ -271,6 +274,7 @@ class _Node:
         self.kube("delete", "networkpolicy", "containment", "-n", self.namespace, "--ignore-not-found=true")
 
     def await_paths(self, destination: str, *, blocked: bool, phase: str) -> list[dict[str, Any]]:
+        self.checkpoint = f"verify {phase} connectivity"
         for _ in range(12):
             results = [self.request(role, destination, phase) for role in ("required", "forbidden")]
             if (
@@ -291,6 +295,7 @@ class _Executor:
         self.cleanup_count = 0
 
     def execute(self, plan: Any, receipt: Any, *, idempotency_key: str) -> StageExecutionResult:
+        self.node.checkpoint = "verify workflow stage inputs"
         operation = plan.to_dict()["operations"][0]
         expected = {"configuration": self.configuration}
         if self.executed:
@@ -301,6 +306,7 @@ class _Executor:
             or operation["arguments"] != expected
         ):
             raise ValueError("Kubernetes action, configuration, or preceding evidence changed")
+        self.node.checkpoint = "verify namespace identity"
         # Resolve the live UID again before every stage; names are not identities.
         if self.node.read("namespace", self.node.namespace)["metadata"]["uid"] != self.configuration["namespace_uid"]:
             raise ValueError("Kubernetes namespace identity changed")
@@ -309,8 +315,10 @@ class _Executor:
         destination = self.configuration["destination"]
         if name == "snapshot":
             self.observations["baseline"] = self.node.await_paths(destination, blocked=False, phase="baseline")
+            self.node.checkpoint = "capture server pod snapshot"
             self.observations["pod_snapshot_sha256"] = digest(self.node.read("pod", "server"))
         elif name == "review":
+            self.node.checkpoint = "verify service account token is disabled"
             pod = self.node.read("pod", "server")
             sa = self.node.read("serviceaccount", "probe")
             self.observations["service_account"] = {
@@ -321,8 +329,10 @@ class _Executor:
             if self.observations["service_account"]["token_mounted"]:
                 raise ValueError("fixture service account unexpectedly exposes a token")
         elif name == "propose":
+            self.node.checkpoint = "bind containment policy digest"
             self.observations["policy_sha256"] = digest(self.configuration["policy"])
         elif name == "lab_apply":
+            self.node.checkpoint = "apply containment policy"
             self.node.apply(self.configuration["policy"], "containment.json")
             self.observations["contained"] = self.node.await_paths(destination, blocked=True, phase="contained")
             if self.mode == "failure":
@@ -341,6 +351,7 @@ class _Executor:
 
 
 def _run_case(node: _Node, directory: Path, mode: str, images: tuple[str, ...]) -> dict[str, Any]:
+    node.checkpoint = "prepare authorized workflow"
     definition = workflow_definition()
     current = datetime.now(UTC).replace(microsecond=0)
     now, start, end = _utc(current), _utc(current - timedelta(minutes=1)), _utc(current + timedelta(minutes=30))
@@ -368,9 +379,11 @@ def _run_case(node: _Node, directory: Path, mode: str, images: tuple[str, ...]) 
             "mode": "laboratory",
         }
     )
+    node.checkpoint = "verify server pod IP is in the registered network"
     pod_ip = str(ipaddress.IPv4Address(node.read("pod", "server")["status"]["podIP"]))
     if ipaddress.ip_address(pod_ip) not in ipaddress.ip_network("10.42.0.0/16"):
         raise ValueError("fixture server escaped the registered pod network")
+    node.checkpoint = "bind the workflow to the live namespace"
     configuration = {
         "namespace": node.namespace,
         "namespace_uid": node.read("namespace", node.namespace)["metadata"]["uid"],
@@ -397,6 +410,7 @@ def _run_case(node: _Node, directory: Path, mode: str, images: tuple[str, ...]) 
         authorization_ids=auth_ids,
     )
     runner = WorkflowRunner(directory / "workflow-state", approval, WORKER, executor, clock=lambda: now)
+    node.checkpoint = "run authorized workflow"
     try:
         result = runner.run(
             definition,
@@ -406,16 +420,30 @@ def _run_case(node: _Node, directory: Path, mode: str, images: tuple[str, ...]) 
             cancellation_requested=lambda: mode == "cancellation" and "lab_apply" in executor.executed,
         )
     finally:
-        # Also restore after cancellation or an exception outside a stage.
+        # Preserve the runner checkpoint when the mandatory restore succeeds.
+        workflow_checkpoint = node.checkpoint
+        node.checkpoint = "restore policy after workflow"
         node.restore()
+        node.checkpoint = workflow_checkpoint
     restored = node.await_paths(configuration["destination"], blocked=False, phase="restored")
+    node.checkpoint = "read server events"
     server_events = [json.loads(line) for line in node.kube("logs", "server", "-n", node.namespace).stdout.splitlines()]
+    node.checkpoint = "correlate HTTP probes with server events"
     verify_http(server_events, executor.observations, restored)
+    node.checkpoint = "read Kubernetes policy audit records"
     audit = audit_evidence(node.command("exec", node.name, "cat", "/var/log/cops-audit.jsonl").stdout, node.namespace)
+    node.checkpoint = "verify policy creation and deletion in audit records"
     verify_audit(audit)
-    expected_status = {"success": "success", "failure": "partial_failure", "cancellation": "cancelled"}[mode]
-    if result.status != expected_status or not server_events or (mode == "failure" and executor.cleanup_count != 1):
-        raise ValueError("Kubernetes workflow state or cleanup did not match the acceptance case")
+    node.checkpoint = f"verify workflow outcome after checkpoint: {workflow_checkpoint}"
+    if result.status != _EXPECTED_STATES[mode]:
+        raise ValueError("Kubernetes workflow outcome did not match the acceptance case")
+    node.checkpoint = "verify server events were recorded"
+    if not server_events:
+        raise ValueError("Kubernetes server events are missing")
+    node.checkpoint = "verify failure cleanup ran exactly once"
+    if mode == "failure" and executor.cleanup_count != 1:
+        raise ValueError("Kubernetes workflow cleanup did not match the acceptance case")
+    node.checkpoint = "verify each approval was consumed once"
     consumed = sum(store.get_authorization(auth_ids[name]).status == "consumed" for name in approval.plan_digests)
     if consumed != len(executor.executed):
         raise ValueError("Kubernetes action approval was not consumed exactly once")
@@ -477,7 +505,7 @@ def run_kubernetes_laboratory(*, timeout: int = 480) -> dict[str, Any]:
     with tempfile.TemporaryDirectory(prefix="cops-kubernetes-") as temporary:
         path = Path(temporary)
         node = _Node(docker, path, nonce, timeout)
-        stage = "prerequisites"
+        stage, mode = "prerequisites", None
         try:
             info = json.loads(node.command("info", "--format", "{{json .}}").stdout)
             architecture = {"aarch64": "arm64", "x86_64": "amd64"}.get(
@@ -486,27 +514,32 @@ def run_kubernetes_laboratory(*, timeout: int = 480) -> dict[str, Any]:
             if info.get("OSType") != "linux" or architecture not in IMAGE_PINS:
                 raise ValueError("unsupported Docker server platform")
             images = IMAGE_PINS[architecture]
+            node.checkpoint = "inspect pinned image platforms"
             inspected_images = [json.loads(node.command("image", "inspect", image).stdout)[0] for image in images]
             if any(image["Os"] != "linux" or image["Architecture"] != architecture for image in inspected_images):
                 raise ValueError("pinned image platform does not match Docker")
             report["images"] = list(images)
             report["nonce"] = nonce
             stage = "setup"
+            node.checkpoint = "tag pinned fixture images"
             for source, tag in ((images[2], probe_tag), (images[1], pause_tag)):
                 owned_tags.append(tag)  # Retain cleanup ownership even after a command timeout.
                 node.command("tag", source, tag)
+            node.checkpoint = "save pinned image archive within budget"
             archive = path / "images.tar"
             node.command("save", "--output", str(archive), probe_tag, pause_tag, seconds=60)
             if not 0 < archive.stat().st_size <= 256 * 1024**2:
                 raise ValueError("Kubernetes prerequisite archive exceeds its budget")
-            namespaces = ["cops-" + nonce[:16] + "-" + mode for mode in ("success", "failure", "cancellation")]
+            namespaces = ["cops-" + nonce[:16] + "-" + mode for mode in _EXPECTED_STATES]
             audit_policy = {
                 "apiVersion": "audit.k8s.io/v1",
                 "kind": "Policy",
                 "omitStages": ["RequestReceived"],
                 "rules": [{"level": "Metadata", "namespaces": namespaces}, {"level": "None"}],
             }
+            node.checkpoint = "write metadata-only audit policy"
             (path / "audit.json").write_text(json.dumps(audit_policy))
+            node.checkpoint = "create isolated node"
             create_attempted = True
             node.command(
                 "create",
@@ -537,12 +570,16 @@ def run_kubernetes_laboratory(*, timeout: int = 480) -> dict[str, Any]:
                 "-c",
                 _bootstrap(pause_tag),
             )
+            node.checkpoint = "verify node configuration before startup"
             configuration = json.loads(node.command("inspect", node.name).stdout)[0]
             inspect_node(configuration, image=inspected_images[0]["Id"], nonce=nonce)
             volumes = [mount["Name"] for mount in configuration["Mounts"]]
+            node.checkpoint = "copy images and audit policy into node"
             node.command("cp", str(archive), node.name + ":/var/lib/rancher/k3s/agent-images.tar", seconds=60)
             node.command("cp", str(path / "audit.json"), node.name + ":/tmp/audit.json")
+            node.checkpoint = "start isolated node"
             node.command("start", node.name)
+            node.checkpoint = "stage images for the private runtime"
             node.command(
                 "exec",
                 node.name,
@@ -551,6 +588,7 @@ def run_kubernetes_laboratory(*, timeout: int = 480) -> dict[str, Any]:
                 "mkdir -p /var/lib/rancher/k3s/agent/images && mv /var/lib/rancher/k3s/agent-images.tar /var/lib/rancher/k3s/agent/images/owned.tar",
             )
             stage = "readiness"
+            node.checkpoint = "wait for ready Kubernetes node"
             for _ in range(60):
                 ready = node.kube("get", "nodes", "-o", "json", check=False)
                 if ready.returncode == 0 and any(
@@ -562,6 +600,7 @@ def run_kubernetes_laboratory(*, timeout: int = 480) -> dict[str, Any]:
                 time.sleep(2)
             else:
                 raise TimeoutError("Kubernetes node did not become ready")
+            node.checkpoint = "verify node has no external default routes"
             routes = {
                 family: json.loads(node.command("exec", node.name, "ip", family, "-j", "route").stdout)
                 for family in ("-4", "-6")
@@ -571,9 +610,11 @@ def run_kubernetes_laboratory(*, timeout: int = 480) -> dict[str, Any]:
             ):
                 raise ValueError("Kubernetes node has an external default route")
             stage = "containment"
-            for mode, namespace in zip(("success", "failure", "cancellation"), namespaces, strict=True):
+            for mode, namespace in zip(_EXPECTED_STATES, namespaces, strict=True):
+                node.checkpoint = "create synthetic namespace"
                 node.namespace = namespace
                 node.kube("create", "namespace", namespace)
+                node.checkpoint = "create synthetic service account"
                 node.kube("create", "serviceaccount", "probe", "-n", namespace)
                 pods = [
                     {
@@ -600,25 +641,34 @@ def run_kubernetes_laboratory(*, timeout: int = 480) -> dict[str, Any]:
                     }
                     for role in ("server", "required", "forbidden")
                 ]
+                node.checkpoint = "create synthetic pods"
                 node.apply({"apiVersion": "v1", "kind": "List", "items": pods}, "pods.json")
+                node.checkpoint = "wait for synthetic pods to become ready"
                 node.kube(
                     "wait", "--for=condition=Ready", "pod", "--all", "-n", namespace, "--timeout=90s", seconds=100
                 )
                 egress_script = 'import socket,json,errno\nr=[]\nfor f,a,n in ((socket.AF_INET,("198.51.100.1",443),"IPv4"),(socket.AF_INET6,("2001:db8::1",443),"IPv6")):\n s=socket.socket(f); s.settimeout(3)\n try: s.connect(a); r.append({"family":n,"reachable":True})\n except OSError as e: r.append({"family":n,"reachable":False,"error":errno.errorcode.get(e.errno)})\n finally: s.close()\nprint(json.dumps(r))'
+                node.checkpoint = "read IPv4 and IPv6 pod egress outcomes"
                 egress = json.loads(
                     node.kube("exec", "-n", namespace, "required", "--", "python", "-c", egress_script).stdout
                 )
+                node.checkpoint = "verify definitive IPv4 and IPv6 pod egress denial"
                 verify_egress(egress)
+                node.checkpoint = "prepare lifecycle evidence directory"
                 directory = path / mode
                 directory.mkdir(mode=0o700)
                 case = _run_case(node, directory, mode, images)
                 case["egress_probes"] = egress
+                node.checkpoint = "delete synthetic namespace"
                 node.kube("delete", "namespace", namespace, "--wait=true", "--timeout=45s", seconds=55)
+                node.checkpoint = "verify synthetic namespace removal"
                 remaining = json.loads(node.kube("get", "namespaces", "-o", "json").stdout)
                 case["namespace_removed"] = all(item["metadata"]["name"] != namespace for item in remaining["items"])
                 if not case["namespace_removed"]:
                     raise ValueError("Kubernetes namespace cleanup could not be verified")
                 report["cases"].append(case)
+            mode = None
+            node.checkpoint = "verify node configuration after lifecycle cases"
             inspect_node(
                 json.loads(node.command("inspect", node.name).stdout)[0], image=inspected_images[0]["Id"], nonce=nonce
             )
@@ -631,30 +681,36 @@ def run_kubernetes_laboratory(*, timeout: int = 480) -> dict[str, Any]:
                 "configuration_inspected_before_and_after": True,
             }
             report["status"] = "passed"
-        except (OSError, subprocess.SubprocessError, ValueError, KeyError, TypeError, IndexError) as exc:
+        except Exception as exc:
+            # Keep runtime exceptions out of the published report.
             report["status"] = "blocked" if stage == "prerequisites" else "failed"
             report["blockers" if stage == "prerequisites" else "failures"].append(
-                "Kubernetes laboratory " + stage + " failed (" + type(exc).__name__ + "); raw runtime output withheld"
+                _failure_detail(stage, mode, node.checkpoint, exc)
             )
         finally:
             node.cleaning = True
             try:
                 if create_attempted:
+                    node.checkpoint = "verify cleanup node ownership"
                     owned = node.command("inspect", node.name, check=False)
                     if owned.returncode == 0:
                         inspected = json.loads(owned.stdout)[0]
                         if inspected.get("Config", {}).get("Labels", {}).get(_LABEL) != nonce:
                             raise ValueError("Kubernetes cleanup ownership changed")
+                        node.checkpoint = "remove the owned Docker node and its volumes"
                         node.command("rm", "--force", "--volumes", inspected["Id"])
+                    node.checkpoint = "verify Docker node removal"
                     remaining = node.command(
                         "container", "ls", "--all", "--quiet", "--filter", "name=^/" + node.name + "$"
                     )
                     if remaining.stdout.strip():
                         raise ValueError("Kubernetes node still exists")
+                    node.checkpoint = "verify anonymous volume removal"
                     for volume in volumes:
                         existing = node.command("volume", "ls", "--quiet", "--filter", "name=^" + volume + "$")
                         if existing.stdout.strip():
                             raise ValueError("Kubernetes anonymous volume still exists")
+                node.checkpoint = "remove and verify fixture image tags"
                 for tag in owned_tags:
                     node.command("image", "rm", tag, check=False)
                     existing = node.command("image", "ls", "--quiet", "--filter", "reference=" + tag)
@@ -665,7 +721,57 @@ def run_kubernetes_laboratory(*, timeout: int = 480) -> dict[str, Any]:
                     "node_removed": create_attempted,
                     "owned_tags_removed": len(owned_tags),
                 }
-            except (OSError, subprocess.SubprocessError, ValueError, KeyError, TypeError, IndexError):
+            except Exception as exc:
                 report["status"] = "failed"
-                report["failures"].append("Kubernetes fixture cleanup could not be verified")
+                report["failures"].append(_failure_detail("cleanup", None, node.checkpoint, exc))
     return report
+
+
+def _failure_detail(stage: str, mode: str | None, checkpoint: str, exc: Exception) -> str:
+    case = f" [{mode}]" if mode is not None else ""
+    return f"Kubernetes laboratory {stage}{case}: {checkpoint} failed ({type(exc).__name__}); raw runtime output withheld"
+
+
+def kubernetes_acceptance_verified(report: dict[str, Any]) -> bool:
+    """Require the same Kubernetes evidence in the standalone and composite checks."""
+    cases = report.get("cases", [])
+    return (
+        report.get("status") == "passed"
+        and report.get("isolation", {}).get("verified") is True
+        and report.get("cleanup", {}).get("verified") is True
+        and not report.get("failures")
+        and not report.get("blockers")
+        and len(cases) == len(_EXPECTED_STATES)
+        and {case.get("mode"): case.get("workflow_status") for case in cases} == _EXPECTED_STATES
+        and all(case.get("passed") is True and case.get("namespace_removed") is True for case in cases)
+    )
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Run the standalone Kubernetes containment acceptance check")
+    parser.add_argument("--timeout", type=int, default=480, choices=range(180, 601), metavar="180–600")
+    args = parser.parse_args(argv)
+    report = run_kubernetes_laboratory(timeout=args.timeout)
+    verified = kubernetes_acceptance_verified(report)
+    failures = list(report["failures"])
+    blockers = report["blockers"]
+    if not verified and not failures and not blockers:
+        failures.append("Kubernetes lifecycle evidence is incomplete")
+    status = "passed" if verified else ("failed" if failures else "blocked")
+    summary = {
+        "status": status,
+        "failures": failures,
+        "blockers": blockers,
+        "isolation_verified": report["isolation"]["verified"],
+        "cleanup_verified": report["cleanup"]["verified"],
+        "cases": [
+            {key: case[key] for key in ("mode", "workflow_status", "namespace_removed")}
+            for case in report["cases"]
+        ],
+    }
+    print(json.dumps(summary, indent=2))
+    return {"passed": 0, "failed": 1, "blocked": 2}[status]
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

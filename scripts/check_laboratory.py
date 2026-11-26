@@ -39,6 +39,7 @@ from cops.laboratory.integrated_lab import (  # noqa: E402  # Import after runti
     run_integrated_service_laboratory,
 )
 from cops.laboratory.kubernetes_lab import (  # noqa: E402  # Import after runtime prerequisite/path selection.
+    kubernetes_acceptance_verified,
     run_kubernetes_laboratory,
 )
 from cops.laboratory.service_lab import (  # noqa: E402  # Import after runtime prerequisite/path selection.
@@ -882,17 +883,7 @@ def run_acceptance_gate(state_root: Path) -> tuple[int, dict[str, Any]]:
 def complete_gate(summary: dict[str, Any], kubernetes: dict[str, Any]) -> tuple[int, dict[str, Any]]:
     """Require both independent isolation boundaries for overall acceptance."""
     lifecycle = kubernetes.get("cases", [])
-    expected_states = {"success": "success", "failure": "partial_failure", "cancellation": "cancelled"}
-    verified = (
-        kubernetes.get("status") == "passed"
-        and kubernetes.get("isolation", {}).get("verified") is True
-        and kubernetes.get("cleanup", {}).get("verified") is True
-        and not kubernetes.get("failures")
-        and not kubernetes.get("blockers")
-        and len(lifecycle) == 3
-        and {case.get("mode"): case.get("workflow_status") for case in lifecycle} == expected_states
-        and all(case.get("passed") is True and case.get("namespace_removed") is True for case in lifecycle)
-    )
+    verified = kubernetes_acceptance_verified(kubernetes)
     failures = list(summary.get("failures", [])) + list(kubernetes.get("failures", []))
     blockers = list(summary.get("blockers", [])) + list(kubernetes.get("blockers", []))
     if not verified and not kubernetes.get("failures") and not kubernetes.get("blockers"):
