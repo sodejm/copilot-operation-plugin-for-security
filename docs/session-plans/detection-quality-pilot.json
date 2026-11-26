@@ -1,0 +1,122 @@
+{
+  "stage": "implementation",
+  "request": "Run both bundled Detection Quality fixture suites from one plain-language request, verify the gaps and resume interrupted work.",
+  "scope": "The local Detection Quality workbench, its registered skill and their synthetic fixture inputs.",
+  "setup": "Use the repository Python environment with the project test and runtime dependencies installed. Run commands from the repository root.",
+  "constraints": "Use a dedicated worktree. Do not change shared routing policy or invoke unrelated workbenches. Store only local pilot state and validate it before reuse.",
+  "steps": [
+    {
+      "action": "Add an explicit bundled-review route for the public ask and advisory route entry points.",
+      "paths": [
+        "cops/cli.py",
+        "cops/routing/cli.py",
+        "cops/routing/detection_quality.py"
+      ],
+      "verify": {
+        "command": "python3 -m unittest discover -s tests -p test_detection_quality_pilot.py -k route",
+        "expected": "The workbench and skill agree across both commands."
+      }
+    },
+    {
+      "action": "Evaluate the two fixture suites with their published evaluator, validate their reports and checkpoint completion for restart.",
+      "paths": [
+        "cops/workflows/detection_quality.py",
+        "tests/test_detection_quality_pilot.py"
+      ],
+      "verify": {
+        "command": "python3 -m unittest discover -s tests -p test_detection_quality_pilot.py",
+        "expected": "The success, routing boundaries, recovery and integrity cases pass."
+      }
+    },
+    {
+      "action": "Specify the user-facing behavior and document the CLI, trust boundary, and follow-on coordinator issues.",
+      "paths": [
+        "specs/features/detection_quality_pilot.feature",
+        "tests/step_defs/test_detection_quality_pilot_steps.py",
+        "README.md",
+        "ARCHITECTURE.md",
+        ".specify/project-context.md",
+        "docs/detection-quality-pilot.md",
+        "docs/THREAT_MODEL.md",
+        "docs/security/REVIEW_COVERAGE.md",
+        "specs/detection-quality-workbench.spec.md"
+      ],
+      "verify": {
+        "command": "python3 -m pytest -q tests/step_defs/test_detection_quality_pilot_steps.py",
+        "expected": "The public command runs both fixtures and reports their gaps."
+      }
+    }
+  ],
+  "acceptance": [
+    {
+      "kind": "success",
+      "entrypoint": "python3 -m cops ask",
+      "given": "A user asks for the bundled Detection Quality pilot.",
+      "when": "Submit the request and inspect its result.",
+      "then": "Both suites have verified receipts and the report identifies the three telemetry gaps.",
+      "paths": [
+        "cops/cli.py",
+        "cops/routing/cli.py",
+        "cops/routing/detection_quality.py",
+        "cops/workflows/detection_quality.py",
+        "tests/test_detection_quality_pilot.py",
+        "specs/features/detection_quality_pilot.feature",
+        "tests/step_defs/test_detection_quality_pilot_steps.py",
+        "README.md",
+        "ARCHITECTURE.md",
+        ".specify/project-context.md",
+        "docs/detection-quality-pilot.md",
+        "docs/THREAT_MODEL.md",
+        "docs/security/REVIEW_COVERAGE.md",
+        "specs/detection-quality-workbench.spec.md"
+      ],
+      "runner": "unittest",
+      "test": "tests/test_detection_quality_pilot.py::PilotTests::test_one_ask_reports_verified_gaps"
+    },
+    {
+      "kind": "boundary",
+      "entrypoint": "python3 -m cops ask --resume",
+      "given": "The first suite is saved and the process exits during dispatch of the second.",
+      "when": "Resume the run concurrently and then reopen the verified run.",
+      "then": "The already accepted suite is reused and each evaluator executes exactly once in this interruption scenario.",
+      "paths": [
+        "cops/workflows/detection_quality.py",
+        "cops/cli.py",
+        "tests/test_detection_quality_pilot.py"
+      ],
+      "runner": "unittest",
+      "test": "tests/test_detection_quality_pilot.py::PilotTests::test_interrupted_resume_skips_accepted_work"
+    },
+    {
+      "kind": "boundary",
+      "entrypoint": "python3 -m cops ask",
+      "given": "The user asks for a different, ambiguous or unsupported task.",
+      "when": "Submit the request with a new run directory.",
+      "then": "No pilot is executed or checkpoint created.",
+      "paths": [
+        "cops/cli.py",
+        "cops/routing/cli.py",
+        "cops/routing/detection_quality.py",
+        "tests/test_detection_quality_pilot.py"
+      ],
+      "runner": "unittest",
+      "test": "tests/test_detection_quality_pilot.py::PilotTests::test_ask_refuses_unmatched_requests"
+    },
+    {
+      "kind": "success",
+      "entrypoint": "python3 -m cops route",
+      "given": "The request explicitly names the bundled fixture review.",
+      "when": "Preview the route then run the request.",
+      "then": "The preview and actual owner agree.",
+      "paths": [
+        "cops/cli.py",
+        "cops/routing/cli.py",
+        "cops/routing/detection_quality.py",
+        "tests/test_detection_quality_pilot.py"
+      ],
+      "runner": "unittest",
+      "test": "tests/test_detection_quality_pilot.py::PilotTests::test_advisory_route_agrees_with_ask"
+    }
+  ],
+  "pending": []
+}

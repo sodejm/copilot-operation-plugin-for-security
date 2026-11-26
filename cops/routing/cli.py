@@ -107,7 +107,11 @@ def command_route(args: argparse.Namespace) -> int:
     except ModelCatalogError as exc:
         print(f"Model advice error: {exc}", file=sys.stderr)
         return 2
-    decision = route_request(args.query, force_critical=args.critical)
+    from .detection_quality import route_bundled_review
+
+    decision = route_bundled_review(args.query, force_critical=args.critical) or route_request(
+        args.query, force_critical=args.critical
+    )
     out = decision.to_dict()
     if advice is not None:
         out["model_advice"] = advice

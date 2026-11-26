@@ -128,6 +128,10 @@ COPS centralizes **21 specialist cybersecurity agent profiles** in `agents/` and
 
 ---
 
+## Detection Quality request coordinator
+
+The [offline fixture coordinator](docs/detection-quality-pilot.md) binds a complete request to a registered specialist and skill, verifies each packaged suite and persists its accepted report in a local transaction. Its CLI preview and execution share a selection function.
+
 ## Delegation authorization laboratory
 
 The separate agent/MCP execution contract requires registered, versioned local
