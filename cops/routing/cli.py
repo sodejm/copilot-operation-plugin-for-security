@@ -7,12 +7,37 @@ import json
 import sys
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Any
 
 from cops.authorization import ensure_authorization
 
 from .catalog import get_specialist, load_specialists_registry
 from .classifier import route_request
+from .input_kinds import INPUT_KINDS
 from .model_advisor import COMPLEXITIES, EFFORTS, TASK_KINDS, ModelCatalogError, advise_models, load_catalog
+
+
+def add_input_kind_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--input-kind",
+        choices=INPUT_KINDS,
+        action="append",
+        help="describe the evidence available for review (repeatable)",
+    )
+
+
+def render_clarification(clarification: dict[str, Any]) -> None:
+    print(clarification["question"])
+    for option in clarification["options"]:
+        print(f"  {option['display_name']} ({option['specialist_id']})")
+        print(f"    Purpose: {option['purpose']}")
+        if "suggested_input" in option:
+            print(f"    Suggested input: {option['suggested_input']}")
+        if option["tools"]:
+            print(f"    Tools: {', '.join(option['tools'])}")
+        permissions = ", ".join(option["required_permissions"]) or "none declared"
+        print(f"    Permissions: {permissions}")
+    print(f"  Evidence categories: {', '.join(clarification['supported_input_kinds'])}")
 
 
 def add_model_arguments(parser: argparse.ArgumentParser) -> None:
@@ -107,7 +132,11 @@ def command_route(args: argparse.Namespace) -> int:
     except ModelCatalogError as exc:
         print(f"Model advice error: {exc}", file=sys.stderr)
         return 2
-    decision = route_request(args.query, force_critical=args.critical)
+    decision = route_request(
+        args.query,
+        force_critical=args.critical,
+        input_kinds=tuple(getattr(args, "input_kind", None) or ()),
+    )
     out = decision.to_dict()
     if advice is not None:
         out["model_advice"] = advice
@@ -142,11 +171,8 @@ def command_route(args: argparse.Namespace) -> int:
         for reason in decision.match_reasons:
             print(f"  Reason             : {reason}")
         if decision.clarification:
-            print(f"\n  {decision.clarification['question']}")
-            for option in decision.clarification["options"]:
-                permissions = ", ".join(option["required_permissions"]) or "none declared"
-                print(f"    * {option['specialist_id']}: {option['purpose']}")
-                print(f"      Permissions: {permissions}")
+            print()
+            render_clarification(decision.clarification)
         print("=" * 65 + "\n")
         return 0
 
@@ -237,6 +263,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     route_p.add_argument("--scope", nargs="+", help="Target scope identifiers for authorization")
     route_p.add_argument("--action", help="Action name for authorization")
     route_p.add_argument("--json", action="store_true", help="Output JSON format")
+    add_input_kind_arguments(route_p)
     add_model_arguments(route_p)
     route_p.set_defaults(func=command_route)
 

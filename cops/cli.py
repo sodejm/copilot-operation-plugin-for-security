@@ -626,8 +626,9 @@ def build_parser() -> argparse.ArgumentParser:
     route_p.add_argument("--scope", nargs="+", help="target scope identifiers for authorization")
     route_p.add_argument("--action", help="action name for authorization")
     route_p.add_argument("--json", action="store_true", help="output structured JSON")
-    from cops.routing.cli import add_model_arguments
+    from cops.routing.cli import add_input_kind_arguments, add_model_arguments
 
+    add_input_kind_arguments(route_p)
     add_model_arguments(route_p)
 
     spec_p = subparsers.add_parser("specialists", help="list all specialist cybersecurity agent profiles")

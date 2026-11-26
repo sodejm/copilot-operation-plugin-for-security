@@ -26,11 +26,13 @@ def load_bounded_json(path: Path, *, limit: int = 4_194_304) -> dict[str, Any]:
 
 def register_expansion_commands(commands: Any) -> None:
     from .assessments.__main__ import add_assessment_arguments
+    from .routing.cli import add_input_kind_arguments
     from .web_api.cli import build_web_api_parser
 
     explain = commands.add_parser("explain", help="preview routing and authorization without execution")
     explain.add_argument("query")
     explain.add_argument("--json", action="store_true")
+    add_input_kind_arguments(explain)
     explain.add_argument("--workspace", type=Path, help="collect bounded local context descriptors")
     assess = commands.add_parser("assess", help="assess bounded offline artifacts")
     add_assessment_arguments(assess)
@@ -151,8 +153,13 @@ def dispatch_expansion_command(args: argparse.Namespace, root: Path) -> int:
             from .context import collect_repository_context
             from .preview import build_execution_preview, render_preview
             from .routing import route_request
+            from .routing.cli import render_clarification
 
-            decision = route_request(args.query, registry_path=root / "agents/registry.json")
+            decision = route_request(
+                args.query,
+                registry_path=root / "agents/registry.json",
+                input_kinds=tuple(args.input_kind or ()),
+            )
             preview = build_execution_preview(decision).to_dict()
             document = {"routing": decision.to_dict(), "preview": preview}
             if args.workspace is not None:
@@ -162,10 +169,10 @@ def dispatch_expansion_command(args: argparse.Namespace, root: Path) -> int:
             else:
                 print(render_preview(preview))
                 print("Routing: " + decision.status)
-                if decision.status != "routed":
-                    print("Clarification required; candidate purposes and permissions:")
-                    for candidate in decision.to_dict()["ranked_candidates"][:3]:
-                        print(json.dumps(candidate, sort_keys=True))
+                if decision.clarification:
+                    print("Clarification required")
+                    print(decision.clarification["reason"])
+                    render_clarification(decision.clarification)
             return 0
         if args.command == "report":
             from .reports import SourceAnchor, export_report
