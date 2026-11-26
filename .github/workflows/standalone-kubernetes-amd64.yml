@@ -1,8 +1,8 @@
-name: Kubernetes containment
+name: Standalone Kubernetes containment (amd64)
 
 on:
-  pull_request:
-  workflow_dispatch:
+  push:
+    branches: [codex/kubernetes-standalone-amd64-721842f9]
 
 permissions:
   contents: read
@@ -17,6 +17,17 @@ jobs:
         uses: actions/checkout@v7
         with:
           persist-credentials: false
+      - name: Verify runner and source
+        env:
+          SOURCE_COMMIT: 721842f9410fb1cf6114871d2b384aea89804bb7
+          COPS_TREE: d18fe9023f0c5f949b6f32824bf3375f5b071e9f
+        run: |
+          set -euo pipefail
+          test "$(uname -m)" = x86_64
+          test "$(git rev-parse HEAD:cops)" = "$COPS_TREE"
+          echo "Source commit $SOURCE_COMMIT (cops tree $COPS_TREE)" | tee -a "$GITHUB_STEP_SUMMARY"
+          uname -srmo
+          docker version --format '{{.Server.Version}}'
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
