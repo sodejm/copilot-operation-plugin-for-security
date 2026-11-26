@@ -130,7 +130,7 @@ COPS centralizes **21 specialist cybersecurity agent profiles** in `agents/` and
 
 ## Detection Quality request coordinator
 
-The [offline fixture coordinator](docs/detection-quality-pilot.md) binds a complete request to a registered specialist and skill, verifies each packaged suite and persists its accepted report in a local transaction. Its CLI preview and execution share a selection function.
+The [offline fixture coordinator](docs/detection-quality-pilot.md) binds a complete request to a registered specialist and skill, verifies each packaged suite and persists its accepted report in a local transaction. Copilot and the CLI use the same registry-backed selection and evaluator. The local `cops/request` MCP tool first returns an opaque run ID after creating the checkpoint. Copilot immediately continues with that ID, so the conversation already holds the recovery reference when evaluation starts. On resume the coordinator revalidates each accepted suite before returning its report.
 
 ## Delegation authorization laboratory
 

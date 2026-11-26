@@ -90,7 +90,7 @@ unverified. It reports `needs_execution_path` and
 checkpoint is created. See [Authenticated Execution](docs/AUTHENTICATED_EXECUTION.md#resolve-an-ordinary-language-goal-offline)
 for the current boundary and remaining work.
 
-Run both bundled detection fixture sets from one request with the [Detection Quality pilot](docs/detection-quality-pilot.md).
+In Copilot chat, ask “Check whether our Sentinel and Splunk detections catch the bundled cases.” COPS selects the workbench and skill, evaluates both fixture sets and reports the gaps. If interrupted, say “Resume my review” in the same chat. [Detection Quality pilot](docs/detection-quality-pilot.md)
 
 ### What these commands do for you
 - `cops doctor`: Checks the Python version, catalog and package manifests, and generated marketplace indexes. It does not run plugins or audit their network behavior.

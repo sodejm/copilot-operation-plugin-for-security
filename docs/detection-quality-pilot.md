@@ -1,5 +1,21 @@
 # One request for a Detection Quality review
 
+## In Copilot chat
+
+Open this checkout as a trusted workspace with the COPS MCP server enabled and Python 3.14 or newer available to the host as `python3`. Ask in chat:
+
+> Check whether our Sentinel and Splunk detections catch the bundled cases.
+
+Copilot passes the original wording to `cops/request`. COPS selects the registered Detection Engineer, workbench and skill and returns a run ID. Copilot uses it in the same turn to run both suites and report the affected fixture cases. Copilot CLI and the Copilot harness in VS Code discover this tool from the workspace-root `.mcp.json`. The optional **COPS** custom agent gives a dedicated chat access to the same tool. [VS Code MCP configuration reference](https://code.visualstudio.com/docs/agents/reference/mcp-configuration)
+
+If the review is interrupted after acceptance, reopen the same conversation in the same checkout and say:
+
+> Resume my review.
+
+Copilot uses the run ID already in the chat. If you start another chat, supply the original ID. If several reviews match, specify which one to continue. Checkpoints live under `$XDG_STATE_HOME/cops/copilot` (default `~/.local/state/cops/copilot`), grouped by checkout. Keep the same user, checkout path and state directory when resuming. A fresh request starts a separate review.
+
+## From the command line
+
 From the repository root, ask COPS to evaluate the packaged rules and explain the gaps. The command selects the registered Detection Engineer, its Detection Quality workbench and its `detection-quality-review` skill. It invokes the skill's local reference evaluator for both fixture sets. The checkpoint records every case outcome. The final result names each rule, its gaps and the digest of its verified receipt.
 
 ```sh

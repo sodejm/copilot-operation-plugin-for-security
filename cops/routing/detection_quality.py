@@ -25,6 +25,9 @@ _SUITES = rf"(?:both|all|the (?:two|bundled|packaged)) (?:{_BUNDLE} )?{_QUALITY}
 _WORKBENCH = rf"(?:the )?{_QUALITY} (?:on|against|with|using) (?:both|all|the bundled) (?:{_BUNDLE} )?{_FIXTURES}"
 _AFTER = rf"(?:both|the two) (?:{_BUNDLE} )?{_FIXTURES} (?:for|in|from) (?:the )?{_QUALITY}"
 _PLATFORMS = rf"(?:both |the |both the )?(?:{_BUNDLE} )?{_BOTH} {_FIXTURES}"
+_CATCH = (
+    rf"(?:whether|if) (?:our |the )?{_BOTH} detections (?:catch|cover|detect) (?:the )?{_BUNDLE} (?:cases|fixtures)"
+)
 _REPORT = (
     r"(?:,? (?:and then|and|then) (?:(?:report|explain|summarize|list|show|identify) "
     r"(?:the |any )?(?:coverage |telemetry )?gaps|tell me what(?:'s| is) missing))?"
@@ -33,7 +36,7 @@ _INTENT = re.compile(
     rf"(?:please )?(?:(?:can|could|would) you (?:please )?)?"
     rf"(?:check|test|evaluate|review|run|validate|compare) "
     rf"(?:{_RULES} (?:against|on|using|with) (?:their |the |both )?(?:{_BUNDLE} )?{_FIXTURES}"
-    rf"|{_SUITES}|{_WORKBENCH}|{_AFTER}|{_PLATFORMS}|(?:the )?detection[ -]quality pilot){_REPORT}[.!?]?",
+    rf"|{_CATCH}|{_SUITES}|{_WORKBENCH}|{_AFTER}|{_PLATFORMS}|(?:the )?detection[ -]quality pilot){_REPORT}[.!?]?",
     re.ASCII | re.IGNORECASE,
 )
 

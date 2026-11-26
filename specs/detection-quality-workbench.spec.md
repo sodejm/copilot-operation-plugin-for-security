@@ -71,3 +71,10 @@ and input fingerprint, revalidates accepted evidence and evaluates only pending
 suites. A verified result accounts for every case and names the gaps and missing
 telemetry. Verification concerns the completeness of the review, including
 unfavorable findings.
+
+In a trusted COPS workspace, Copilot chat accepts the original operator request
+through one COPS tool. The tool uses the CLI's selection and returns an opaque
+run ID before starting the evaluators. Copilot continues automatically, reports
+the verified fixture gaps, and can resume the same run using its chat history.
+Only a completed suite with a valid receipt may be reused. If the conversation
+does not identify a unique run, the agent asks which review to resume.

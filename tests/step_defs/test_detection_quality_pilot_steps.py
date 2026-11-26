@@ -38,3 +38,13 @@ def selected_skill(review):
 def report_gaps(review):
     assert review["totals"]["schema_error_cases"] == 3
     assert [s["missing_fields"] for s in review["suites"]] == [["IPAddress"], ["ScriptBlockText"]]
+
+
+@when("the Copilot tool accepts the ask and continues with its returned run ID", target_fixture="review")
+def complete_chat_request(operator_ask, tmp_path):
+    from tests.test_copilot_entry import CopilotClient
+
+    with CopilotClient(tmp_path) as chat:
+        ticket = chat.call(request=operator_ask)
+        assert ticket["status"] == "accepted"
+        return chat.call(run_id=ticket["run_id"])

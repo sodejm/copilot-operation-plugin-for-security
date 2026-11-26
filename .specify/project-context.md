@@ -225,4 +225,4 @@ tamper rejection and cleanup augment the artifact assessor. The strict gate
 requires its pinned installer; arbitrary packages and registry execution remain
 unsupported. See `docs/SERVICE_LABORATORY.md` for prerequisites and evidence limits.
 
-The [Detection Quality pilot](../docs/detection-quality-pilot.md) completes a two-suite offline review from one request and resumes from verified suite receipts.
+The [Detection Quality pilot](../docs/detection-quality-pilot.md) completes a two-suite offline review from one request. Copilot chat and the CLI use the same routing and verification. Chat retains the accepted run ID for resuming from verified suite receipts.

@@ -144,33 +144,40 @@ def stage_report(db: sqlite3.Connection, package: Path, binding: str, stage: str
     return report, receipt, "reused" if row else "evaluated"
 
 
-def run_review(package: Path, directory: Path | None, resume: bool) -> dict:
+def prepare_review(package: Path, directory: Path | None) -> Path:
     binding = fingerprint(package)
     if directory is None:
         home = Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local/state") / "cops/detection-quality"
         home.mkdir(mode=0o700, parents=True, exist_ok=True)
         directory = Path(tempfile.mkdtemp(prefix="run-", dir=home))
-    elif not resume:
+    else:
         directory.mkdir(mode=0o700)
     directory = directory.absolute()
+    with closing(sqlite3.connect(directory / "checkpoint.sqlite3")) as db, db:
+        db.execute("BEGIN IMMEDIATE")
+        db.execute("CREATE TABLE run (binding TEXT NOT NULL)")
+        db.execute("CREATE TABLE accepted (stage TEXT PRIMARY KEY, report TEXT NOT NULL, receipt TEXT NOT NULL)")
+        db.execute("INSERT INTO run VALUES (?)", (binding,))
+    return directory
+
+
+def run_review(package: Path, directory: Path | None, resume: bool, *, announce: bool = True) -> dict:
+    if not resume:
+        directory = prepare_review(package, directory)
+    if directory is None:
+        raise ValueError("Resume requires the original run directory.")
+    directory = directory.absolute()
     checkpoint = directory / "checkpoint.sqlite3"
-    if resume and (not checkpoint.is_file() or checkpoint.is_symlink()):
+    if not checkpoint.is_file() or checkpoint.is_symlink():
         raise ValueError("Resume requires an existing pilot checkpoint.")
+    binding = fingerprint(package)
     suites = []
-    uri = checkpoint.as_uri() + ("?mode=rw" if resume else "?mode=rwc")
-    with closing(sqlite3.connect(uri, uri=True, timeout=65)) as db:
+    with closing(sqlite3.connect(checkpoint.as_uri() + "?mode=rw", uri=True, timeout=65)) as db:
         db.execute("PRAGMA trusted_schema=OFF")
-        if not resume:
-            with db:
-                db.execute("BEGIN IMMEDIATE")
-                db.execute("CREATE TABLE run (binding TEXT NOT NULL)")
-                db.execute(
-                    "CREATE TABLE accepted (stage TEXT PRIMARY KEY, report TEXT NOT NULL, receipt TEXT NOT NULL)"
-                )
-                db.execute("INSERT INTO run VALUES (?)", (binding,))
         if db.execute("SELECT binding FROM run").fetchall() != [(binding,)]:
             raise ValueError("Checkpoint belongs to a different pilot or input revision. Start a new review.")
-        print(f"Detection Quality run directory: {directory}", file=sys.stderr, flush=True)
+        if announce:
+            print(f"Detection Quality run directory: {directory}", file=sys.stderr, flush=True)
         for stage in STAGES:
             report, receipt, disposition = stage_report(db, package, binding, stage)
             suites.append(
@@ -220,27 +227,37 @@ def render(result: dict) -> str:
     return "\n".join(lines)
 
 
+def review_package(root: Path, query: str | None) -> Path | None:
+    registry = root / "agents/registry.json"
+    decision = route_bundled_review(query, registry_path=registry) if query is not None else None
+    if query is not None and decision is None:
+        return None
+    profile = decision.primary_profile if decision else get_specialist(SPECIALIST, registry)
+    if (
+        profile.primary_plugin != WORKBENCH
+        or SKILL not in profile.skills
+        or SKILL not in profile.capabilities
+        or "detectionquality" not in profile.tools
+        or set(profile.required_permissions) != {"read_supplied_artifacts"}
+        or profile.criticality != "normal"
+        or profile.interactive_authorization_required
+    ):
+        raise ValueError("Registered profile no longer supports this offline review.")
+    return root / find_plugin(WORKBENCH, root).path
+
+
+def clarification() -> dict:
+    return {"status": "clarification_required", "message": f"For both packaged fixture sets, ask: {EXAMPLE}"}
+
+
 def command_ask(args, root: Path) -> int:
     try:
         if args.resume is not None and args.run_dir is not None:
             raise ValueError("Use the original run directory with --resume.")
-        registry = root / "agents/registry.json"
-        decision = route_bundled_review(args.query, registry_path=registry) if args.resume is None else None
-        if args.resume is None and decision is None:
-            result = {"status": "clarification_required", "message": f"For both packaged fixture sets, ask: {EXAMPLE}"}
+        package = review_package(root, args.query if args.resume is None else None)
+        if package is None:
+            result = clarification()
         else:
-            profile = decision.primary_profile if decision else get_specialist(SPECIALIST, registry)
-            if (
-                profile.primary_plugin != WORKBENCH
-                or SKILL not in profile.skills
-                or SKILL not in profile.capabilities
-                or "detectionquality" not in profile.tools
-                or set(profile.required_permissions) != {"read_supplied_artifacts"}
-                or profile.criticality != "normal"
-                or profile.interactive_authorization_required
-            ):
-                raise ValueError("Registered profile no longer supports this offline review.")
-            package = root / find_plugin(WORKBENCH, root).path
             result = run_review(package, args.resume or args.run_dir, args.resume is not None)
     except (ValueError, KeyError, OSError, sqlite3.Error, subprocess.SubprocessError) as exc:
         result = {"status": "failed", "message": str(exc)}

@@ -1,0 +1,125 @@
+{
+  "stage": "implementation",
+  "request": "Start a bundled Detection Quality review with one Copilot chat message and resume an interrupted review from the conversation.",
+  "scope": "One native workspace tool uses the existing router and two offline fixture evaluators.",
+  "setup": "Open the dedicated checkout with Copilot and its documented Python environment. Run regression tests from the repository root.",
+  "constraints": "Keep suite receipts in private checkout-scoped state and use only the registered Detection Quality skill and packaged fixtures.",
+  "steps": [
+    {
+      "action": "Register one workspace tool and direct Copilot to continue each accepted review with its run ID.",
+      "paths": [
+        ".mcp.json",
+        ".github/copilot-instructions.md",
+        ".github/agents/cops.agent.md",
+        ".github/agents/squad.agent.md"
+      ],
+      "verify": {
+        "command": "python3 -m unittest tests.test_copilot_entry.CopilotTests.test_workspace_registration",
+        "expected": "The configured process lists exactly the request tool exposed to the chat."
+      }
+    },
+    {
+      "action": "Route the original wording, commit the run before returning its ID, and verify each persisted receipt before reuse.",
+      "paths": [
+        "cops/copilot.py",
+        "cops/routing/detection_quality.py",
+        "cops/workflows/detection_quality.py",
+        "tests/test_copilot_entry.py"
+      ],
+      "verify": {
+        "command": "python3 -m unittest tests.test_copilot_entry",
+        "expected": "The report names the owner, skill and three gaps. The interrupted run calls each evaluator once."
+      }
+    },
+    {
+      "action": "Describe chat discovery, verification and recovery at the public entry point.",
+      "paths": [
+        "specs/features/detection_quality_pilot.feature",
+        "tests/step_defs/test_detection_quality_pilot_steps.py",
+        "specs/detection-quality-workbench.spec.md",
+        "README.md",
+        "ARCHITECTURE.md",
+        ".specify/project-context.md",
+        "docs/detection-quality-pilot.md",
+        "docs/THREAT_MODEL.md",
+        "docs/security/REVIEW_COVERAGE.md"
+      ],
+      "verify": {
+        "command": "python3 -m pytest -q tests/step_defs/test_detection_quality_pilot_steps.py",
+        "expected": "The command and chat return verified results for both fixture sets."
+      }
+    }
+  ],
+  "acceptance": [
+    {
+      "kind": "success",
+      "entrypoint": "Copilot chat through the workspace cops/request tool",
+      "given": "An operator asks if the bundled Sentinel and Splunk detections catch the packaged cases.",
+      "when": "Submit the original wording and let Copilot continue with the returned ID.",
+      "then": "The registered specialist and skill evaluate both suites and return the three affected cases.",
+      "paths": [
+        "cops/copilot.py",
+        "cops/routing/detection_quality.py",
+        "cops/workflows/detection_quality.py",
+        "tests/test_copilot_entry.py",
+        "specs/features/detection_quality_pilot.feature",
+        "tests/step_defs/test_detection_quality_pilot_steps.py",
+        "specs/detection-quality-workbench.spec.md",
+        "README.md",
+        "ARCHITECTURE.md",
+        ".specify/project-context.md",
+        "docs/detection-quality-pilot.md",
+        "docs/THREAT_MODEL.md",
+        "docs/security/REVIEW_COVERAGE.md"
+      ],
+      "runner": "unittest",
+      "test": "tests/test_copilot_entry.py::CopilotTests::test_one_chat_request"
+    },
+    {
+      "kind": "success",
+      "entrypoint": "Copilot chat through the workspace cops/request tool",
+      "given": "The repository is open in the Copilot harness.",
+      "when": "Discover and list the tools from the workspace MCP configuration.",
+      "then": "The default agent and optional COPS agent both refer to the same registered request tool.",
+      "paths": [
+        ".mcp.json",
+        ".github/copilot-instructions.md",
+        ".github/agents/cops.agent.md",
+        ".github/agents/squad.agent.md"
+      ],
+      "runner": "unittest",
+      "test": "tests/test_copilot_entry.py::CopilotTests::test_workspace_registration"
+    },
+    {
+      "kind": "boundary",
+      "entrypoint": "Copilot chat through the workspace cops/request tool",
+      "given": "Sentinel has a committed receipt and the process exits before the Splunk evaluation.",
+      "when": "Continue with the same run ID in a new process, then replay the completed review.",
+      "then": "Sentinel is reused, Splunk finishes once, and both receipt digests survive replay.",
+      "paths": [
+        "cops/copilot.py",
+        "cops/routing/detection_quality.py",
+        "cops/workflows/detection_quality.py",
+        "tests/test_copilot_entry.py"
+      ],
+      "runner": "unittest",
+      "test": "tests/test_copilot_entry.py::CopilotTests::test_interrupted_chat_resumes"
+    },
+    {
+      "kind": "boundary",
+      "entrypoint": "Copilot chat through the workspace cops/request tool",
+      "given": "A request is negated, combines another action, or lacks a valid recovery ID.",
+      "when": "Submit the request and inspect the response and state directory.",
+      "then": "COPS asks for clarification or returns a failure and creates no checkpoint.",
+      "paths": [
+        "cops/copilot.py",
+        "cops/routing/detection_quality.py",
+        "cops/workflows/detection_quality.py",
+        "tests/test_copilot_entry.py"
+      ],
+      "runner": "unittest",
+      "test": "tests/test_copilot_entry.py::CopilotTests::test_chat_boundaries"
+    }
+  ],
+  "pending": []
+}
