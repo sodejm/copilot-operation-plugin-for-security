@@ -18,20 +18,7 @@ def run(*argv):
 
 def cops_full_suite(python):
     """Run the same full COPS suite locally and on review promotion."""
-    run("make", "check", "PYTHON=" + python)
-    # Approved controller snapshots are verified copies removed during the test.
-    # Counting them duplicates source coverage and leaves no file for reporting.
-    run(
-        python,
-        "-m",
-        "coverage",
-        "run",
-        "--branch",
-        "--omit=*/cops-auth-source-*/*",
-        "-m",
-        "pytest",
-    )
-    run(python, "-m", "coverage", "report")
+    run("make", "check", "PYTHON=" + python, "CHECK_ARGS=--pytest-coverage")
 
 
 def main():

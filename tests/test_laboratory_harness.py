@@ -120,7 +120,12 @@ def test_verification_requires_attested_runtime_measurement(tmp_path: Path, fact
         ("egress_restricted", False, IsolationVerificationError),
         ("canary_digest", "0" * 64, CanaryVerificationError),
         ("baseline_digest", "0" * 64, IsolationVerificationError),
-        ("observed_at", (datetime.now(UTC) - timedelta(minutes=3)).isoformat(), IsolationVerificationError),
+        pytest.param(
+            "observed_at",
+            (datetime.now(UTC) - timedelta(minutes=3)).isoformat(),
+            IsolationVerificationError,
+            id="stale-observation",
+        ),
         ("request_nonce", "wrong-nonce", IsolationVerificationError),
     ],
 )

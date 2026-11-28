@@ -138,6 +138,28 @@ success, controlled failure, and injected status-query failures. Semantic cases
 cover broad owners, OWNER RIGHTS suppression, and missing owner evidence. Keep the broader Windows capability partial until
 its remaining collection and privilege-boundary evidence exists.
 
+### Profile pytest and compare worker counts
+
+Install `pytest-xdist==3.8.0` in a disposable test environment with the
+contributor requirements. From the repository root run:
+
+```bash
+python scripts/agent/benchmark_pytest.py --rounds 5 --output .tmp/pytest-profile
+```
+
+The pilot compares serial pytest with two and four worker processes on the
+same modules. Each round records wall time, collected node IDs, test and
+subtest outcomes, skip reasons, phase durations, and the pytest exit code. The command requires
+a new output directory and fails if a pytest invocation fails or the cases or
+outcomes differ. Review the raw logs locally before sharing them.
+
+Use repeatable `--parallel-file` arguments to choose independent modules
+and `--suite tests` to measure them with the rest of the suite running
+serially. Run on an idle Ubuntu runner with a fixed CPU allocation and the
+same dependencies for each mode. Five rounds screen a candidate. Use at least
+20 matched runs and compare median and p95 wall time, total runner usage and
+required-case outcomes before proposing a change to the hosted gate.
+
 ## Offline setup
 
 On a connected machine with the same operating system, architecture, and Python

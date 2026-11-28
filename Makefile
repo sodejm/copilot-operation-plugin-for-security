@@ -1,5 +1,10 @@
 PYTHON ?= python3
 LABORATORY_ARGS ?=
+# Coverage is an explicit push-gate request. Do not inherit a stale environment
+# value into ordinary contributor checks.
+ifneq ($(origin CHECK_ARGS),command line)
+CHECK_ARGS :=
+endif
 
 .PHONY: doctor list-plugins validate-packages check-packages generate-marketplaces \
 	check-marketplaces validate-contract check-docs sync-agent-adapters check-agent-adapters \
@@ -64,4 +69,4 @@ setup-hooks:
 	"$(PYTHON)" scripts/agent/install_hooks.py
 
 check: check-prerequisites
-	"$(PYTHON)" scripts/agent/check.py
+	"$(PYTHON)" scripts/agent/check.py $(CHECK_ARGS)

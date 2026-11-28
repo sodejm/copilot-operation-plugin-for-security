@@ -31,7 +31,9 @@ do not reuse older tools through a PATH override or relax scanner enforcement.
 
 Python >=3.14, uv, make; requirements.txt.
 
-make check; branch-wide issue coverage; repository-wide Ruff lint and branch-changed Python formatting (matching the existing lint-only CI and avoiding unrelated formatting churn); pytest with branch coverage report; pip-audit.
+The full profile runs `make check` with branch coverage enabled for its single
+root pytest run. The gate also checks branch-wide issue coverage, runs
+repository-wide Ruff lint and branch-changed Python formatting, and runs pip-audit.
 
 Every profile also validates the gate with Ruff lint/format and its disposable Git regression tests, checks whitespace, and runs the scanners before dependency installation or generated build artifacts. Checks never apply automatic fixes, stage, commit or push. Builds, dependency downloads and generated files stay in disposable snapshots or tool caches. Canonical tools may use caches outside the snapshot.
 
@@ -86,5 +88,5 @@ dependency audit run on the proposed commit. Review the named acceptance cases
 before publishing a draft that must avoid labs. GitHub runs static PR checks
 on drafts and leaves the required `validate` check red while the full suite is
 deferred. Marking the PR ready schedules the service lab, all three native
-smoke jobs, `make check`, and the full pytest run with branch coverage.
+smoke jobs, and `make check` with branch coverage enabled for root pytest.
 Conversion back to draft cancels superseded validation.
