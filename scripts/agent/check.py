@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import argparse
 import ast
 import subprocess
 import sys
@@ -35,7 +36,14 @@ def validate_python(root: Path = ROOT) -> bool:
     return ok
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--pytest-coverage",
+        action="store_true",
+        help="run the root pytest suite once under the push gate's coverage policy",
+    )
+    args = parser.parse_args([] if argv is None else argv)
     if not check_prerequisites(ROOT):
         return 1
     checks = [
@@ -55,7 +63,24 @@ def main() -> int:
         run([sys.executable, "scripts/check_agent_mcp_acceptance.py"]),
     ]
     if (ROOT / "tests").is_dir():
-        checks.append(run([sys.executable, "-m", "pytest", "tests", "-q"]))
+        pytest = [sys.executable, "-m", "pytest", "tests", "-q"]
+        if args.pytest_coverage:
+            # Approved controller snapshots are verified copies removed during the test.
+            # Counting them duplicates source coverage and leaves no file for reporting.
+            pytest = [
+                sys.executable,
+                "-m",
+                "coverage",
+                "run",
+                "--branch",
+                "--omit=*/cops-auth-source-*/*",
+                "-m",
+                "pytest",
+            ]
+        pytest_ok = run(pytest)
+        checks.append(pytest_ok)
+        if args.pytest_coverage and pytest_ok:
+            checks.append(run([sys.executable, "-m", "coverage", "report"]))
     plugin_tests = ROOT / "plugins/detection-hunting/attack-path-workbench/tests"
     if plugin_tests.is_dir():
         checks.append(run([sys.executable, "-m", "unittest", "discover", "-s", "tests", "-v"], cwd=plugin_tests.parent))
@@ -71,4 +96,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(main(sys.argv[1:]))

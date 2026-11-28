@@ -128,10 +128,11 @@ class PolicyTests(unittest.TestCase):
         self.assertTrue(any("pip_audit" in c for c in draft))
         self.assertTrue(any("tools/push_gate/session_delivery.py" in c for c in draft))
         deferred = [c for c in full if c not in draft]
-        self.assertEqual(len(deferred), 3)
-        self.assertEqual(deferred[0][:2], ("make", "check"))
-        self.assertIn("pytest", deferred[1])
-        self.assertIn("report", deferred[2])
+        python = str(Path.cwd().parent / "validation-venv" / "bin/python")
+        self.assertEqual(
+            deferred,
+            [("make", "check", f"PYTHON={python}", "CHECK_ARGS=--pytest-coverage")],
+        )
         self.assertEqual(draft, [c for c in full if c not in deferred])
 
     def test_current_scanner_pins_match_operator_prerequisites(self):
@@ -196,25 +197,6 @@ class PolicyTests(unittest.TestCase):
         finally:
             del os.environ["TRIVY_SKIP_FILES"]
             del os.environ["SEMGREP_RULES"]
-
-    def test_cops_coverage_excludes_removed_authorization_source_copies(self):
-        commands = []
-        with (
-            mock.patch.object(sys, "argv", ["checks.py", "cops", "base", "head"]),
-            mock.patch.object(
-                CHECKS, "run", side_effect=lambda *args: commands.append(args)
-            ),
-            mock.patch.object(CHECKS.glob, "glob", return_value=[]),
-            mock.patch.object(CHECKS.subprocess, "check_output", return_value=""),
-            mock.patch.dict(os.environ, {"PATH": os.environ.get("PATH", "")}),
-        ):
-            CHECKS.main()
-        coverage_runs = [
-            command for command in commands if command[1:4] == ("-m", "coverage", "run")
-        ]
-        self.assertEqual(len(coverage_runs), 1)
-        self.assertIn("--omit=*/cops-auth-source-*/*", coverage_runs[0])
-        self.assertIn((coverage_runs[0][0], "-m", "coverage", "report"), commands)
 
 
 def handoff_record(code, stage):

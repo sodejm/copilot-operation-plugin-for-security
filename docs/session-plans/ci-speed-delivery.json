@@ -1,0 +1,133 @@
+{
+  "stage": "implementation",
+  "request": "Reduce COPS push validation time and measure the effect of pytest worker counts on Ubuntu.",
+  "scope": "Run root pytest once with coverage in the standard push profile. Compare serial pytest with two and four workers in the benchmark.",
+  "setup": "Use the repository’s Python test environment and a dedicated Ubuntu amd64 benchmark runner.",
+  "constraints": "Keep the existing coverage policy, draft routing, and all eleven hosted gates in force.",
+  "steps": [
+    {
+      "action": "Move coverage instrumentation into the root pytest invocation used by the standard push profile.",
+      "paths": [
+        "Makefile",
+        "scripts/agent/check.py",
+        "tools/push_gate/checks.py",
+        "tests/test_check_prerequisites.py",
+        "tests/test_local_push_gate.py"
+      ],
+      "verify": {
+        "command": "python -m pytest -q tests/test_check_prerequisites.py tests/test_local_push_gate.py::PolicyTests",
+        "expected": "The full profile requests one coverage-bearing root run, ordinary make check keeps its existing command, and the draft still defers the full suite."
+      }
+    },
+    {
+      "action": "Measure each worker count and give the two timestamp-dependent cases stable collection IDs.",
+      "paths": [
+        "scripts/agent/benchmark_pytest.py",
+        "scripts/agent/pytest_profile_plugin.py",
+        "tests/test_ci_pytest_benchmark.py",
+        "tests/test_authenticated_plan_security.py",
+        "tests/test_laboratory_harness.py"
+      ],
+      "verify": {
+        "command": "python -m pytest -q tests/test_ci_pytest_benchmark.py tests/test_authenticated_plan_security.py::test_worker_inventory_rejects_invalid_or_future_measurement tests/test_laboratory_harness.py::test_false_stale_or_mismatched_measurement_fails_closed",
+        "expected": "The benchmark accepts equivalent outcomes and rejects incomplete reports. Both timestamp fixtures still reject invalid observations."
+      }
+    }
+  ],
+  "acceptance": [
+    {
+      "kind": "success",
+      "entrypoint": "make check with the push profile’s coverage option",
+      "given": "The standard push profile needs root pytest and coverage.",
+      "when": "Run the repository check with the coverage option.",
+      "then": "The root test suite runs once with the existing branch coverage policy.",
+      "paths": [
+        "Makefile",
+        "scripts/agent/check.py",
+        "tests/test_check_prerequisites.py"
+      ],
+      "runner": "unittest",
+      "test": "tests/test_check_prerequisites.py::PrerequisiteTests::test_push_gate_coverage_option_runs_root_tests_once_with_its_policy"
+    },
+    {
+      "kind": "boundary",
+      "entrypoint": "make check with the push profile’s coverage option",
+      "given": "Root pytest returns a failing status.",
+      "when": "Complete the repository check.",
+      "then": "The check fails and skips reporting partial coverage.",
+      "paths": [
+        "Makefile",
+        "scripts/agent/check.py",
+        "tests/test_check_prerequisites.py"
+      ],
+      "runner": "unittest",
+      "test": "tests/test_check_prerequisites.py::PrerequisiteTests::test_push_gate_coverage_option_skips_report_after_failed_root_tests"
+    },
+    {
+      "kind": "success",
+      "entrypoint": "Draft push policy command selection",
+      "given": "The canonical push gate receives the draft profile.",
+      "when": "Compare the draft and standard commands.",
+      "then": "Only the full suite is deferred for the draft.",
+      "paths": [
+        "tools/push_gate/checks.py",
+        "tests/test_local_push_gate.py"
+      ],
+      "runner": "unittest",
+      "test": "tests/test_local_push_gate.py::PolicyTests::test_draft_defers_only_the_full_suite"
+    },
+    {
+      "kind": "success",
+      "entrypoint": "Pytest benchmark outcome comparison",
+      "given": "Worker reports contain the same test IDs and outcomes in a different order.",
+      "when": "Compare the reports to serial.",
+      "then": "The comparison accepts the equivalent results.",
+      "paths": [
+        "scripts/agent/benchmark_pytest.py",
+        "scripts/agent/pytest_profile_plugin.py",
+        "tests/test_ci_pytest_benchmark.py"
+      ],
+      "runner": "pytest",
+      "test": "tests/test_ci_pytest_benchmark.py::test_accepts_exact_outcomes_even_if_worker_reports_arrive_in_different_order"
+    },
+    {
+      "kind": "boundary",
+      "entrypoint": "Pytest benchmark report validation",
+      "given": "A benchmark report is incomplete or repeats a test.",
+      "when": "Read its recorded results.",
+      "then": "The benchmark rejects the invalid report.",
+      "paths": [
+        "scripts/agent/benchmark_pytest.py",
+        "scripts/agent/pytest_profile_plugin.py",
+        "tests/test_ci_pytest_benchmark.py"
+      ],
+      "runner": "pytest",
+      "test": "tests/test_ci_pytest_benchmark.py::test_rejects_incomplete_or_duplicate_reports"
+    },
+    {
+      "kind": "boundary",
+      "entrypoint": "Worker inventory measurement validation",
+      "given": "A fixture inventory carries an invalid or future measurement timestamp.",
+      "when": "Load the inventory.",
+      "then": "Validation rejects the timestamp using stable pytest IDs.",
+      "paths": [
+        "tests/test_authenticated_plan_security.py"
+      ],
+      "runner": "pytest",
+      "test": "tests/test_authenticated_plan_security.py::test_worker_inventory_rejects_invalid_or_future_measurement"
+    },
+    {
+      "kind": "boundary",
+      "entrypoint": "Laboratory observation verification",
+      "given": "An inert fixture observation is false, stale, or mismatched.",
+      "when": "Verify it with the harness.",
+      "then": "Verification fails closed and leaves the canary unverified.",
+      "paths": [
+        "tests/test_laboratory_harness.py"
+      ],
+      "runner": "pytest",
+      "test": "tests/test_laboratory_harness.py::test_false_stale_or_mismatched_measurement_fails_closed"
+    }
+  ],
+  "pending": []
+}

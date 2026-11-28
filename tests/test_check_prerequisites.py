@@ -170,6 +170,63 @@ class PrerequisiteTests(unittest.TestCase):
         syntax.assert_not_called()
         run.assert_not_called()
 
+    def test_push_gate_coverage_option_runs_root_tests_once_with_its_policy(self):
+        commands = []
+        with (
+            patch.object(gate, "check_prerequisites", return_value=True),
+            patch.object(gate, "validate_python", return_value=True),
+            patch.object(gate, "run", side_effect=lambda command, **_: commands.append(command) or True),
+            patch.object(gate, "repository_files", return_value=[]),
+        ):
+            self.assertEqual(gate.main(["--pytest-coverage"]), 0)
+
+        coverage_runs = [command for command in commands if command[1:4] == ["-m", "coverage", "run"]]
+        self.assertEqual(len(coverage_runs), 1)
+        self.assertEqual(
+            coverage_runs[0],
+            [
+                sys.executable,
+                "-m",
+                "coverage",
+                "run",
+                "--branch",
+                "--omit=*/cops-auth-source-*/*",
+                "-m",
+                "pytest",
+            ],
+        )
+        self.assertIn([sys.executable, "-m", "coverage", "report"], commands)
+
+    def test_default_check_keeps_the_standard_root_pytest_command(self):
+        commands = []
+        with (
+            patch.object(gate, "check_prerequisites", return_value=True),
+            patch.object(gate, "validate_python", return_value=True),
+            patch.object(gate, "run", side_effect=lambda command, **_: commands.append(command) or True),
+            patch.object(gate, "repository_files", return_value=[]),
+        ):
+            self.assertEqual(gate.main([]), 0)
+
+        self.assertIn([sys.executable, "-m", "pytest", "tests", "-q"], commands)
+        self.assertFalse(any(command[1:4] == ["-m", "coverage", "run"] for command in commands))
+
+    def test_push_gate_coverage_option_skips_report_after_failed_root_tests(self):
+        commands = []
+
+        def record(command, **_):
+            commands.append(command)
+            return command[1:4] != ["-m", "coverage", "run"]
+
+        with (
+            patch.object(gate, "check_prerequisites", return_value=True),
+            patch.object(gate, "validate_python", return_value=True),
+            patch.object(gate, "run", side_effect=record),
+            patch.object(gate, "repository_files", return_value=[]),
+        ):
+            self.assertEqual(gate.main(["--pytest-coverage"]), 1)
+
+        self.assertNotIn([sys.executable, "-m", "coverage", "report"], commands)
+
 
 if __name__ == "__main__":
     unittest.main()

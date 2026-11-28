@@ -328,7 +328,7 @@ def test_worker_inventory_rejects_identity_mismatch(tmp_path):
     "measured_at",
     [
         "not-a-timestamp",
-        (datetime.now(UTC) + timedelta(days=1)).isoformat().replace("+00:00", "Z"),
+        pytest.param((datetime.now(UTC) + timedelta(days=1)).isoformat().replace("+00:00", "Z"), id="future"),
     ],
 )
 def test_worker_inventory_rejects_invalid_or_future_measurement(tmp_path, measured_at):
