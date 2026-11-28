@@ -223,7 +223,7 @@ If an administrative change, refactor, or typo fix requires an exemption, provid
 7. **Evidence Bundle Validation** (`scripts/agent/bundle_evidence.py --check`): Ensures evidence receipts adhere to schema constraints.
 8. **Host Marketplace Synchronization** (`python3 -m cops generate --check`): Verifies that `.github/`, `.claude-plugin/`, and `.agents/` marketplace files match `catalog/plugins.json`.
 9. **ATT&CK Coverage Check** (`python3 -m cops coverage --check`): Validates MITRE ATT&CK matrix mappings.
-10. **Plugin Test Suites** (`python3 -m cops check`): Runs declared offline verification suites across all 25 plugins.
+10. **Plugin Test Suites** (`python3 -m cops check`): Runs declared offline verification suites across all 23 plugins.
 11. **Pytest & Unittest Suites**: Executes all acceptance scenarios (`pytest tests`) and skill unittests.
 12. **Git Diff Check**: Confirms no trailing whitespace or corrupt line endings exist.
 
@@ -261,7 +261,7 @@ To contribute a new cybersecurity capability to COPS:
    python3 scripts/generate_plugin_playbooks.py
    python3 scripts/generate_plugin_playbooks.py --check
    ```
-   The generator refreshes package-owned offline workflow assets and their `docs/PLAYBOOK.md` links for all 25 packages. Generated files must be tracked by Git to appear in a portable export. Their presence documents an offline workflow; it is not evidence of laboratory execution or live integration.
+   The generator refreshes package-owned offline workflow assets and their `docs/PLAYBOOK.md` links for all 23 packages. Generated files must be tracked by Git to appear in a portable export. Their presence documents an offline workflow; it is not evidence of laboratory execution or live integration.
 
    Portable packages may include approved, tracked assets under `examples/`, `playbooks/`, `walkthroughs/`, `datasets/`, `provenance/`, and `signatures/`. The exporter rejects symlinks and broken or escaping Markdown links.
 

@@ -11,7 +11,12 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import (
     Ed25519PublicKey,
 )
 
+from cops.contracts.models import SpecialistHandoff
+from cops.contracts.validation import workflow_target_checksum
 from cops.evidence.canonical import canonical, digest
+from cops.routing.catalog import get_specialist
+from cops.routing.handoff import accept_specialist_handoff, propose_specialist_handoff
+from cops.routing.triad import assemble_triad_plan
 from cops.workflows.contracts import WorkflowContractError
 from cops.workflows.playback import (
     DEFAULT_CATALOG_DIR,
@@ -180,6 +185,51 @@ def test_fixture_evidence_bundle_is_explicitly_unsigned_without_a_signer() -> No
     assert bundle["authenticity_established"] is False
     assert bundle["trust_status"] == "unsigned"
     assert bundle["live_signing_required"] is True
+
+
+def test_default_auditor_accepts_saved_offline_evidence_handoff(tmp_path: Path) -> None:
+    primary = get_specialist("cops-cloud-posture-specialist")
+    triad = assemble_triad_plan(primary, "Review synthetic audit evidence")
+    auditor_id = triad.auditor.specialist_id
+    assert auditor_id == "cops-compliance-auditor"
+    assert get_specialist(auditor_id).primary_plugin == "governance-evidence-workbench"
+
+    report = run_fixture_profile("leaked-credential-blast-radius", "corrected")
+    stage = report["stages"]["bundle"]
+    plan = stage["plan"]
+    assert plan["specialist_id"] == auditor_id
+    assert plan["limits"]["egress_allowed"] is False
+    assert plan["operations"][0]["side_effects"] == []
+
+    legacy_skill = "compliance-posture-workbench"
+    proposal = propose_specialist_handoff(
+        {"engagement_id": plan["engagement_id"]},
+        plan,
+        "Check the fixture evidence bundle",
+        "fixture-planner",
+        specialist_id=auditor_id,
+        workflow_skill_id=legacy_skill,
+        capability_id=auditor_id,
+        required_capabilities=[legacy_skill],
+    )
+    saved = tmp_path / "saved-handoff.json"
+    saved.write_text(json.dumps(proposal.to_dict()), encoding="utf-8")
+    handoff = SpecialistHandoff.from_dict(json.loads(saved.read_text(encoding="utf-8")))
+    accepted = accept_specialist_handoff(handoff, auditor_id)
+
+    assert accepted.status == "accepted"
+    assert accepted.action_plan_id == plan["plan_id"]
+    assert accepted.task["required_capabilities"] == [legacy_skill]
+    target = accepted.task["workflow_target"]
+    assert target["skill_id"] == legacy_skill
+    assert target["implementation"] == (
+        "plugins/governance-compliance/governance-evidence-workbench/skills/compliance-posture-workbench/SKILL.md"
+    )
+    assert accepted.transition_log[-1]["workflow_target_checksum"] == workflow_target_checksum(target)
+    assert stage["status"] == "success"
+    assert stage["outputs"]["evidence_bundle"] == report["outputs"]["evidence_bundle"]
+    bundle = report["outputs"]["evidence_bundle"]
+    assert bundle["signature"]["payload_digest"] == digest(bundle["payload"])
 
 
 def test_fixture_evidence_bundle_can_be_cryptographically_signed() -> None:

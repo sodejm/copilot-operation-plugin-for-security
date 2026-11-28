@@ -815,11 +815,11 @@
       ]
     },
     {
-      "id": "compliance-posture-workbench",
-      "name": "COPS Compliance Posture Workbench",
+      "id": "governance-evidence-workbench",
+      "name": "COPS Governance Evidence Workbench",
       "version": "0.1.0",
       "primary_category": "governance-compliance",
-      "path": "plugins/governance-compliance/compliance-posture-workbench",
+      "path": "plugins/governance-compliance/governance-evidence-workbench",
       "tags": [
         "claude",
         "codex",
@@ -831,8 +831,6 @@
         "soc 2 control mapping",
         "nist control mapping",
         "cis control assessment",
-        "iso 27001 evidence",
-        "pci dss evidence",
         "compliance evidence review"
       ],
       "artifact_triggers": [
@@ -851,26 +849,33 @@
         "Map the dated evidence to our SOC 2 controls and mark unsupported claims.",
         "Review this NIST control matrix and identify evidence that is missing or stale.",
         "Assess the audit binder against the stated CIS control version.",
-        "Trace each ISO 27001 claim to a specific policy, record, or unresolved gap.",
-        "Prepare a compliance evidence review that separates observed, supported, and unknown controls."
+        "Prepare a compliance evidence review that separates observed, supported, and unknown controls.",
+        "Compare these dated evidence records with the registered NIST control versions and explain the gaps."
       ]
     },
     {
-      "id": "cloud-posture-workbench",
-      "name": "COPS Cloud Posture Workbench",
+      "id": "artifact-security-workbench",
+      "name": "COPS Artifact Security Workbench",
       "version": "0.1.0",
       "primary_category": "vulnerability-management",
-      "path": "plugins/vulnerability-management/cloud-posture-workbench",
+      "path": "plugins/vulnerability-management/artifact-security-workbench",
       "tags": [
         "aws",
         "azure",
         "claude",
         "codex",
+        "containers",
         "gcp",
+        "github-actions",
         "github-copilot",
+        "jwt",
         "kubernetes",
+        "mtls",
+        "npm",
         "offline-analysis",
+        "python",
         "terraform",
+        "tls",
         "vulnerability-management"
       ],
       "symptom_triggers": [
@@ -879,7 +884,19 @@
         "public cloud storage",
         "cloud workload configuration",
         "cloud iam configuration",
-        "kubernetes workload configuration"
+        "kubernetes workload configuration",
+        "software supply chain",
+        "dependency vulnerability",
+        "build pipeline permission",
+        "registry resolution",
+        "lockfile review",
+        "sbom provenance",
+        "tls certificate chain",
+        "mtls client verification",
+        "jwt signature verification",
+        "jwks signing configuration",
+        "tls protocol configuration",
+        "certificate trust failure"
       ],
       "artifact_triggers": [
         "terraform_plan",
@@ -887,66 +904,37 @@
         "cloud_configuration",
         "kubernetes_manifest",
         "helm_rendered_manifest",
-        "iam_policy"
-      ],
-      "anti_triggers": [
-        "identity entitlement path only",
-        "kubernetes cluster scope only",
-        "network reachability only"
-      ],
-      "example_prompts": [
-        "Review this Terraform plan for public storage and excessive cloud IAM access.",
-        "Assess the rendered Helm workloads for unsafe cloud identity bindings.",
-        "Find posture weaknesses in the exported storage, RBAC, and workload configuration.",
-        "Explain which planned cloud changes violate least-privilege policy.",
-        "Prioritize remediation for the risky cloud resources in this offline configuration export."
-      ]
-    },
-    {
-      "id": "supply-chain-cicd-workbench",
-      "name": "COPS Supply Chain and CI/CD Workbench",
-      "version": "0.1.0",
-      "primary_category": "vulnerability-management",
-      "path": "plugins/vulnerability-management/supply-chain-cicd-workbench",
-      "tags": [
-        "claude",
-        "codex",
-        "containers",
-        "github-actions",
-        "github-copilot",
-        "npm",
-        "offline-analysis",
-        "python",
-        "vulnerability-management"
-      ],
-      "symptom_triggers": [
-        "software supply chain",
-        "dependency vulnerability",
-        "build pipeline permission",
-        "registry resolution",
-        "lockfile review",
-        "sbom provenance"
-      ],
-      "artifact_triggers": [
+        "iam_policy",
         "package-lock.json",
         "requirements.txt",
         "poetry.lock",
         "go.sum",
         "cyclonedx",
         "spdx",
-        "github_actions_workflow"
+        "github_actions_workflow",
+        "certificate_chain",
+        "pem_file",
+        "tls_configuration",
+        "jwt_configuration",
+        "jwks_document",
+        "openssl_output"
       ],
       "anti_triggers": [
+        "identity entitlement path only",
+        "kubernetes cluster scope only",
+        "network reachability only",
         "cve exploit reachability only",
         "application source flaw",
-        "leaked credential rotation"
+        "leaked credential rotation",
+        "api object authorization",
+        "network firewall policy"
       ],
       "example_prompts": [
-        "Review the lockfiles and SBOM for dependency drift and vulnerable packages.",
-        "Assess this GitHub Actions workflow for unsafe permissions and unpinned actions.",
-        "Investigate whether registry resolution permits dependency confusion.",
-        "Compare the release artifact to its SBOM and build provenance.",
-        "Prioritize supply-chain fixes across the package manifest and CI workflow."
+        "Assess the supplied Terraform configuration for public storage and excessive IAM access.",
+        "Review this lockfile and SBOM for dependency drift.",
+        "Check this CI workflow for unsafe permissions and unpinned actions.",
+        "Review this TLS certificate chain and OpenSSL output for trust and policy issues.",
+        "Check the supplied JWT and JWKS evidence for signature and key-rotation gaps."
       ]
     },
     {
@@ -1032,51 +1020,6 @@
         "Validate that the proposed segmentation still permits required DNS traffic.",
         "Explain why the database is reachable from a zone that should be denied.",
         "Build an allowed and forbidden reachability matrix from the supplied network evidence."
-      ]
-    },
-    {
-      "id": "tls-crypto-workbench",
-      "name": "COPS TLS and Crypto Workbench",
-      "version": "0.1.0",
-      "primary_category": "vulnerability-management",
-      "path": "plugins/vulnerability-management/tls-crypto-workbench",
-      "tags": [
-        "claude",
-        "codex",
-        "github-copilot",
-        "jwt",
-        "mtls",
-        "offline-analysis",
-        "tls",
-        "vulnerability-management"
-      ],
-      "symptom_triggers": [
-        "tls certificate chain",
-        "mtls client verification",
-        "jwt signature verification",
-        "jwks signing configuration",
-        "tls protocol configuration",
-        "certificate trust failure"
-      ],
-      "artifact_triggers": [
-        "certificate_chain",
-        "pem_file",
-        "tls_configuration",
-        "jwt_configuration",
-        "jwks_document",
-        "openssl_output"
-      ],
-      "anti_triggers": [
-        "leaked credential rotation",
-        "api object authorization",
-        "network firewall policy"
-      ],
-      "example_prompts": [
-        "Review this TLS certificate chain for a missing intermediate and weak algorithms.",
-        "Assess mTLS client verification against the configured trust anchors.",
-        "Check whether JWT signature verification safely handles JWKS key rotation.",
-        "Review the TLS protocol and cipher configuration for obsolete choices.",
-        "Explain this certificate trust failure using the supplied OpenSSL output."
       ]
     },
     {

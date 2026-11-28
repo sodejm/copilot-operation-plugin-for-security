@@ -95,7 +95,13 @@
           "properties": {
             "skill_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
             "capability_id": {"type": "string", "minLength": 1},
-            "implementation": {"type": "string", "pattern": "^\\.agents/skills/[a-z0-9][a-z0-9-]*/SKILL\\.md$"},
+            "implementation": {
+              "type": "string",
+              "anyOf": [
+                {"pattern": "^\\.agents/skills/[a-z0-9][a-z0-9-]*/SKILL\\.md$"},
+                {"const": "plugins/governance-compliance/governance-evidence-workbench/skills/compliance-posture-workbench/SKILL.md"}
+              ]
+            },
             "implementation_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
           }
         },

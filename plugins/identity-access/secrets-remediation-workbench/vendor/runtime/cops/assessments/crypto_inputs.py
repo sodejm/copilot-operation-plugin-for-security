@@ -138,7 +138,7 @@ def _jwt(content: dict[str, Any], as_of: datetime) -> VerificationResult:
                 or int.from_bytes(exponent, "big") != 65537
             ):
                 raise ValueError("unsupported key")
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return VerificationResult("unknown", "jwt_policy_invalid")
     try:
         verified = verify_jwt(token, jwks=jwks, issuer=issuer, audience=audience, now=as_of.timestamp())
@@ -157,17 +157,17 @@ def verify_artifact(kind: str, content: Any, *, as_of: datetime) -> Verification
     try:
         if not isinstance(content, dict) or len(json.dumps(content, allow_nan=False).encode()) > adapter.max_bytes:
             return VerificationResult("unknown", "input_limit")
-    except (ValueError, TypeError, RecursionError):
+    except ValueError, TypeError, RecursionError:
         return VerificationResult("unknown", "invalid_input")
     try:
         if version("cryptography") != "50.0.2":
             return VerificationResult("unknown", "prerequisite_unavailable")
         from cryptography.exceptions import UnsupportedAlgorithm
-    except (PackageNotFoundError, ImportError):
+    except PackageNotFoundError, ImportError:
         return VerificationResult("unknown", "prerequisite_unavailable")
     try:
         return _certificate(content, as_of) if kind == "certificate_chain" else _jwt(content, as_of)
-    except (ImportError, NotImplementedError):
+    except ImportError, NotImplementedError:
         return VerificationResult("unknown", "prerequisite_unavailable")
-    except (ValueError, TypeError, OverflowError, UnsupportedAlgorithm):
+    except ValueError, TypeError, OverflowError, UnsupportedAlgorithm:
         return VerificationResult("unknown", "invalid_or_unsupported_input")

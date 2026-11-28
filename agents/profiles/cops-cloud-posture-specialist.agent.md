@@ -4,7 +4,7 @@ display_name: COPS Cloud Posture Specialist
 domain: defensive-operations
 criticality: normal
 interactive_authorization_required: false
-primary_plugin: cloud-posture-workbench
+primary_plugin: artifact-security-workbench
 skills:
   - cloud-posture-workbench
 tools:

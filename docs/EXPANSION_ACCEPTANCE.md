@@ -104,7 +104,7 @@ DOCKER_CONTEXT=colima make check-laboratory PYTHON=.venv/bin/python LABORATORY_A
 | Check | Observed result | Scope or limitation |
 | --- | --- | --- |
 | Focused correction tests | 1037 passed, no skips; one expected TLS 1.1 deprecation warning | API transport/import/session/provenance, TLS, SQL/CVE evidence, report integrity, workflow guards/retries, cloud/network, signing and supply chain |
-| `make check` | Passed, including all 25 package gates | Portable root suite includes 24 platform skips, detailed below |
+| `make check` | Passed, including all package gates (25 at the time) | Portable root suite includes 24 platform skips, detailed below |
 | `make check-docs` | Passed; 58 pages verified | Documentation contract and local links |
 | Strict `make check-laboratory` | Passed, 13/13 cases; no failures or blockers | Twelve service-container cases plus three Kubernetes lifecycle runs in one composite case |
 | Held-out routing | 270/270 clear requests correct; 10/10 for each of 27 specialists | 100/100 ambiguous or negative requests clarified; published examples remain separate |
@@ -175,7 +175,7 @@ socket. The corrected implementation passed these October 23 checks:
 | --- | --- | --- |
 | Focused macOS tests | 28 passed, four Linux procfs tests skipped | ABI/procfs rejection, sandbox and offline approval behavior |
 | Focused Linux tests | 40 passed, no skips | Real bubblewrap plus delayed setup, persistent socket rejection, wrong pipe and wrong descriptor regressions |
-| `make check` | Passed; all 25 package gates | Initial sandboxed attempt could not bind existing loopback fixtures; unchanged command passed with required host access |
+| `make check` | Passed for all package gates (25 at the time) | Initial sandboxed attempt could not bind existing loopback fixtures; unchanged command passed with required host access |
 | `make check-docs` | Passed; 58 pages verified | Rerun after this acceptance update |
 | Strict `make check-laboratory` | 13/13 passed; no failures or blockers | Fresh source snapshot, actual activity, telemetry and verified cleanup |
 | Correction hosted checks | Pending at this documentation commit | The correction PR records exact-head checks, merge and resulting deployment separately |

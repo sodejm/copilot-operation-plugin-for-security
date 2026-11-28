@@ -114,22 +114,16 @@
       "source": "./plugins/offensive-security/offensive-engagement-workbench"
     },
     {
-      "name": "compliance-posture-workbench",
-      "description": "Map versioned SOC 2, CIS and NIST controls to dated evidence; identify unsupported and unknown control claims.",
+      "name": "governance-evidence-workbench",
+      "description": "Map dated evidence to registered SOC 2, CIS, and NIST controls and identify unsupported and unknown claims.",
       "version": "0.1.0",
-      "source": "./plugins/governance-compliance/compliance-posture-workbench"
+      "source": "./plugins/governance-compliance/governance-evidence-workbench"
     },
     {
-      "name": "cloud-posture-workbench",
-      "description": "Review exported cloud configuration and rendered workloads for IAM, storage, RBAC and workload policy weaknesses.",
+      "name": "artifact-security-workbench",
+      "description": "Assess supplied cloud configuration, software supply-chain and CI/CD records, and transport identity evidence offline.",
       "version": "0.1.0",
-      "source": "./plugins/vulnerability-management/cloud-posture-workbench"
-    },
-    {
-      "name": "supply-chain-cicd-workbench",
-      "description": "Inspect dependency, SBOM and CI evidence for vulnerable packages, unsafe permissions and registry resolution risks.",
-      "version": "0.1.0",
-      "source": "./plugins/vulnerability-management/supply-chain-cicd-workbench"
+      "source": "./plugins/vulnerability-management/artifact-security-workbench"
     },
     {
       "name": "secrets-remediation-workbench",
@@ -142,12 +136,6 @@
       "description": "Compare firewall and workload policy intent with flow, DNS and bounded laboratory reachability evidence.",
       "version": "0.1.0",
       "source": "./plugins/vulnerability-management/network-segmentation-workbench"
-    },
-    {
-      "name": "tls-crypto-workbench",
-      "description": "Review TLS chains, mTLS client authorization and JWT/JWKS signing configuration using ephemeral laboratory credentials.",
-      "version": "0.1.0",
-      "source": "./plugins/vulnerability-management/tls-crypto-workbench"
     },
     {
       "name": "web-api-assessment-workbench",

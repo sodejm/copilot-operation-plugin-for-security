@@ -98,7 +98,7 @@ def _iam(value: Any, result: CloudInput) -> None:
     if isinstance(value, str):
         try:
             value = json.loads(value)
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             result.incomplete = True
             return
     if not isinstance(value, dict) or "Statement" not in value:
@@ -477,7 +477,7 @@ def cloud_input(kind: str, value: Any) -> CloudInput:
     }
     try:
         parsers[kind](value, result)
-    except (TypeError, ValueError, AttributeError):
+    except TypeError, ValueError, AttributeError:
         # Nested JSON with the wrong field types remains evidence of a gap.
         result.incomplete = True
     return result

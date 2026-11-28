@@ -492,6 +492,7 @@ validation before the affected release/capability expansion and schedule P2 with
 - Attack path / prerequisite: A proposal names a nonexistent, mismatched or changed workflow skill and is treated as connected or completed; a completed handoff is mistaken for proof of execution.
 - Inherent impact: Medium; likelihood: Medium; priority: P2.
 - Existing evidence / limitation: Acceptance checks the recipient profile, registered specialist capability and local skill file, then records the target and a checksum. Skeptic review and audit re-resolve the current target and compare it with the record. These checks depend on a trusted local checkout and do not inspect skill behavior or run the skill. The JSON checksum detects partial record edits but cannot authenticate a coordinated rewrite of the target and checksum.
+- The compliance auditor's legacy skill ID resolves to the Governance Evidence Workbench only for the registered auditor and package. This fixed mapping keeps saved proposals compatible and lets acceptance bind them to the current skill file. Tests exercise the binding and compare the recorded target checksum.
 - Proposed mitigation and validation: Test missing, mismatched and modified targets and keep handoff status separate from execution evidence. Review the selected skill content and any later execution contract at its exact revision before use.
 - Residual risk / status: The handoff JSON is operator-controlled input; independent human review and execution-path evidence are pending. A complete record rewrite requires an external trust anchor to detect and is outside this contract.
 
@@ -836,6 +837,12 @@ Caller-supplied trust and clocks are not authenticated, and local acceptance doe
 not establish revocation status or deployed behavior. No token-controlled URL,
 issuer discovery, AIA or revocation endpoint is fetched. Correction tests and
 real ephemeral TLS/JWT services cover rejection and corrected acceptance.
+
+The standalone artifact security and governance evidence entry points use
+package-specific capability allowlists. Package discovery and capability
+selection grant no action authorization. The bundled assessments and report
+conversion operate on supplied artifacts within the existing size and scope
+limits.
 
 ### Kubernetes containment acceptance
 

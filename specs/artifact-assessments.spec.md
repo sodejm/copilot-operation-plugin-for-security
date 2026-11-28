@@ -102,3 +102,18 @@ including an empty or malformed condition. It produces an evidence gap and canno
 establish public storage or effective wildcard permissions. Other unconditional
 statements are still assessed. This applies to direct AWS policies, `Policy`
 exports, and registered Terraform IAM/S3 policy resources; no input is modified.
+
+## Workbench packaging
+
+Artifact Security Workbench exposes `cloud_configuration`, `supply_chain`,
+and `transport_identity`. Governance Evidence Workbench exposes
+`compliance_evidence`. Their portable assessment and native-report commands
+require a capability argument selected from the package's supported capabilities.
+Repository operators can use `python3 -m cops report artifact <capability>` to
+build the same native report. Preserve the assessment and report v1 contracts,
+bounded input handling, error codes, and explicit report scope.
+
+The four replaced package IDs resolve to migration guidance with a nonzero
+status. Keep the corresponding skill slugs, specialist IDs, and handoff
+capabilities valid for existing consumers. The replacement demos retain each
+capability's vulnerable, corrected, insufficient, and benign cases.

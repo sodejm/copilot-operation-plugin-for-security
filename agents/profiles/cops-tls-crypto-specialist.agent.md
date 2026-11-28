@@ -4,7 +4,7 @@ display_name: COPS TLS and Crypto Specialist
 domain: defensive-operations
 criticality: normal
 interactive_authorization_required: false
-primary_plugin: tls-crypto-workbench
+primary_plugin: artifact-security-workbench
 skills:
   - tls-crypto-workbench
 tools:

@@ -359,5 +359,5 @@ def to_assessment_report(
         )
     except ArtifactAssessmentError:
         raise
-    except (EvidenceError, ValueError, TypeError, KeyError):
+    except EvidenceError, ValueError, TypeError, KeyError:
         raise ArtifactAssessmentError("invalid_artifact_assessment") from None

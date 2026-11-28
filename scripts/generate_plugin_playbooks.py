@@ -13,7 +13,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 SCHEMA_VERSION = "cops.plugin-playbook/v1"
-EXPECTED_PLUGIN_COUNT = 25
+EXPECTED_PLUGIN_COUNT = 23
 PLAYBOOK_RELATIVE = PurePosixPath("playbooks/offline-assessment.json")
 WALKTHROUGH_RELATIVE = PurePosixPath("walkthroughs/offline-assessment.md")
 DOC_BLOCK_START = "<!-- BEGIN COPS GENERATED OFFLINE ASSESSMENT LINKS -->"
@@ -378,13 +378,19 @@ def _render_plugin(root: Path, record: dict[str, Any]) -> tuple[RenderedAsset, R
             )
         normalized_authored = {
             "source_schema_version": authored.get("schema_version"),
-            "capability": authored.get("capability"),
             "readiness": authored.get("readiness"),
             "entrypoints": authored.get("entrypoints"),
             "inputs": authored_inputs,
             "outputs": authored_outputs,
             "permissions": authored.get("permissions"),
         }
+
+        if "capabilities" in authored:
+            normalized_authored["capabilities"] = _string_list(
+                authored["capabilities"], label=f"{plugin_id} authored capabilities"
+            )
+        else:
+            normalized_authored["capability"] = authored.get("capability")
 
     playbook: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,

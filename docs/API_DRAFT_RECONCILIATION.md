@@ -69,7 +69,7 @@ Validation uses the declared contributor dependencies in Python 3.13.16:
   TLS 1.1 deprecation warning from a negative TLS-policy test.
 - `make check-web-api-acceptance`: **7 required cases passed**; loopback-only,
   `isolation_qualified: false`.
-- `make check`: **passed**, including all 25 package gates, repository tests,
+- `make check`: **passed**, including all package gates (25 at the time), repository tests,
   the new required acceptance gate, portable contracts and contributor skills.
   Platform-specific skips in the full suite are not native-platform evidence.
 - `scripts/sync_web_api_runtime.py --check`, package check, adapter freshness,

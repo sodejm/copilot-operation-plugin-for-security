@@ -9,12 +9,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGES = (
-    "governance-compliance/compliance-posture-workbench",
-    "vulnerability-management/cloud-posture-workbench",
-    "vulnerability-management/supply-chain-cicd-workbench",
+    "governance-compliance/governance-evidence-workbench",
     "identity-access/secrets-remediation-workbench",
+    "vulnerability-management/artifact-security-workbench",
     "vulnerability-management/network-segmentation-workbench",
-    "vulnerability-management/tls-crypto-workbench",
 )
 MODULES = (
     "cops/adapters/artifacts.py",

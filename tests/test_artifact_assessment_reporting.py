@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import copy
+import json
 
 import pytest
 
 from cops.assessments import ArtifactAssessmentError, assess
 from cops.assessments.reporting import EVIDENCE_NOTICE, to_assessment_report
+from cops.cli import main
 from cops.contracts.validation import validate_contract
 from cops.reporting.assessment import validate_report_semantics
 
@@ -134,3 +136,44 @@ def test_adapter_requires_explicit_valid_report_context(field: str, value: str) 
         )
 
     assert caught.value.code == "invalid_artifact_assessment"
+
+
+def test_report_artifact_repository_entry_point(tmp_path, capsys) -> None:
+    input_path = tmp_path / "assessment.json"
+    input_path.write_text("[]", encoding="utf-8")
+    args = ["report", "artifact", "cloud_configuration", "--input", str(input_path), "--as-of", AS_OF]
+    for field, value in REPORT_CONTEXT.items():
+        args.extend([f"--{field.replace('_', '-')}", value])
+
+    assert main(args) == 0
+    result = capsys.readouterr()
+    assert not result.err
+    report = json.loads(result.out)
+    validate_contract(report, "assessment_report")
+    validate_report_semantics(report)
+    assert report["schema_version"] == "cops.assessment-report/v1"
+    assert report["report_id"] == REPORT_CONTEXT["report_id"]
+
+    input_path.write_text("{", encoding="utf-8")
+    assert main(args) == 2
+    result = capsys.readouterr()
+    assert not result.out
+    assert json.loads(result.err) == {"error": "invalid_input_json"}
+
+
+@pytest.mark.parametrize(
+    ("retired", "replacement", "capability"),
+    [
+        ("cloud-posture-workbench", "artifact-security-workbench", "cloud_configuration"),
+        ("supply-chain-cicd-workbench", "artifact-security-workbench", "supply_chain"),
+        ("tls-crypto-workbench", "artifact-security-workbench", "transport_identity"),
+        ("compliance-posture-workbench", "governance-evidence-workbench", "compliance_evidence"),
+    ],
+)
+def test_retired_package_info_points_to_replacement(retired, replacement, capability, capsys) -> None:
+    assert main(["info", retired]) == 2
+    result = capsys.readouterr()
+    assert not result.out
+    assert f"plugin '{retired}' was retired" in result.err
+    assert f"install '{replacement}'" in result.err
+    assert f"pass '{capability}'" in result.err

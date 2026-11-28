@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Consolidate the Cloud, Supply Chain, and TLS workbenches into Artifact
+  Security Workbench. Move compliance evidence assessment to Governance Evidence
+  Workbench. Both packages retain the existing skill slugs and v1 evidence
+  contracts, and `cops report artifact` exposes native assessment reports from
+  the repository. See the [migration guide](docs/EXPANSION_MIGRATION.md#retired-artifact-workbenches)
+  for replacement IDs and portable commands.
+
 - Collect bounded local Windows service DACL configuration evidence without
   modifying services. Add an actual SCM vulnerable/corrected/denied acceptance
   fixture with verified cleanup after success and failure, gated on Windows CI.

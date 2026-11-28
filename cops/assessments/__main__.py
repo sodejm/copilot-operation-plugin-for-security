@@ -24,9 +24,11 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
-def add_assessment_arguments(command: argparse.ArgumentParser) -> None:
-    """Share the bounded assessment interface with the main operator CLI."""
-    command.add_argument("capability", choices=sorted(CAPABILITIES))
+def add_assessment_arguments(
+    command: argparse.ArgumentParser, *, capabilities: Sequence[str] = tuple(sorted(CAPABILITIES))
+) -> None:
+    """Share the bounded assessment interface with repository and portable callers."""
+    command.add_argument("capability", choices=capabilities)
     command.add_argument("--input", required=True, help="JSON file, or - for standard input")
     command.add_argument("--as-of", required=True, help="canonical RFC 3339 assessment timestamp")
     command.add_argument("--engagement-id", default="eng-offline-artifact")
@@ -35,6 +37,27 @@ def add_assessment_arguments(command: argparse.ArgumentParser) -> None:
     command.add_argument("--max-artifacts", type=int, default=64)
     command.add_argument("--max-artifact-bytes", type=int, default=1_048_576)
     command.add_argument("--max-total-bytes", type=int, default=4_194_304)
+
+
+def add_report_arguments(
+    command: argparse.ArgumentParser,
+    *,
+    capabilities: Sequence[str] = tuple(sorted(CAPABILITIES)),
+    fixed_capability: str | None = None,
+) -> None:
+    """Register the native report interface with explicit provenance and scope."""
+    if fixed_capability is None:
+        command.add_argument("capability", choices=capabilities)
+    else:
+        command.set_defaults(capability=fixed_capability)
+    command.add_argument("--input", required=True, help="JSON file, or - for standard input")
+    command.add_argument("--as-of", required=True, help="canonical RFC 3339 assessment timestamp")
+    command.add_argument("--report-id", required=True)
+    command.add_argument("--engagement-id", required=True)
+    command.add_argument("--scenario-id", required=True)
+    command.add_argument("--result-id", required=True)
+    command.add_argument("--target", required=True)
+    command.add_argument("--exclude-target", action="append", default=[])
 
 
 def _read_bounded(path: str) -> bytes:
@@ -63,7 +86,7 @@ def _decode_artifacts(value: Any) -> list[dict[str, object]]:
                 raise ArtifactAssessmentError("invalid_content_b64")
             try:
                 item["content"] = base64.b64decode(item.pop("content_b64"), validate=True)
-            except (binascii.Error, ValueError):
+            except binascii.Error, ValueError:
                 raise ArtifactAssessmentError("invalid_content_b64") from None
         decoded.append(item)
     return decoded
@@ -72,7 +95,7 @@ def _decode_artifacts(value: Any) -> list[dict[str, object]]:
 def _load_artifacts(path: str) -> list[dict[str, object]]:
     try:
         value = json.loads(_read_bounded(path))
-    except (json.JSONDecodeError, UnicodeDecodeError, RecursionError):
+    except json.JSONDecodeError, UnicodeDecodeError, RecursionError:
         raise ArtifactAssessmentError("invalid_input_json") from None
     return _decode_artifacts(value)
 
@@ -92,6 +115,39 @@ def command_assess(args: argparse.Namespace) -> int:
         )
     except ArtifactAssessmentError as exc:
         print(json.dumps({"error": exc.code}, sort_keys=True), file=sys.stderr)
+        return 2
+    except OSError:
+        print(json.dumps({"error": "input_read_error"}, sort_keys=True), file=sys.stderr)
+        return 2
+    print(json.dumps(report, indent=2, sort_keys=True))
+    return 0
+
+
+def command_report(args: argparse.Namespace) -> int:
+    from ..contracts.lifecycle import ContractError
+    from .reporting import to_assessment_report
+
+    try:
+        assessment = assess(
+            args.capability,
+            _load_artifacts(args.input),
+            as_of=args.as_of,
+            engagement_id=args.engagement_id,
+            scenario_id=args.scenario_id,
+            result_id=args.result_id,
+        )
+        report = to_assessment_report(
+            assessment,
+            report_id=args.report_id,
+            engagement_id=args.engagement_id,
+            scenario_id=args.scenario_id,
+            result_id=args.result_id,
+            target=args.target,
+            excluded_targets=args.exclude_target,
+        )
+    except (ArtifactAssessmentError, ContractError) as exc:
+        code = exc.code if isinstance(exc, ArtifactAssessmentError) else "invalid_artifact_assessment"
+        print(json.dumps({"error": code}, sort_keys=True), file=sys.stderr)
         return 2
     except OSError:
         print(json.dumps({"error": "input_read_error"}, sort_keys=True), file=sys.stderr)

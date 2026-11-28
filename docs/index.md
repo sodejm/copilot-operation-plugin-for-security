@@ -1,18 +1,18 @@
 ---
 layout: documentation
 title: "COPS — Copilot Operations Plugins for Security"
-description: "Universal catalog of 25 offline-first defensive cybersecurity plugins, 27 specialist AI agent profiles, and deterministic verification tools for GitHub Copilot, Claude Code, and Codex."
+description: "Universal catalog of 23 offline-first defensive cybersecurity plugins, 27 specialist AI agent profiles, and deterministic verification tools for GitHub Copilot, Claude Code, and Codex."
 ---
 
 <div class="cops-hero">
   <img src="assets/cops-logo.png" alt="COPS Shield and Copilot Visor Logo">
   <h1 class="cops-hero-title">COPS</h1>
   <p class="cops-hero-tagline">
-    Copilot Operations Plugins for Security: an open-source, universal catalog of 25 defensive cybersecurity plugins, 27 specialist agent profiles, and offline verification tools for AI coding assistants.
+    Copilot Operations Plugins for Security: an open-source, universal catalog of 23 defensive cybersecurity plugins, 27 specialist agent profiles, and offline verification tools for AI coding assistants.
   </p>
   <div class="cops-cta-row">
     <a href="getting-started.html" class="cops-btn cops-btn-primary">5-Minute Quickstart</a>
-    <a href="plugin-guide.html" class="cops-btn cops-btn-secondary">Explore 25 Plugins</a>
+    <a href="plugin-guide.html" class="cops-btn cops-btn-secondary">Explore 23 Plugins</a>
     <a href="plugin-verification.html" class="cops-btn cops-btn-secondary">Verify a Plugin</a>
     <a href="specialist-agents.html" class="cops-btn cops-btn-secondary">27 Specialist Agents</a>
     <a href="https://github.com/sodejm/copilot-operation-plugin-for-security" class="cops-btn cops-btn-secondary">GitHub Repository</a>
@@ -44,7 +44,7 @@ cd copilot-operation-plugin-for-security
 # 2. Check local environment health and catalog synchronization
 python3 -m cops doctor
 
-# 3. List all 25 plugins and their validation status
+# 3. List all 23 plugins and their validation status
 python3 -m cops list
 
 # 4. Route a natural language security task to the optimal specialist
@@ -63,7 +63,7 @@ Read the full [Getting Started Guide](getting-started.md) for detailed step-by-s
 
 ## Cybersecurity Capability Domains
 
-COPS organizes 25 dedicated security plugins across seven cybersecurity disciplines:
+COPS organizes 23 dedicated security plugins across seven cybersecurity disciplines:
 
 <div class="cops-grid">
   <div class="cops-card">
@@ -105,10 +105,8 @@ COPS organizes 25 dedicated security plugins across seven cybersecurity discipli
       <li><a href="plugin-guide.html#exposure-triage-workbench">Exposure Triage</a> <span class="badge badge-beta">Beta</span></li>
       <li><a href="plugin-guide.html#exploit-validation-workbench">Exploit Validation Workbench</a> <span class="badge badge-experimental">Experimental</span></li>
       <li><a href="plugin-guide.html#patch-security-review">Patch Security Review</a> <span class="badge badge-beta">Beta</span></li>
-      <li><a href="plugin-guide.html#cloud-posture-workbench">Cloud Posture Workbench</a> <span class="badge badge-experimental">Experimental</span></li>
-      <li><a href="plugin-guide.html#supply-chain-cicd-workbench">Supply Chain and CI/CD Workbench</a> <span class="badge badge-experimental">Experimental</span></li>
+      <li><a href="plugin-guide.html#artifact-security-workbench">Artifact Security Workbench</a> <span class="badge badge-experimental">Experimental</span></li>
       <li><a href="plugin-guide.html#network-segmentation-workbench">Network Segmentation Workbench</a> <span class="badge badge-experimental">Experimental</span></li>
-      <li><a href="plugin-guide.html#tls-crypto-workbench">TLS and Cryptography Workbench</a> <span class="badge badge-experimental">Experimental</span></li>
     </ul>
   </div>
   <div class="cops-card">
@@ -137,7 +135,7 @@ COPS organizes 25 dedicated security plugins across seven cybersecurity discipli
     <p>Map dated imported evidence to control frameworks and preserve supported, missing, stale, and unknown states. Fixture results do not establish operating effectiveness.</p>
     <p><strong>Plugins:</strong></p>
     <ul>
-      <li><a href="plugin-guide.html#compliance-posture-workbench">Compliance Posture Workbench</a> <span class="badge badge-experimental">Experimental</span></li>
+      <li><a href="plugin-guide.html#governance-evidence-workbench">Governance Evidence Workbench</a> <span class="badge badge-experimental">Experimental</span></li>
     </ul>
   </div>
 </div>

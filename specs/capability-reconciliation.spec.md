@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Define the specification for reconciling advertised and implemented capabilities in COPS. Following the integration of 25 distributed plugins, 27 specialist agent profiles, and 37 canonical security scenarios, this contract guarantees:
+Define the specification for reconciling advertised and implemented capabilities in COPS. Following the integration of 23 distributed plugins, 27 specialist agent profiles, and 37 canonical security scenarios, this contract guarantees:
 1. **Strict Operational Readiness Modes**: Every capability is explicitly classified into one of four verified operational modes:
    - `planned`: Specification, routing persona, or passive scoping defined; no autonomous runtime execution.
    - `import`: Offline static file, code AST, git diff, or export manifest ingestion only; zero live service mutation.
@@ -43,7 +43,7 @@ Registry File: `catalog/capabilities.json`
 1. **Unverified Live Execution**: Until a live-evidence verifier is registered, any `mode == "live-validated"` or `live_evidence_verified == True` claim fails with `unverified_live_claim`.
 2. **Unverified Live Integration in Packages**: Until a live-evidence verifier is registered, any plugin whose package manifest specifies `support.live_integration == "validated"` fails with `unverified_live_integration`.
 3. **Mandatory Truth Boundaries**: Any capability with empty, whitespace-only, or missing `truth_boundaries` fails with `missing_truth_boundary`.
-4. **Descriptive Drift Prevention**: Duplicate or mismatched capability identifiers, inconsistent summaries, or deviation from the canonical counts (25 plugins, 27 specialists, 37 scenarios; 89 total) fails with `catalog_descriptive_drift`.
+4. **Descriptive Drift Prevention**: Duplicate or mismatched capability identifiers, inconsistent summaries, or deviation from the canonical counts (23 plugins, 27 specialists, 37 scenarios; 87 total) fails with `catalog_descriptive_drift`.
 
 ## Laboratory and Portable Evidence
 
