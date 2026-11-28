@@ -15,6 +15,25 @@ permissions:
   contents: read
 
 jobs:
+  headless-conformance:
+    name: Headless CLI and local MCP conformance
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+          cache: pip
+      - name: Install optional adapter and test prerequisites
+        run: |
+          python -m venv .venv
+          .venv/bin/python -m pip install -r requirements.txt -r requirements-mcp.txt
+      - name: Require actual MCP and exported-runtime acceptance
+        run: make check-headless PYTHON=.venv/bin/python
+
   isolated-service-laboratory:
     if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     name: Isolated service laboratory
@@ -120,17 +139,19 @@ jobs:
           python -m cops demo attack-path-workbench
 
   validate:
-    needs: [isolated-service-laboratory, portability-smoke]
+    needs: [headless-conformance, isolated-service-laboratory, portability-smoke]
     if: always()
     runs-on: ubuntu-24.04
     steps:
       - name: Require review readiness and successful full gate prerequisites
         env:
           DRAFT: ${{ github.event_name == 'pull_request' && github.event.pull_request.draft }}
+          HEADLESS_RESULT: ${{ needs.headless-conformance.result }}
           LAB_RESULT: ${{ needs.isolated-service-laboratory.result }}
           SMOKE_RESULT: ${{ needs.portability-smoke.result }}
         run: |
           test "$DRAFT" = false
+          test "$HEADLESS_RESULT" = success
           test "$LAB_RESULT" = success
           test "$SMOKE_RESULT" = success
       - name: Check out repository

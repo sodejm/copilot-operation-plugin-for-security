@@ -65,3 +65,12 @@ setup-hooks:
 
 check: check-prerequisites
 	"$(PYTHON)" scripts/agent/check.py
+
+.PHONY: check-headless
+check-headless:
+	"$(PYTHON)" -c "import mcp"
+	"$(PYTHON)" scripts/check_headless_operations.py
+	"$(PYTHON)" -m pytest tests/test_headless_operations.py tests/test_cops_mcp.py tests/test_headless_distribution.py \
+		tests/test_operation_runs.py tests/test_operation_delegation.py tests/test_operation_inventory.py \
+		tests/step_defs/test_headless_agent_interface.py tests/test_copilot_entry.py \
+		tests/test_detection_quality_pilot.py tests/step_defs/test_detection_quality_pilot_steps.py

@@ -1,0 +1,83 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "error": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "code": {
+              "maxLength": 96,
+              "type": "string"
+            }
+          },
+          "required": [
+            "code"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "limitations": {
+      "items": {
+        "maxLength": 512,
+        "type": "string"
+      },
+      "maxItems": 8,
+      "type": "array"
+    },
+    "next_action": {
+      "maxLength": 512,
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "operation_id": {
+      "maxLength": 96,
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "request_id": {
+      "maxLength": 96,
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "result": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "schema_version": {
+      "const": "cops.operation-result/v1"
+    },
+    "status": {
+      "enum": [
+        "succeeded",
+        "needs_input",
+        "blocked",
+        "partial",
+        "failed"
+      ]
+    }
+  },
+  "required": [
+    "schema_version",
+    "operation_id",
+    "request_id",
+    "status",
+    "result",
+    "error",
+    "next_action",
+    "limitations"
+  ],
+  "type": "object"
+}

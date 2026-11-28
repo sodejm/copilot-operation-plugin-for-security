@@ -1,0 +1,428 @@
+{
+  "coverage": "pilot_mapped",
+  "feature_inventory": {
+    "by_status": {
+      "blocked_by_prerequisite": 0,
+      "externally_delegated": 1,
+      "implemented": 1,
+      "unsupported": 15
+    },
+    "total": 17,
+    "unresolved_cli_declarations": 0
+  },
+  "features": [
+    {
+      "feature_id": "skill:plugins/offensive-security/web-api-assessment-workbench/skills/web-api-inventory-and-replay/SKILL.md",
+      "headless_status": "externally_delegated",
+      "kind": "skill",
+      "operation_ids": [],
+      "plugin_id": "web-api-assessment-workbench",
+      "reason": "The harness interprets this skill; existence is not executable tool coverage.",
+      "source": "plugins/offensive-security/web-api-assessment-workbench/skills/web-api-inventory-and-replay/SKILL.md",
+      "source_digest": "e810b3c8d6f21bddc8975a4767d26744f2c250ad2dc6416d0a63e6a11659cdca"
+    },
+    {
+      "feature_id": "step:plugins/offensive-security/web-api-assessment-workbench/skills/web-api-inventory-and-replay/SKILL.md:23",
+      "headless_status": "unsupported",
+      "kind": "skill_step",
+      "line": 23,
+      "operation_ids": [],
+      "ordinal": "1",
+      "plugin_id": "web-api-assessment-workbench",
+      "reason": "This specific prose step has no reviewed typed-operation binding yet.",
+      "source": "plugins/offensive-security/web-api-assessment-workbench/skills/web-api-inventory-and-replay/SKILL.md",
+      "source_digest": "e810b3c8d6f21bddc8975a4767d26744f2c250ad2dc6416d0a63e6a11659cdca"
+    },
+    {
+      "feature_id": "step:plugins/offensive-security/web-api-assessment-workbench/skills/web-api-inventory-and-replay/SKILL.md:24",
+      "headless_status": "unsupported",
+      "kind": "skill_step",
+      "line": 24,
+      "operation_ids": [],
+      "ordinal": "2",
+      "plugin_id": "web-api-assessment-workbench",
+      "reason": "This specific prose step has no reviewed typed-operation binding yet.",
+      "source": "plugins/offensive-security/web-api-assessment-workbench/skills/web-api-inventory-and-replay/SKILL.md",
+      "source_digest": "e810b3c8d6f21bddc8975a4767d26744f2c250ad2dc6416d0a63e6a11659cdca"
+    },
+    {
+      "feature_id": "step:plugins/offensive-security/web-api-assessment-workbench/skills/web-api-inventory-and-replay/SKILL.md:25",
+      "headless_status": "unsupported",
+      "kind": "skill_step",
+      "line": 25,
+      "operation_ids": [],
+      "ordinal": "3",
+      "plugin_id": "web-api-assessment-workbench",
+      "reason": "This specific prose step has no reviewed typed-operation binding yet.",
+      "source": "plugins/offensive-security/web-api-assessment-workbench/skills/web-api-inventory-and-replay/SKILL.md",
+      "source_digest": "e810b3c8d6f21bddc8975a4767d26744f2c250ad2dc6416d0a63e6a11659cdca"
+    },
+    {
+      "feature_id": "step:plugins/offensive-security/web-api-assessment-workbench/skills/web-api-inventory-and-replay/SKILL.md:26",
+      "headless_status": "unsupported",
+      "kind": "skill_step",
+      "line": 26,
+      "operation_ids": [],
+      "ordinal": "4",
+      "plugin_id": "web-api-assessment-workbench",
+      "reason": "This specific prose step has no reviewed typed-operation binding yet.",
+      "source": "plugins/offensive-security/web-api-assessment-workbench/skills/web-api-inventory-and-replay/SKILL.md",
+      "source_digest": "e810b3c8d6f21bddc8975a4767d26744f2c250ad2dc6416d0a63e6a11659cdca"
+    },
+    {
+      "feature_id": "step:plugins/offensive-security/web-api-assessment-workbench/skills/web-api-inventory-and-replay/SKILL.md:27",
+      "headless_status": "unsupported",
+      "kind": "skill_step",
+      "line": 27,
+      "operation_ids": [],
+      "ordinal": "5",
+      "plugin_id": "web-api-assessment-workbench",
+      "reason": "This specific prose step has no reviewed typed-operation binding yet.",
+      "source": "plugins/offensive-security/web-api-assessment-workbench/skills/web-api-inventory-and-replay/SKILL.md",
+      "source_digest": "e810b3c8d6f21bddc8975a4767d26744f2c250ad2dc6416d0a63e6a11659cdca"
+    },
+    {
+      "feature_id": "step:plugins/offensive-security/web-api-assessment-workbench/skills/web-api-inventory-and-replay/SKILL.md:31",
+      "headless_status": "unsupported",
+      "kind": "skill_step",
+      "line": 31,
+      "operation_ids": [],
+      "ordinal": "1",
+      "plugin_id": "web-api-assessment-workbench",
+      "reason": "This specific prose step has no reviewed typed-operation binding yet.",
+      "source": "plugins/offensive-security/web-api-assessment-workbench/skills/web-api-inventory-and-replay/SKILL.md",
+      "source_digest": "e810b3c8d6f21bddc8975a4767d26744f2c250ad2dc6416d0a63e6a11659cdca"
+    },
+    {
+      "feature_id": "step:plugins/offensive-security/web-api-assessment-workbench/skills/web-api-inventory-and-replay/SKILL.md:32",
+      "headless_status": "unsupported",
+      "kind": "skill_step",
+      "line": 32,
+      "operation_ids": [],
+      "ordinal": "2",
+      "plugin_id": "web-api-assessment-workbench",
+      "reason": "This specific prose step has no reviewed typed-operation binding yet.",
+      "source": "plugins/offensive-security/web-api-assessment-workbench/skills/web-api-inventory-and-replay/SKILL.md",
+      "source_digest": "e810b3c8d6f21bddc8975a4767d26744f2c250ad2dc6416d0a63e6a11659cdca"
+    },
+    {
+      "feature_id": "step:plugins/offensive-security/web-api-assessment-workbench/skills/web-api-inventory-and-replay/SKILL.md:37",
+      "headless_status": "unsupported",
+      "kind": "skill_step",
+      "line": 37,
+      "operation_ids": [],
+      "ordinal": "3",
+      "plugin_id": "web-api-assessment-workbench",
+      "reason": "This specific prose step has no reviewed typed-operation binding yet.",
+      "source": "plugins/offensive-security/web-api-assessment-workbench/skills/web-api-inventory-and-replay/SKILL.md",
+      "source_digest": "e810b3c8d6f21bddc8975a4767d26744f2c250ad2dc6416d0a63e6a11659cdca"
+    },
+    {
+      "feature_id": "step:plugins/offensive-security/web-api-assessment-workbench/skills/web-api-inventory-and-replay/SKILL.md:38",
+      "headless_status": "unsupported",
+      "kind": "skill_step",
+      "line": 38,
+      "operation_ids": [],
+      "ordinal": "4",
+      "plugin_id": "web-api-assessment-workbench",
+      "reason": "This specific prose step has no reviewed typed-operation binding yet.",
+      "source": "plugins/offensive-security/web-api-assessment-workbench/skills/web-api-inventory-and-replay/SKILL.md",
+      "source_digest": "e810b3c8d6f21bddc8975a4767d26744f2c250ad2dc6416d0a63e6a11659cdca"
+    },
+    {
+      "feature_id": "step:plugins/offensive-security/web-api-assessment-workbench/skills/web-api-inventory-and-replay/SKILL.md:39",
+      "headless_status": "unsupported",
+      "kind": "skill_step",
+      "line": 39,
+      "operation_ids": [],
+      "ordinal": "5",
+      "plugin_id": "web-api-assessment-workbench",
+      "reason": "This specific prose step has no reviewed typed-operation binding yet.",
+      "source": "plugins/offensive-security/web-api-assessment-workbench/skills/web-api-inventory-and-replay/SKILL.md",
+      "source_digest": "e810b3c8d6f21bddc8975a4767d26744f2c250ad2dc6416d0a63e6a11659cdca"
+    },
+    {
+      "feature_id": "step:plugins/offensive-security/web-api-assessment-workbench/skills/web-api-inventory-and-replay/SKILL.md:41",
+      "headless_status": "unsupported",
+      "kind": "skill_step",
+      "line": 41,
+      "operation_ids": [],
+      "ordinal": "6",
+      "plugin_id": "web-api-assessment-workbench",
+      "reason": "This specific prose step has no reviewed typed-operation binding yet.",
+      "source": "plugins/offensive-security/web-api-assessment-workbench/skills/web-api-inventory-and-replay/SKILL.md",
+      "source_digest": "e810b3c8d6f21bddc8975a4767d26744f2c250ad2dc6416d0a63e6a11659cdca"
+    },
+    {
+      "feature_id": "step:plugins/offensive-security/web-api-assessment-workbench/skills/web-api-inventory-and-replay/SKILL.md:42",
+      "headless_status": "unsupported",
+      "kind": "skill_step",
+      "line": 42,
+      "operation_ids": [],
+      "ordinal": "7",
+      "plugin_id": "web-api-assessment-workbench",
+      "reason": "This specific prose step has no reviewed typed-operation binding yet.",
+      "source": "plugins/offensive-security/web-api-assessment-workbench/skills/web-api-inventory-and-replay/SKILL.md",
+      "source_digest": "e810b3c8d6f21bddc8975a4767d26744f2c250ad2dc6416d0a63e6a11659cdca"
+    },
+    {
+      "feature_id": "step:plugins/offensive-security/web-api-assessment-workbench/skills/web-api-inventory-and-replay/SKILL.md:43",
+      "headless_status": "unsupported",
+      "kind": "skill_step",
+      "line": 43,
+      "operation_ids": [],
+      "ordinal": "8",
+      "plugin_id": "web-api-assessment-workbench",
+      "reason": "This specific prose step has no reviewed typed-operation binding yet.",
+      "source": "plugins/offensive-security/web-api-assessment-workbench/skills/web-api-inventory-and-replay/SKILL.md",
+      "source_digest": "e810b3c8d6f21bddc8975a4767d26744f2c250ad2dc6416d0a63e6a11659cdca"
+    },
+    {
+      "command": "entrypoint",
+      "feature_id": "cli:plugins/offensive-security/web-api-assessment-workbench/scripts/demo.py:1",
+      "headless_status": "unsupported",
+      "kind": "cli",
+      "line": 1,
+      "operation_ids": [],
+      "plugin_id": "web-api-assessment-workbench",
+      "reason": "No reviewed structured binding for this public CLI entrypoint.",
+      "source": "plugins/offensive-security/web-api-assessment-workbench/scripts/demo.py",
+      "source_digest": "a04c4c3b3cfc4a79f05cdf2c4ddf7dc52f02c5f6964ab43b2ef4cd5d63b083d9"
+    },
+    {
+      "command": "entrypoint",
+      "feature_id": "cli:plugins/offensive-security/web-api-assessment-workbench/scripts/validate-package.py:1",
+      "headless_status": "unsupported",
+      "kind": "cli",
+      "line": 1,
+      "operation_ids": [],
+      "plugin_id": "web-api-assessment-workbench",
+      "reason": "No reviewed structured binding for this public CLI entrypoint.",
+      "source": "plugins/offensive-security/web-api-assessment-workbench/scripts/validate-package.py",
+      "source_digest": "07efb9b6e2f478a85e9fa6d54c05c44544813456df3c300438de3eb70ee60a31"
+    },
+    {
+      "behavioral_test": "tests/test_headless_operations.py",
+      "feature_id": "operation:cops.assess.application_security",
+      "headless_status": "implemented",
+      "kind": "operation",
+      "operation_ids": [
+        "cops.assess.application_security"
+      ],
+      "plugin_id": "web-api-assessment-workbench",
+      "reason": "Reviewed shared Python handler with behavioral and distribution conformance.",
+      "source": "cops/operations/catalog.py",
+      "source_digest": "386e184e4d60e20d373b2fdb9409235294e67be4b601015abdf36cefa62586e6"
+    }
+  ],
+  "limitations": [
+    "Source inventory records unmapped skills and CLI steps explicitly; they are not implemented coverage.",
+    "No host-installation, live-provider, or synthetic-laboratory readiness promotion."
+  ],
+  "operations": [
+    {
+      "authorization": "supplied_data_only; no execution authority",
+      "cancellation": "cooperative; running pure transformation may finish; no external rollback",
+      "coverage": "pilot; not package-wide or live-provider acceptance",
+      "description": "Assess supplied offline artifacts: application_security",
+      "effects": {
+        "durable_writes": false,
+        "executes_samples": false,
+        "network": false
+      },
+      "feature_id": "offline-application_security",
+      "implementation": "artifact_assessment",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "artifacts": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "artifact_id": {
+                  "maxLength": 96,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "collected_at": {
+                  "maxLength": 32,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "collection_authorized": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "content": {},
+                "content_b64": {
+                  "maxLength": 6000000,
+                  "type": "string"
+                },
+                "custody": {
+                  "items": {
+                    "type": "object"
+                  },
+                  "maxItems": 128,
+                  "type": "array"
+                },
+                "framework": {
+                  "maxLength": 256,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "framework_version": {
+                  "maxLength": 96,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "kind": {
+                  "maxLength": 96,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "sha256": {
+                  "maxLength": 64,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "source_ref": {
+                  "maxLength": 256,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "artifact_id",
+                "kind"
+              ],
+              "type": "object"
+            },
+            "maxItems": 64,
+            "type": "array"
+          },
+          "as_of": {
+            "maxLength": 32,
+            "type": "string"
+          }
+        },
+        "required": [
+          "artifacts",
+          "as_of"
+        ],
+        "type": "object"
+      },
+      "limits": {
+        "input_bytes": 8388608,
+        "output_bytes": 8388608
+      },
+      "operation_id": "cops.assess.application_security",
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "maxLength": 96,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "limitations": {
+            "items": {
+              "maxLength": 512,
+              "type": "string"
+            },
+            "maxItems": 8,
+            "type": "array"
+          },
+          "next_action": {
+            "maxLength": 512,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "operation_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "request_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "result": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "schema_version": {
+            "const": "cops.operation-result/v1"
+          },
+          "status": {
+            "enum": [
+              "succeeded",
+              "needs_input",
+              "blocked",
+              "partial",
+              "failed"
+            ]
+          }
+        },
+        "required": [
+          "schema_version",
+          "operation_id",
+          "request_id",
+          "status",
+          "result",
+          "error",
+          "next_action",
+          "limitations"
+        ],
+        "type": "object"
+      },
+      "owner": "web-api-assessment-workbench",
+      "retry": "pure transformation; resubmit caller-owned input; no durable server session",
+      "schema_version": "cops.operation/v1",
+      "specification": "specs/headless-agent-interface.spec.md",
+      "version": "1.0.0"
+    }
+  ],
+  "package_feature_complete": false,
+  "plugin_id": "web-api-assessment-workbench",
+  "runtime": "separate COPS headless bundle; not automatically included by plugin installation",
+  "schema_version": "cops.package-operations/v1",
+  "skill_references": [
+    "plugins/offensive-security/web-api-assessment-workbench/skills/web-api-inventory-and-replay/SKILL.md"
+  ]
+}

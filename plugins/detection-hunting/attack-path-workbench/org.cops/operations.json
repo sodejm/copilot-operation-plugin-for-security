@@ -1,0 +1,176 @@
+{
+  "coverage": "not_mapped",
+  "feature_inventory": {
+    "by_status": {
+      "blocked_by_prerequisite": 0,
+      "externally_delegated": 6,
+      "implemented": 0,
+      "unsupported": 7
+    },
+    "total": 13,
+    "unresolved_cli_declarations": 0
+  },
+  "features": [
+    {
+      "feature_id": "skill:plugins/detection-hunting/attack-path-workbench/skills/attack-path-assess/SKILL.md",
+      "headless_status": "externally_delegated",
+      "kind": "skill",
+      "operation_ids": [],
+      "plugin_id": "attack-path-workbench",
+      "reason": "The harness interprets this skill; existence is not executable tool coverage.",
+      "source": "plugins/detection-hunting/attack-path-workbench/skills/attack-path-assess/SKILL.md",
+      "source_digest": "ead58aa5614f0a51992041ee761c6ad7f8f404ab7dd3ef218e8cce34f6a17a15"
+    },
+    {
+      "feature_id": "skill:plugins/detection-hunting/attack-path-workbench/skills/attack-path-ingest/SKILL.md",
+      "headless_status": "externally_delegated",
+      "kind": "skill",
+      "operation_ids": [],
+      "plugin_id": "attack-path-workbench",
+      "reason": "The harness interprets this skill; existence is not executable tool coverage.",
+      "source": "plugins/detection-hunting/attack-path-workbench/skills/attack-path-ingest/SKILL.md",
+      "source_digest": "2f8c663fa650d40a6ab4f3f7e9c607fcb7d7538799383c505c0bcaf828ebc9f1"
+    },
+    {
+      "feature_id": "skill:plugins/detection-hunting/attack-path-workbench/skills/attack-path-map/SKILL.md",
+      "headless_status": "externally_delegated",
+      "kind": "skill",
+      "operation_ids": [],
+      "plugin_id": "attack-path-workbench",
+      "reason": "The harness interprets this skill; existence is not executable tool coverage.",
+      "source": "plugins/detection-hunting/attack-path-workbench/skills/attack-path-map/SKILL.md",
+      "source_digest": "a5c1396e5a20b862ce00c4b4ff7f0db8012a52b3074aa3521a1178e0795f4389"
+    },
+    {
+      "feature_id": "skill:plugins/detection-hunting/attack-path-workbench/skills/attack-path-report/SKILL.md",
+      "headless_status": "externally_delegated",
+      "kind": "skill",
+      "operation_ids": [],
+      "plugin_id": "attack-path-workbench",
+      "reason": "The harness interprets this skill; existence is not executable tool coverage.",
+      "source": "plugins/detection-hunting/attack-path-workbench/skills/attack-path-report/SKILL.md",
+      "source_digest": "4f74fbb4e37288e9ffffaf2b17349bad7655bc73393f7d157be066785eb3f9c4"
+    },
+    {
+      "feature_id": "skill:plugins/detection-hunting/attack-path-workbench/skills/attack-path-review/SKILL.md",
+      "headless_status": "externally_delegated",
+      "kind": "skill",
+      "operation_ids": [],
+      "plugin_id": "attack-path-workbench",
+      "reason": "The harness interprets this skill; existence is not executable tool coverage.",
+      "source": "plugins/detection-hunting/attack-path-workbench/skills/attack-path-review/SKILL.md",
+      "source_digest": "1b23b28ac01922bb68e1ba6225de771e16c7f581d0d45667edbf859b9d99eec5"
+    },
+    {
+      "feature_id": "skill:plugins/detection-hunting/attack-path-workbench/skills/attack-path-trace/SKILL.md",
+      "headless_status": "externally_delegated",
+      "kind": "skill",
+      "operation_ids": [],
+      "plugin_id": "attack-path-workbench",
+      "reason": "The harness interprets this skill; existence is not executable tool coverage.",
+      "source": "plugins/detection-hunting/attack-path-workbench/skills/attack-path-trace/SKILL.md",
+      "source_digest": "a83487b0231d6b1cd452bb6d44c3349792cbb12736c5bd458a1bc02f768c01bb"
+    },
+    {
+      "command": "analyze",
+      "feature_id": "cli:plugins/detection-hunting/attack-path-workbench/attackpath/cli.py:51",
+      "headless_status": "unsupported",
+      "kind": "cli",
+      "line": 51,
+      "operation_ids": [],
+      "plugin_id": "attack-path-workbench",
+      "reason": "No reviewed structured binding for this public CLI entrypoint.",
+      "source": "plugins/detection-hunting/attack-path-workbench/attackpath/cli.py",
+      "source_digest": "670545e1678fd384333e9b85809927bf253d074a1853435b7473f599610dfe0b"
+    },
+    {
+      "command": "query-intent",
+      "feature_id": "cli:plugins/detection-hunting/attack-path-workbench/attackpath/cli.py:56",
+      "headless_status": "unsupported",
+      "kind": "cli",
+      "line": 56,
+      "operation_ids": [],
+      "plugin_id": "attack-path-workbench",
+      "reason": "No reviewed structured binding for this public CLI entrypoint.",
+      "source": "plugins/detection-hunting/attack-path-workbench/attackpath/cli.py",
+      "source_digest": "670545e1678fd384333e9b85809927bf253d074a1853435b7473f599610dfe0b"
+    },
+    {
+      "command": "analyze-azure",
+      "feature_id": "cli:plugins/detection-hunting/attack-path-workbench/attackpath/cli.py:60",
+      "headless_status": "unsupported",
+      "kind": "cli",
+      "line": 60,
+      "operation_ids": [],
+      "plugin_id": "attack-path-workbench",
+      "reason": "No reviewed structured binding for this public CLI entrypoint.",
+      "source": "plugins/detection-hunting/attack-path-workbench/attackpath/cli.py",
+      "source_digest": "670545e1678fd384333e9b85809927bf253d074a1853435b7473f599610dfe0b"
+    },
+    {
+      "command": "plan-azure-collection",
+      "feature_id": "cli:plugins/detection-hunting/attack-path-workbench/attackpath/cli.py:65",
+      "headless_status": "unsupported",
+      "kind": "cli",
+      "line": 65,
+      "operation_ids": [],
+      "plugin_id": "attack-path-workbench",
+      "reason": "No reviewed structured binding for this public CLI entrypoint.",
+      "source": "plugins/detection-hunting/attack-path-workbench/attackpath/cli.py",
+      "source_digest": "670545e1678fd384333e9b85809927bf253d074a1853435b7473f599610dfe0b"
+    },
+    {
+      "command": "entrypoint",
+      "feature_id": "cli:plugins/detection-hunting/attack-path-workbench/scripts/attackpath.py:1",
+      "headless_status": "unsupported",
+      "kind": "cli",
+      "line": 1,
+      "operation_ids": [],
+      "plugin_id": "attack-path-workbench",
+      "reason": "No reviewed structured binding for this public CLI entrypoint.",
+      "source": "plugins/detection-hunting/attack-path-workbench/scripts/attackpath.py",
+      "source_digest": "1d457338ae3516e076d2a04c4ad69e99cb68f74a10c74f8219e29c1589673a5f"
+    },
+    {
+      "command": "entrypoint",
+      "feature_id": "cli:plugins/detection-hunting/attack-path-workbench/scripts/run_demo.py:1",
+      "headless_status": "unsupported",
+      "kind": "cli",
+      "line": 1,
+      "operation_ids": [],
+      "plugin_id": "attack-path-workbench",
+      "reason": "No reviewed structured binding for this public CLI entrypoint.",
+      "source": "plugins/detection-hunting/attack-path-workbench/scripts/run_demo.py",
+      "source_digest": "2c19e2b8bf44a3d31a2411ded3b6065c55a202b66d07e6188603e01fe9347fbc"
+    },
+    {
+      "command": "entrypoint",
+      "feature_id": "cli:plugins/detection-hunting/attack-path-workbench/scripts/validate-package.py:1",
+      "headless_status": "unsupported",
+      "kind": "cli",
+      "line": 1,
+      "operation_ids": [],
+      "plugin_id": "attack-path-workbench",
+      "reason": "No reviewed structured binding for this public CLI entrypoint.",
+      "source": "plugins/detection-hunting/attack-path-workbench/scripts/validate-package.py",
+      "source_digest": "bb09e887ef4179ae1c4874a50c29d72dbe37f9f3f6459839193a7ab5e1ad5f99"
+    }
+  ],
+  "limitations": [
+    "Source inventory records unmapped skills and CLI steps explicitly; they are not implemented coverage.",
+    "No host-installation, live-provider, or synthetic-laboratory readiness promotion."
+  ],
+  "operations": [],
+  "package_feature_complete": false,
+  "plugin_id": "attack-path-workbench",
+  "runtime": "separate COPS headless bundle; not automatically included by plugin installation",
+  "schema_version": "cops.package-operations/v1",
+  "skill_references": [
+    "plugins/detection-hunting/attack-path-workbench/skills/attack-path-assess/SKILL.md",
+    "plugins/detection-hunting/attack-path-workbench/skills/attack-path-ingest/SKILL.md",
+    "plugins/detection-hunting/attack-path-workbench/skills/attack-path-map/SKILL.md",
+    "plugins/detection-hunting/attack-path-workbench/skills/attack-path-report/SKILL.md",
+    "plugins/detection-hunting/attack-path-workbench/skills/attack-path-review/SKILL.md",
+    "plugins/detection-hunting/attack-path-workbench/skills/attack-path-trace/SKILL.md"
+  ]
+}

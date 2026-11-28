@@ -1,0 +1,109 @@
+{
+  "coverage": "not_mapped",
+  "feature_inventory": {
+    "by_status": {
+      "blocked_by_prerequisite": 0,
+      "externally_delegated": 1,
+      "implemented": 0,
+      "unsupported": 6
+    },
+    "total": 7,
+    "unresolved_cli_declarations": 0
+  },
+  "features": [
+    {
+      "feature_id": "skill:plugins/identity-access/ad-assessment-workbench/skills/ad-inventory-and-paths/SKILL.md",
+      "headless_status": "externally_delegated",
+      "kind": "skill",
+      "operation_ids": [],
+      "plugin_id": "ad-assessment-workbench",
+      "reason": "The harness interprets this skill; existence is not executable tool coverage.",
+      "source": "plugins/identity-access/ad-assessment-workbench/skills/ad-inventory-and-paths/SKILL.md",
+      "source_digest": "141271b777e72d6d4927e2c22b48b79a8d0baa1492cd2a62b8b55085c653a642"
+    },
+    {
+      "feature_id": "step:plugins/identity-access/ad-assessment-workbench/skills/ad-inventory-and-paths/SKILL.md:13",
+      "headless_status": "unsupported",
+      "kind": "skill_step",
+      "line": 13,
+      "operation_ids": [],
+      "ordinal": "1",
+      "plugin_id": "ad-assessment-workbench",
+      "reason": "This specific prose step has no reviewed typed-operation binding yet.",
+      "source": "plugins/identity-access/ad-assessment-workbench/skills/ad-inventory-and-paths/SKILL.md",
+      "source_digest": "141271b777e72d6d4927e2c22b48b79a8d0baa1492cd2a62b8b55085c653a642"
+    },
+    {
+      "feature_id": "step:plugins/identity-access/ad-assessment-workbench/skills/ad-inventory-and-paths/SKILL.md:14",
+      "headless_status": "unsupported",
+      "kind": "skill_step",
+      "line": 14,
+      "operation_ids": [],
+      "ordinal": "2",
+      "plugin_id": "ad-assessment-workbench",
+      "reason": "This specific prose step has no reviewed typed-operation binding yet.",
+      "source": "plugins/identity-access/ad-assessment-workbench/skills/ad-inventory-and-paths/SKILL.md",
+      "source_digest": "141271b777e72d6d4927e2c22b48b79a8d0baa1492cd2a62b8b55085c653a642"
+    },
+    {
+      "feature_id": "step:plugins/identity-access/ad-assessment-workbench/skills/ad-inventory-and-paths/SKILL.md:17",
+      "headless_status": "unsupported",
+      "kind": "skill_step",
+      "line": 17,
+      "operation_ids": [],
+      "ordinal": "3",
+      "plugin_id": "ad-assessment-workbench",
+      "reason": "This specific prose step has no reviewed typed-operation binding yet.",
+      "source": "plugins/identity-access/ad-assessment-workbench/skills/ad-inventory-and-paths/SKILL.md",
+      "source_digest": "141271b777e72d6d4927e2c22b48b79a8d0baa1492cd2a62b8b55085c653a642"
+    },
+    {
+      "feature_id": "step:plugins/identity-access/ad-assessment-workbench/skills/ad-inventory-and-paths/SKILL.md:20",
+      "headless_status": "unsupported",
+      "kind": "skill_step",
+      "line": 20,
+      "operation_ids": [],
+      "ordinal": "4",
+      "plugin_id": "ad-assessment-workbench",
+      "reason": "This specific prose step has no reviewed typed-operation binding yet.",
+      "source": "plugins/identity-access/ad-assessment-workbench/skills/ad-inventory-and-paths/SKILL.md",
+      "source_digest": "141271b777e72d6d4927e2c22b48b79a8d0baa1492cd2a62b8b55085c653a642"
+    },
+    {
+      "command": "entrypoint",
+      "feature_id": "cli:plugins/identity-access/ad-assessment-workbench/scripts/analyze.py:1",
+      "headless_status": "unsupported",
+      "kind": "cli",
+      "line": 1,
+      "operation_ids": [],
+      "plugin_id": "ad-assessment-workbench",
+      "reason": "No reviewed structured binding for this public CLI entrypoint.",
+      "source": "plugins/identity-access/ad-assessment-workbench/scripts/analyze.py",
+      "source_digest": "71558f555f810f25ecf16b2d64a0042f239828c2c6999bcddc2f267583b36d29"
+    },
+    {
+      "command": "entrypoint",
+      "feature_id": "cli:plugins/identity-access/ad-assessment-workbench/scripts/run_demo.py:1",
+      "headless_status": "unsupported",
+      "kind": "cli",
+      "line": 1,
+      "operation_ids": [],
+      "plugin_id": "ad-assessment-workbench",
+      "reason": "No reviewed structured binding for this public CLI entrypoint.",
+      "source": "plugins/identity-access/ad-assessment-workbench/scripts/run_demo.py",
+      "source_digest": "75022b26914715bd3620bb9a2efc5f18f37b6c5880357178227eb7187d19cf71"
+    }
+  ],
+  "limitations": [
+    "Source inventory records unmapped skills and CLI steps explicitly; they are not implemented coverage.",
+    "No host-installation, live-provider, or synthetic-laboratory readiness promotion."
+  ],
+  "operations": [],
+  "package_feature_complete": false,
+  "plugin_id": "ad-assessment-workbench",
+  "runtime": "separate COPS headless bundle; not automatically included by plugin installation",
+  "schema_version": "cops.package-operations/v1",
+  "skill_references": [
+    "plugins/identity-access/ad-assessment-workbench/skills/ad-inventory-and-paths/SKILL.md"
+  ]
+}

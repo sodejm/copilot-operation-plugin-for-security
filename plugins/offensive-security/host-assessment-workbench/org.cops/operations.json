@@ -1,0 +1,240 @@
+{
+  "coverage": "not_mapped",
+  "feature_inventory": {
+    "by_status": {
+      "blocked_by_prerequisite": 0,
+      "externally_delegated": 2,
+      "implemented": 0,
+      "unsupported": 16
+    },
+    "total": 18,
+    "unresolved_cli_declarations": 0
+  },
+  "features": [
+    {
+      "feature_id": "skill:plugins/offensive-security/host-assessment-workbench/skills/host-linux-privilege-boundaries/SKILL.md",
+      "headless_status": "externally_delegated",
+      "kind": "skill",
+      "operation_ids": [],
+      "plugin_id": "host-assessment-workbench",
+      "reason": "The harness interprets this skill; existence is not executable tool coverage.",
+      "source": "plugins/offensive-security/host-assessment-workbench/skills/host-linux-privilege-boundaries/SKILL.md",
+      "source_digest": "ec352e1767c1c6abe19aaeffc901b3be640f2cf5a0a47e9e17ca53ac6a9f6c5b"
+    },
+    {
+      "feature_id": "step:plugins/offensive-security/host-assessment-workbench/skills/host-linux-privilege-boundaries/SKILL.md:8",
+      "headless_status": "unsupported",
+      "kind": "skill_step",
+      "line": 8,
+      "operation_ids": [],
+      "ordinal": "1",
+      "plugin_id": "host-assessment-workbench",
+      "reason": "This specific prose step has no reviewed typed-operation binding yet.",
+      "source": "plugins/offensive-security/host-assessment-workbench/skills/host-linux-privilege-boundaries/SKILL.md",
+      "source_digest": "ec352e1767c1c6abe19aaeffc901b3be640f2cf5a0a47e9e17ca53ac6a9f6c5b"
+    },
+    {
+      "feature_id": "step:plugins/offensive-security/host-assessment-workbench/skills/host-linux-privilege-boundaries/SKILL.md:11",
+      "headless_status": "unsupported",
+      "kind": "skill_step",
+      "line": 11,
+      "operation_ids": [],
+      "ordinal": "2",
+      "plugin_id": "host-assessment-workbench",
+      "reason": "This specific prose step has no reviewed typed-operation binding yet.",
+      "source": "plugins/offensive-security/host-assessment-workbench/skills/host-linux-privilege-boundaries/SKILL.md",
+      "source_digest": "ec352e1767c1c6abe19aaeffc901b3be640f2cf5a0a47e9e17ca53ac6a9f6c5b"
+    },
+    {
+      "feature_id": "step:plugins/offensive-security/host-assessment-workbench/skills/host-linux-privilege-boundaries/SKILL.md:13",
+      "headless_status": "unsupported",
+      "kind": "skill_step",
+      "line": 13,
+      "operation_ids": [],
+      "ordinal": "3",
+      "plugin_id": "host-assessment-workbench",
+      "reason": "This specific prose step has no reviewed typed-operation binding yet.",
+      "source": "plugins/offensive-security/host-assessment-workbench/skills/host-linux-privilege-boundaries/SKILL.md",
+      "source_digest": "ec352e1767c1c6abe19aaeffc901b3be640f2cf5a0a47e9e17ca53ac6a9f6c5b"
+    },
+    {
+      "feature_id": "step:plugins/offensive-security/host-assessment-workbench/skills/host-linux-privilege-boundaries/SKILL.md:17",
+      "headless_status": "unsupported",
+      "kind": "skill_step",
+      "line": 17,
+      "operation_ids": [],
+      "ordinal": "4",
+      "plugin_id": "host-assessment-workbench",
+      "reason": "This specific prose step has no reviewed typed-operation binding yet.",
+      "source": "plugins/offensive-security/host-assessment-workbench/skills/host-linux-privilege-boundaries/SKILL.md",
+      "source_digest": "ec352e1767c1c6abe19aaeffc901b3be640f2cf5a0a47e9e17ca53ac6a9f6c5b"
+    },
+    {
+      "feature_id": "step:plugins/offensive-security/host-assessment-workbench/skills/host-linux-privilege-boundaries/SKILL.md:19",
+      "headless_status": "unsupported",
+      "kind": "skill_step",
+      "line": 19,
+      "operation_ids": [],
+      "ordinal": "5",
+      "plugin_id": "host-assessment-workbench",
+      "reason": "This specific prose step has no reviewed typed-operation binding yet.",
+      "source": "plugins/offensive-security/host-assessment-workbench/skills/host-linux-privilege-boundaries/SKILL.md",
+      "source_digest": "ec352e1767c1c6abe19aaeffc901b3be640f2cf5a0a47e9e17ca53ac6a9f6c5b"
+    },
+    {
+      "feature_id": "skill:plugins/offensive-security/host-assessment-workbench/skills/host-windows-privilege-boundaries/SKILL.md",
+      "headless_status": "externally_delegated",
+      "kind": "skill",
+      "operation_ids": [],
+      "plugin_id": "host-assessment-workbench",
+      "reason": "The harness interprets this skill; existence is not executable tool coverage.",
+      "source": "plugins/offensive-security/host-assessment-workbench/skills/host-windows-privilege-boundaries/SKILL.md",
+      "source_digest": "003fb3b54d850d3800428c0edd05be3f5614d03ba78125a795645ade2d041df4"
+    },
+    {
+      "feature_id": "step:plugins/offensive-security/host-assessment-workbench/skills/host-windows-privilege-boundaries/SKILL.md:8",
+      "headless_status": "unsupported",
+      "kind": "skill_step",
+      "line": 8,
+      "operation_ids": [],
+      "ordinal": "1",
+      "plugin_id": "host-assessment-workbench",
+      "reason": "This specific prose step has no reviewed typed-operation binding yet.",
+      "source": "plugins/offensive-security/host-assessment-workbench/skills/host-windows-privilege-boundaries/SKILL.md",
+      "source_digest": "003fb3b54d850d3800428c0edd05be3f5614d03ba78125a795645ade2d041df4"
+    },
+    {
+      "feature_id": "step:plugins/offensive-security/host-assessment-workbench/skills/host-windows-privilege-boundaries/SKILL.md:11",
+      "headless_status": "unsupported",
+      "kind": "skill_step",
+      "line": 11,
+      "operation_ids": [],
+      "ordinal": "2",
+      "plugin_id": "host-assessment-workbench",
+      "reason": "This specific prose step has no reviewed typed-operation binding yet.",
+      "source": "plugins/offensive-security/host-assessment-workbench/skills/host-windows-privilege-boundaries/SKILL.md",
+      "source_digest": "003fb3b54d850d3800428c0edd05be3f5614d03ba78125a795645ade2d041df4"
+    },
+    {
+      "feature_id": "step:plugins/offensive-security/host-assessment-workbench/skills/host-windows-privilege-boundaries/SKILL.md:17",
+      "headless_status": "unsupported",
+      "kind": "skill_step",
+      "line": 17,
+      "operation_ids": [],
+      "ordinal": "3",
+      "plugin_id": "host-assessment-workbench",
+      "reason": "This specific prose step has no reviewed typed-operation binding yet.",
+      "source": "plugins/offensive-security/host-assessment-workbench/skills/host-windows-privilege-boundaries/SKILL.md",
+      "source_digest": "003fb3b54d850d3800428c0edd05be3f5614d03ba78125a795645ade2d041df4"
+    },
+    {
+      "feature_id": "step:plugins/offensive-security/host-assessment-workbench/skills/host-windows-privilege-boundaries/SKILL.md:20",
+      "headless_status": "unsupported",
+      "kind": "skill_step",
+      "line": 20,
+      "operation_ids": [],
+      "ordinal": "4",
+      "plugin_id": "host-assessment-workbench",
+      "reason": "This specific prose step has no reviewed typed-operation binding yet.",
+      "source": "plugins/offensive-security/host-assessment-workbench/skills/host-windows-privilege-boundaries/SKILL.md",
+      "source_digest": "003fb3b54d850d3800428c0edd05be3f5614d03ba78125a795645ade2d041df4"
+    },
+    {
+      "feature_id": "step:plugins/offensive-security/host-assessment-workbench/skills/host-windows-privilege-boundaries/SKILL.md:24",
+      "headless_status": "unsupported",
+      "kind": "skill_step",
+      "line": 24,
+      "operation_ids": [],
+      "ordinal": "5",
+      "plugin_id": "host-assessment-workbench",
+      "reason": "This specific prose step has no reviewed typed-operation binding yet.",
+      "source": "plugins/offensive-security/host-assessment-workbench/skills/host-windows-privilege-boundaries/SKILL.md",
+      "source_digest": "003fb3b54d850d3800428c0edd05be3f5614d03ba78125a795645ade2d041df4"
+    },
+    {
+      "feature_id": "step:plugins/offensive-security/host-assessment-workbench/skills/host-windows-privilege-boundaries/SKILL.md:29",
+      "headless_status": "unsupported",
+      "kind": "skill_step",
+      "line": 29,
+      "operation_ids": [],
+      "ordinal": "6",
+      "plugin_id": "host-assessment-workbench",
+      "reason": "This specific prose step has no reviewed typed-operation binding yet.",
+      "source": "plugins/offensive-security/host-assessment-workbench/skills/host-windows-privilege-boundaries/SKILL.md",
+      "source_digest": "003fb3b54d850d3800428c0edd05be3f5614d03ba78125a795645ade2d041df4"
+    },
+    {
+      "feature_id": "step:plugins/offensive-security/host-assessment-workbench/skills/host-windows-privilege-boundaries/SKILL.md:31",
+      "headless_status": "unsupported",
+      "kind": "skill_step",
+      "line": 31,
+      "operation_ids": [],
+      "ordinal": "7",
+      "plugin_id": "host-assessment-workbench",
+      "reason": "This specific prose step has no reviewed typed-operation binding yet.",
+      "source": "plugins/offensive-security/host-assessment-workbench/skills/host-windows-privilege-boundaries/SKILL.md",
+      "source_digest": "003fb3b54d850d3800428c0edd05be3f5614d03ba78125a795645ade2d041df4"
+    },
+    {
+      "command": "entrypoint",
+      "feature_id": "cli:plugins/offensive-security/host-assessment-workbench/scripts/assess.py:1",
+      "headless_status": "unsupported",
+      "kind": "cli",
+      "line": 1,
+      "operation_ids": [],
+      "plugin_id": "host-assessment-workbench",
+      "reason": "No reviewed structured binding for this public CLI entrypoint.",
+      "source": "plugins/offensive-security/host-assessment-workbench/scripts/assess.py",
+      "source_digest": "ca444783ce4f9902e35b2dc8b286d23293a91a5ed5333f6351cb11da9b88b339"
+    },
+    {
+      "command": "entrypoint",
+      "feature_id": "cli:plugins/offensive-security/host-assessment-workbench/scripts/demo.py:1",
+      "headless_status": "unsupported",
+      "kind": "cli",
+      "line": 1,
+      "operation_ids": [],
+      "plugin_id": "host-assessment-workbench",
+      "reason": "No reviewed structured binding for this public CLI entrypoint.",
+      "source": "plugins/offensive-security/host-assessment-workbench/scripts/demo.py",
+      "source_digest": "cf200f354e9f4c05cd08e6eef9f367f22a446556ad5ce3fc2b87499b717cc49a"
+    },
+    {
+      "command": "entrypoint",
+      "feature_id": "cli:plugins/offensive-security/host-assessment-workbench/scripts/validate-package.py:1",
+      "headless_status": "unsupported",
+      "kind": "cli",
+      "line": 1,
+      "operation_ids": [],
+      "plugin_id": "host-assessment-workbench",
+      "reason": "No reviewed structured binding for this public CLI entrypoint.",
+      "source": "plugins/offensive-security/host-assessment-workbench/scripts/validate-package.py",
+      "source_digest": "fd70f5133c7d75a99590d1ce06e13664b4583898f0511467594dbee82350c84d"
+    },
+    {
+      "command": "entrypoint",
+      "feature_id": "cli:plugins/offensive-security/host-assessment-workbench/scripts/validate-windows-bridge.py:1",
+      "headless_status": "unsupported",
+      "kind": "cli",
+      "line": 1,
+      "operation_ids": [],
+      "plugin_id": "host-assessment-workbench",
+      "reason": "No reviewed structured binding for this public CLI entrypoint.",
+      "source": "plugins/offensive-security/host-assessment-workbench/scripts/validate-windows-bridge.py",
+      "source_digest": "950b994cbe3fbea37e7c8ec80fd4f21c92f4eea8923abf52475821a9b95b1a72"
+    }
+  ],
+  "limitations": [
+    "Source inventory records unmapped skills and CLI steps explicitly; they are not implemented coverage.",
+    "No host-installation, live-provider, or synthetic-laboratory readiness promotion."
+  ],
+  "operations": [],
+  "package_feature_complete": false,
+  "plugin_id": "host-assessment-workbench",
+  "runtime": "separate COPS headless bundle; not automatically included by plugin installation",
+  "schema_version": "cops.package-operations/v1",
+  "skill_references": [
+    "plugins/offensive-security/host-assessment-workbench/skills/host-linux-privilege-boundaries/SKILL.md",
+    "plugins/offensive-security/host-assessment-workbench/skills/host-windows-privilege-boundaries/SKILL.md"
+  ]
+}

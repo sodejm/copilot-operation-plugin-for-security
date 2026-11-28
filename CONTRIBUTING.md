@@ -2,6 +2,20 @@
 
 Thank you for improving this project.
 
+For the headless operation pilot, keep declarations and package feature mappings
+aligned with actual handlers: run `python3 scripts/check_headless_operations.py
+--generate` after intentional changes, then `make check-headless
+PYTHON=.venv/bin/python` with `requirements-mcp.txt` installed. The dedicated gate
+requires the SDK; a skipped optional MCP test in `make check` is not conformance
+evidence. Preserve loose exploratory requests and the separate exact-plan execution
+boundary. See [headless workflows](docs/HEADLESS_AGENT_WORKFLOWS.md).
+
+Persistent headless changes require run, delegation and inventory tests.
+Exercise restart, lease fencing and rejection of worker-backed requests.
+The dedicated gate also covers Detection Quality chat resume. Regenerate the
+inventory when changing public skill or CLI declarations, and retain explicit
+unsupported mappings.
+
 API import changes must preserve exact source hashes and keep report redaction
 separate from lossless approval digests. Run
 `python -m pytest tests/test_web_api_import_safety.py`, then synchronize and check

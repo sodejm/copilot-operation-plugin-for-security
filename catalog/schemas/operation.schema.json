@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Reviewed headless operation declaration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "operation_id", "version", "owner", "description", "implementation", "input_schema", "output_schema", "feature_id", "specification", "effects", "authorization", "limits", "retry", "cancellation", "coverage"],
+  "properties": {
+    "schema_version": {"const": "cops.operation/v1"},
+    "operation_id": {"type": "string", "pattern": "^cops\\.[a-z_]+\\.[a-z_]+$", "maxLength": 96},
+    "version": {"const": "1.0.0"},
+    "owner": {"type": "string", "maxLength": 96},
+    "description": {"type": "string", "maxLength": 512},
+    "implementation": {"enum": ["artifact_assessment", "soc_validate", "soc_next", "soc_handoff", "soc_import", "soc_revise", "soc_report", "work_request", "work_note", "work_escalate", "run_create", "run_status", "run_resume", "run_cancel", "run_recover", "run_reconcile", "controlled_preview", "controlled_submit", "delegate_prepare", "delegate_accept", "features_list", "features_info"]},
+    "input_schema": {"type": "object"},
+    "output_schema": {"type": "object"},
+    "feature_id": {"type": "string", "maxLength": 96},
+    "specification": {"const": "specs/headless-agent-interface.spec.md"},
+    "effects": {"type": "object", "additionalProperties": false, "required": ["network", "durable_writes", "executes_samples"], "properties": {"network": {"type": "boolean"}, "durable_writes": {"type": "boolean"}, "executes_samples": {"type": "boolean"}}},
+    "authorization": {"type": "string", "maxLength": 512},
+    "limits": {"const": {"input_bytes": 8388608, "output_bytes": 8388608}},
+    "retry": {"type": "string", "maxLength": 512},
+    "cancellation": {"type": "string", "maxLength": 512},
+    "coverage": {"type": "string", "maxLength": 512}
+  }
+}

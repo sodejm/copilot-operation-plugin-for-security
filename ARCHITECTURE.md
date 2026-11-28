@@ -42,6 +42,25 @@ flowchart TD
 
 ## The Five Core Architectural Pillars
 
+### Headless operation boundary
+
+`cops.operations` is the shared standard-library invocation service for pilot
+artifact assessments, SOC case transformations and loose exploratory requests.
+`cops tools` and optional `cops.mcp` expose the same allowlisted operations and
+schemas. Discovery never imports implementation payloads. The harness owns
+conversation, model calls and peer-agent launch. Exploration grants no authority;
+existing strict handoffs, exact ActionPlans and single-use execution approvals
+remain separate and unchanged. The operator-only standalone bundle supplies
+runtime dependencies without source-checkout assumptions. Package operation
+manifests describe pilot mappings, not whole-package completion. See
+[Headless workbench operations](docs/HEADLESS_AGENT_WORKFLOWS.md).
+
+An optional installation-owned runtime adds private SQLite run and delegation
+state for offline operations. Atomic claims fence concurrent resume, and a
+terminal result can be read after restart. The same offline allowlist applies
+to both direct calls and durable submissions. Peer records bind an installed
+skill and a scope alias and retain responses as unverified claims.
+
 ### 1. The Master Catalog (`catalog/`)
 Instead of each AI assistant maintaining its own separate list of plugins, COPS maintains **one canonical inventory**:
 - **`catalog/plugins.json`**: Records every plugin's unique ID, display name, semantic version, primary category, and feature tags.
