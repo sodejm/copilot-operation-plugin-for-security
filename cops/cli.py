@@ -578,6 +578,9 @@ def build_parser() -> argparse.ArgumentParser:
         description="Discover, validate, and safely exercise COPS cybersecurity plugins.",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
+    from .operations.cli import add_parser as add_tools_parser
+
+    add_tools_parser(subparsers)
     subparsers.add_parser("list", help="list cataloged plugins and support evidence")
     info = subparsers.add_parser("info", help="show one plugin's purpose and evidence boundaries")
     info.add_argument("plugin_id")
@@ -1081,6 +1084,10 @@ def main(argv: list[str] | None = None, *, root: Path = ROOT) -> int:
                 return command_capabilities_audit(check=args.check, root=root)
             if args.capabilities_command == "matrix":
                 return command_capabilities_matrix(output=args.output, root=root)
+        if args.command == "tools":
+            from .operations.cli import command as command_tools
+
+            return command_tools(args)
         if args.command == "worker":
             if args.worker_command == "status":
                 return command_worker_status(args)

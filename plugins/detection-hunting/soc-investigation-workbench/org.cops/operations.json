@@ -1,0 +1,1254 @@
+{
+  "coverage": "pilot_mapped",
+  "feature_inventory": {
+    "by_status": {
+      "blocked_by_prerequisite": 0,
+      "externally_delegated": 2,
+      "implemented": 7,
+      "unsupported": 16
+    },
+    "total": 25,
+    "unresolved_cli_declarations": 1
+  },
+  "features": [
+    {
+      "feature_id": "skill:plugins/detection-hunting/soc-investigation-workbench/skills/soc-investigation-planning/SKILL.md",
+      "headless_status": "externally_delegated",
+      "kind": "skill",
+      "operation_ids": [],
+      "plugin_id": "soc-investigation-workbench",
+      "reason": "The harness interprets this skill; existence is not executable tool coverage.",
+      "source": "plugins/detection-hunting/soc-investigation-workbench/skills/soc-investigation-planning/SKILL.md",
+      "source_digest": "3cff2d48d593a071123a5c8c13eccac96c0557621a9f10c8fe4fd635cf2c10d1"
+    },
+    {
+      "feature_id": "step:plugins/detection-hunting/soc-investigation-workbench/skills/soc-investigation-planning/SKILL.md:13",
+      "headless_status": "unsupported",
+      "kind": "skill_step",
+      "line": 13,
+      "operation_ids": [],
+      "ordinal": "1",
+      "plugin_id": "soc-investigation-workbench",
+      "reason": "This specific prose step has no reviewed typed-operation binding yet.",
+      "source": "plugins/detection-hunting/soc-investigation-workbench/skills/soc-investigation-planning/SKILL.md",
+      "source_digest": "3cff2d48d593a071123a5c8c13eccac96c0557621a9f10c8fe4fd635cf2c10d1"
+    },
+    {
+      "feature_id": "step:plugins/detection-hunting/soc-investigation-workbench/skills/soc-investigation-planning/SKILL.md:17",
+      "headless_status": "unsupported",
+      "kind": "skill_step",
+      "line": 17,
+      "operation_ids": [],
+      "ordinal": "2",
+      "plugin_id": "soc-investigation-workbench",
+      "reason": "This specific prose step has no reviewed typed-operation binding yet.",
+      "source": "plugins/detection-hunting/soc-investigation-workbench/skills/soc-investigation-planning/SKILL.md",
+      "source_digest": "3cff2d48d593a071123a5c8c13eccac96c0557621a9f10c8fe4fd635cf2c10d1"
+    },
+    {
+      "feature_id": "step:plugins/detection-hunting/soc-investigation-workbench/skills/soc-investigation-planning/SKILL.md:21",
+      "headless_status": "unsupported",
+      "kind": "skill_step",
+      "line": 21,
+      "operation_ids": [],
+      "ordinal": "3",
+      "plugin_id": "soc-investigation-workbench",
+      "reason": "This specific prose step has no reviewed typed-operation binding yet.",
+      "source": "plugins/detection-hunting/soc-investigation-workbench/skills/soc-investigation-planning/SKILL.md",
+      "source_digest": "3cff2d48d593a071123a5c8c13eccac96c0557621a9f10c8fe4fd635cf2c10d1"
+    },
+    {
+      "feature_id": "step:plugins/detection-hunting/soc-investigation-workbench/skills/soc-investigation-planning/SKILL.md:30",
+      "headless_status": "unsupported",
+      "kind": "skill_step",
+      "line": 30,
+      "operation_ids": [],
+      "ordinal": "4",
+      "plugin_id": "soc-investigation-workbench",
+      "reason": "This specific prose step has no reviewed typed-operation binding yet.",
+      "source": "plugins/detection-hunting/soc-investigation-workbench/skills/soc-investigation-planning/SKILL.md",
+      "source_digest": "3cff2d48d593a071123a5c8c13eccac96c0557621a9f10c8fe4fd635cf2c10d1"
+    },
+    {
+      "feature_id": "step:plugins/detection-hunting/soc-investigation-workbench/skills/soc-investigation-planning/SKILL.md:33",
+      "headless_status": "unsupported",
+      "kind": "skill_step",
+      "line": 33,
+      "operation_ids": [],
+      "ordinal": "5",
+      "plugin_id": "soc-investigation-workbench",
+      "reason": "This specific prose step has no reviewed typed-operation binding yet.",
+      "source": "plugins/detection-hunting/soc-investigation-workbench/skills/soc-investigation-planning/SKILL.md",
+      "source_digest": "3cff2d48d593a071123a5c8c13eccac96c0557621a9f10c8fe4fd635cf2c10d1"
+    },
+    {
+      "feature_id": "step:plugins/detection-hunting/soc-investigation-workbench/skills/soc-investigation-planning/SKILL.md:40",
+      "headless_status": "unsupported",
+      "kind": "skill_step",
+      "line": 40,
+      "operation_ids": [],
+      "ordinal": "6",
+      "plugin_id": "soc-investigation-workbench",
+      "reason": "This specific prose step has no reviewed typed-operation binding yet.",
+      "source": "plugins/detection-hunting/soc-investigation-workbench/skills/soc-investigation-planning/SKILL.md",
+      "source_digest": "3cff2d48d593a071123a5c8c13eccac96c0557621a9f10c8fe4fd635cf2c10d1"
+    },
+    {
+      "feature_id": "step:plugins/detection-hunting/soc-investigation-workbench/skills/soc-investigation-planning/SKILL.md:44",
+      "headless_status": "unsupported",
+      "kind": "skill_step",
+      "line": 44,
+      "operation_ids": [],
+      "ordinal": "7",
+      "plugin_id": "soc-investigation-workbench",
+      "reason": "This specific prose step has no reviewed typed-operation binding yet.",
+      "source": "plugins/detection-hunting/soc-investigation-workbench/skills/soc-investigation-planning/SKILL.md",
+      "source_digest": "3cff2d48d593a071123a5c8c13eccac96c0557621a9f10c8fe4fd635cf2c10d1"
+    },
+    {
+      "feature_id": "skill:plugins/detection-hunting/soc-investigation-workbench/skills/soc-investigation-review/SKILL.md",
+      "headless_status": "externally_delegated",
+      "kind": "skill",
+      "operation_ids": [],
+      "plugin_id": "soc-investigation-workbench",
+      "reason": "The harness interprets this skill; existence is not executable tool coverage.",
+      "source": "plugins/detection-hunting/soc-investigation-workbench/skills/soc-investigation-review/SKILL.md",
+      "source_digest": "d7cc2cc2c87f718acaa8ab6e1926902b8264cfd3a54e10d15c740a057a720c8e"
+    },
+    {
+      "command": "intake",
+      "feature_id": "cli:plugins/detection-hunting/soc-investigation-workbench/investigationwb/cli.py:63",
+      "headless_status": "unsupported",
+      "kind": "cli",
+      "line": 63,
+      "operation_ids": [],
+      "plugin_id": "soc-investigation-workbench",
+      "reason": "No reviewed structured binding for this public CLI entrypoint.",
+      "source": "plugins/detection-hunting/soc-investigation-workbench/investigationwb/cli.py",
+      "source_digest": "386d3a084535fc0cc2eba6a1a7e3ddc42b26188dc8be14f443cdceb1837f9c7a"
+    },
+    {
+      "command": "export-handoff",
+      "feature_id": "cli:plugins/detection-hunting/soc-investigation-workbench/investigationwb/cli.py:73",
+      "headless_status": "unsupported",
+      "kind": "cli",
+      "line": 73,
+      "operation_ids": [],
+      "plugin_id": "soc-investigation-workbench",
+      "reason": "No reviewed structured binding for this public CLI entrypoint.",
+      "source": "plugins/detection-hunting/soc-investigation-workbench/investigationwb/cli.py",
+      "source_digest": "386d3a084535fc0cc2eba6a1a7e3ddc42b26188dc8be14f443cdceb1837f9c7a"
+    },
+    {
+      "command": "verify-vendor",
+      "feature_id": "cli:plugins/detection-hunting/soc-investigation-workbench/investigationwb/cli.py:77",
+      "headless_status": "unsupported",
+      "kind": "cli",
+      "line": 77,
+      "operation_ids": [],
+      "plugin_id": "soc-investigation-workbench",
+      "reason": "No reviewed structured binding for this public CLI entrypoint.",
+      "source": "plugins/detection-hunting/soc-investigation-workbench/investigationwb/cli.py",
+      "source_digest": "386d3a084535fc0cc2eba6a1a7e3ddc42b26188dc8be14f443cdceb1837f9c7a"
+    },
+    {
+      "command": "vendor-sync",
+      "feature_id": "cli:plugins/detection-hunting/soc-investigation-workbench/investigationwb/cli.py:79",
+      "headless_status": "unsupported",
+      "kind": "cli",
+      "line": 79,
+      "operation_ids": [],
+      "plugin_id": "soc-investigation-workbench",
+      "reason": "No reviewed structured binding for this public CLI entrypoint.",
+      "source": "plugins/detection-hunting/soc-investigation-workbench/investigationwb/cli.py",
+      "source_digest": "386d3a084535fc0cc2eba6a1a7e3ddc42b26188dc8be14f443cdceb1837f9c7a"
+    },
+    {
+      "command": null,
+      "feature_id": "cli:plugins/detection-hunting/soc-investigation-workbench/investigationwb/cli.py:54",
+      "headless_status": "unsupported",
+      "kind": "dynamic_cli",
+      "line": 54,
+      "operation_ids": [],
+      "plugin_id": "soc-investigation-workbench",
+      "reason": "Dynamic CLI declarations require explicit review; not omitted.",
+      "source": "plugins/detection-hunting/soc-investigation-workbench/investigationwb/cli.py",
+      "source_digest": "386d3a084535fc0cc2eba6a1a7e3ddc42b26188dc8be14f443cdceb1837f9c7a"
+    },
+    {
+      "command": "entrypoint",
+      "feature_id": "cli:plugins/detection-hunting/soc-investigation-workbench/scripts/investigate.py:1",
+      "headless_status": "unsupported",
+      "kind": "cli",
+      "line": 1,
+      "operation_ids": [],
+      "plugin_id": "soc-investigation-workbench",
+      "reason": "No reviewed structured binding for this public CLI entrypoint.",
+      "source": "plugins/detection-hunting/soc-investigation-workbench/scripts/investigate.py",
+      "source_digest": "1f43d0d1c1c8cc3098ab1dbde4b9f7de2a323ee704a1717e6fdfe25dc283a122"
+    },
+    {
+      "command": "entrypoint",
+      "feature_id": "cli:plugins/detection-hunting/soc-investigation-workbench/scripts/m365-offline-demo.py:1",
+      "headless_status": "unsupported",
+      "kind": "cli",
+      "line": 1,
+      "operation_ids": [],
+      "plugin_id": "soc-investigation-workbench",
+      "reason": "No reviewed structured binding for this public CLI entrypoint.",
+      "source": "plugins/detection-hunting/soc-investigation-workbench/scripts/m365-offline-demo.py",
+      "source_digest": "98e3ceafb33203be5ea3b88ee9ae419d09edfbebd5c41dc0dc36e9c66e9b09ec"
+    },
+    {
+      "command": "entrypoint",
+      "feature_id": "cli:plugins/detection-hunting/soc-investigation-workbench/scripts/run_demo.py:1",
+      "headless_status": "unsupported",
+      "kind": "cli",
+      "line": 1,
+      "operation_ids": [],
+      "plugin_id": "soc-investigation-workbench",
+      "reason": "No reviewed structured binding for this public CLI entrypoint.",
+      "source": "plugins/detection-hunting/soc-investigation-workbench/scripts/run_demo.py",
+      "source_digest": "1140ee86de3f0b73c352c96d6ed30e6580c47a5b1f86844247e5a3185252c621"
+    },
+    {
+      "command": "entrypoint",
+      "feature_id": "cli:plugins/detection-hunting/soc-investigation-workbench/scripts/validate-package.py:1",
+      "headless_status": "unsupported",
+      "kind": "cli",
+      "line": 1,
+      "operation_ids": [],
+      "plugin_id": "soc-investigation-workbench",
+      "reason": "No reviewed structured binding for this public CLI entrypoint.",
+      "source": "plugins/detection-hunting/soc-investigation-workbench/scripts/validate-package.py",
+      "source_digest": "d9ac8a5ed5144202de87c9f807fda5f8f696e24e3a78150fd6bad77d6f849cdd"
+    },
+    {
+      "behavioral_test": "tests/test_headless_operations.py",
+      "feature_id": "operation:cops.assess.malware_static",
+      "headless_status": "implemented",
+      "kind": "operation",
+      "operation_ids": [
+        "cops.assess.malware_static"
+      ],
+      "plugin_id": "soc-investigation-workbench",
+      "reason": "Reviewed shared Python handler with behavioral and distribution conformance.",
+      "source": "cops/operations/catalog.py",
+      "source_digest": "386e184e4d60e20d373b2fdb9409235294e67be4b601015abdf36cefa62586e6"
+    },
+    {
+      "behavioral_test": "tests/test_headless_operations.py",
+      "feature_id": "operation:cops.soc.validate",
+      "headless_status": "implemented",
+      "kind": "operation",
+      "operation_ids": [
+        "cops.soc.validate"
+      ],
+      "plugin_id": "soc-investigation-workbench",
+      "reason": "Reviewed shared Python handler with behavioral and distribution conformance.",
+      "source": "cops/operations/catalog.py",
+      "source_digest": "386e184e4d60e20d373b2fdb9409235294e67be4b601015abdf36cefa62586e6"
+    },
+    {
+      "behavioral_test": "tests/test_headless_operations.py",
+      "feature_id": "operation:cops.soc.next",
+      "headless_status": "implemented",
+      "kind": "operation",
+      "operation_ids": [
+        "cops.soc.next"
+      ],
+      "plugin_id": "soc-investigation-workbench",
+      "reason": "Reviewed shared Python handler with behavioral and distribution conformance.",
+      "source": "cops/operations/catalog.py",
+      "source_digest": "386e184e4d60e20d373b2fdb9409235294e67be4b601015abdf36cefa62586e6"
+    },
+    {
+      "behavioral_test": "tests/test_headless_operations.py",
+      "feature_id": "operation:cops.soc.handoff",
+      "headless_status": "implemented",
+      "kind": "operation",
+      "operation_ids": [
+        "cops.soc.handoff"
+      ],
+      "plugin_id": "soc-investigation-workbench",
+      "reason": "Reviewed shared Python handler with behavioral and distribution conformance.",
+      "source": "cops/operations/catalog.py",
+      "source_digest": "386e184e4d60e20d373b2fdb9409235294e67be4b601015abdf36cefa62586e6"
+    },
+    {
+      "behavioral_test": "tests/test_headless_operations.py",
+      "feature_id": "operation:cops.soc.import",
+      "headless_status": "implemented",
+      "kind": "operation",
+      "operation_ids": [
+        "cops.soc.import"
+      ],
+      "plugin_id": "soc-investigation-workbench",
+      "reason": "Reviewed shared Python handler with behavioral and distribution conformance.",
+      "source": "cops/operations/catalog.py",
+      "source_digest": "386e184e4d60e20d373b2fdb9409235294e67be4b601015abdf36cefa62586e6"
+    },
+    {
+      "behavioral_test": "tests/test_headless_operations.py",
+      "feature_id": "operation:cops.soc.revise",
+      "headless_status": "implemented",
+      "kind": "operation",
+      "operation_ids": [
+        "cops.soc.revise"
+      ],
+      "plugin_id": "soc-investigation-workbench",
+      "reason": "Reviewed shared Python handler with behavioral and distribution conformance.",
+      "source": "cops/operations/catalog.py",
+      "source_digest": "386e184e4d60e20d373b2fdb9409235294e67be4b601015abdf36cefa62586e6"
+    },
+    {
+      "behavioral_test": "tests/test_headless_operations.py",
+      "feature_id": "operation:cops.soc.report",
+      "headless_status": "implemented",
+      "kind": "operation",
+      "operation_ids": [
+        "cops.soc.report"
+      ],
+      "plugin_id": "soc-investigation-workbench",
+      "reason": "Reviewed shared Python handler with behavioral and distribution conformance.",
+      "source": "cops/operations/catalog.py",
+      "source_digest": "386e184e4d60e20d373b2fdb9409235294e67be4b601015abdf36cefa62586e6"
+    }
+  ],
+  "limitations": [
+    "Source inventory records unmapped skills and CLI steps explicitly; they are not implemented coverage.",
+    "No host-installation, live-provider, or synthetic-laboratory readiness promotion."
+  ],
+  "operations": [
+    {
+      "authorization": "supplied_data_only; no execution authority",
+      "cancellation": "cooperative; running pure transformation may finish; no external rollback",
+      "coverage": "pilot; not package-wide or live-provider acceptance",
+      "description": "Assess supplied offline artifacts: malware_static",
+      "effects": {
+        "durable_writes": false,
+        "executes_samples": false,
+        "network": false
+      },
+      "feature_id": "offline-malware_static",
+      "implementation": "artifact_assessment",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "artifacts": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "artifact_id": {
+                  "maxLength": 96,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "collected_at": {
+                  "maxLength": 32,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "collection_authorized": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "content": {},
+                "content_b64": {
+                  "maxLength": 6000000,
+                  "type": "string"
+                },
+                "custody": {
+                  "items": {
+                    "type": "object"
+                  },
+                  "maxItems": 128,
+                  "type": "array"
+                },
+                "framework": {
+                  "maxLength": 256,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "framework_version": {
+                  "maxLength": 96,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "kind": {
+                  "maxLength": 96,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "sha256": {
+                  "maxLength": 64,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "source_ref": {
+                  "maxLength": 256,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "artifact_id",
+                "kind"
+              ],
+              "type": "object"
+            },
+            "maxItems": 64,
+            "type": "array"
+          },
+          "as_of": {
+            "maxLength": 32,
+            "type": "string"
+          }
+        },
+        "required": [
+          "artifacts",
+          "as_of"
+        ],
+        "type": "object"
+      },
+      "limits": {
+        "input_bytes": 8388608,
+        "output_bytes": 8388608
+      },
+      "operation_id": "cops.assess.malware_static",
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "maxLength": 96,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "limitations": {
+            "items": {
+              "maxLength": 512,
+              "type": "string"
+            },
+            "maxItems": 8,
+            "type": "array"
+          },
+          "next_action": {
+            "maxLength": 512,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "operation_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "request_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "result": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "schema_version": {
+            "const": "cops.operation-result/v1"
+          },
+          "status": {
+            "enum": [
+              "succeeded",
+              "needs_input",
+              "blocked",
+              "partial",
+              "failed"
+            ]
+          }
+        },
+        "required": [
+          "schema_version",
+          "operation_id",
+          "request_id",
+          "status",
+          "result",
+          "error",
+          "next_action",
+          "limitations"
+        ],
+        "type": "object"
+      },
+      "owner": "soc-investigation-workbench",
+      "retry": "pure transformation; resubmit caller-owned input; no durable server session",
+      "schema_version": "cops.operation/v1",
+      "specification": "specs/headless-agent-interface.spec.md",
+      "version": "1.0.0"
+    },
+    {
+      "authorization": "supplied_data_only; no execution authority",
+      "cancellation": "cooperative; running pure transformation may finish; no external rollback",
+      "coverage": "pilot; not package-wide or live-provider acceptance",
+      "description": "SOC supplied-case validate; executes no queries",
+      "effects": {
+        "durable_writes": false,
+        "executes_samples": false,
+        "network": false
+      },
+      "feature_id": "soc-validate",
+      "implementation": "soc_validate",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "case": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "case"
+        ],
+        "type": "object"
+      },
+      "limits": {
+        "input_bytes": 8388608,
+        "output_bytes": 8388608
+      },
+      "operation_id": "cops.soc.validate",
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "maxLength": 96,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "limitations": {
+            "items": {
+              "maxLength": 512,
+              "type": "string"
+            },
+            "maxItems": 8,
+            "type": "array"
+          },
+          "next_action": {
+            "maxLength": 512,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "operation_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "request_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "result": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "schema_version": {
+            "const": "cops.operation-result/v1"
+          },
+          "status": {
+            "enum": [
+              "succeeded",
+              "needs_input",
+              "blocked",
+              "partial",
+              "failed"
+            ]
+          }
+        },
+        "required": [
+          "schema_version",
+          "operation_id",
+          "request_id",
+          "status",
+          "result",
+          "error",
+          "next_action",
+          "limitations"
+        ],
+        "type": "object"
+      },
+      "owner": "soc-investigation-workbench",
+      "retry": "pure transformation; resubmit caller-owned input; no durable server session",
+      "schema_version": "cops.operation/v1",
+      "specification": "specs/headless-agent-interface.spec.md",
+      "version": "1.0.0"
+    },
+    {
+      "authorization": "supplied_data_only; no execution authority",
+      "cancellation": "cooperative; running pure transformation may finish; no external rollback",
+      "coverage": "pilot; not package-wide or live-provider acceptance",
+      "description": "SOC supplied-case next; executes no queries",
+      "effects": {
+        "durable_writes": false,
+        "executes_samples": false,
+        "network": false
+      },
+      "feature_id": "soc-next",
+      "implementation": "soc_next",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "case": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "case"
+        ],
+        "type": "object"
+      },
+      "limits": {
+        "input_bytes": 8388608,
+        "output_bytes": 8388608
+      },
+      "operation_id": "cops.soc.next",
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "maxLength": 96,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "limitations": {
+            "items": {
+              "maxLength": 512,
+              "type": "string"
+            },
+            "maxItems": 8,
+            "type": "array"
+          },
+          "next_action": {
+            "maxLength": 512,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "operation_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "request_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "result": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "schema_version": {
+            "const": "cops.operation-result/v1"
+          },
+          "status": {
+            "enum": [
+              "succeeded",
+              "needs_input",
+              "blocked",
+              "partial",
+              "failed"
+            ]
+          }
+        },
+        "required": [
+          "schema_version",
+          "operation_id",
+          "request_id",
+          "status",
+          "result",
+          "error",
+          "next_action",
+          "limitations"
+        ],
+        "type": "object"
+      },
+      "owner": "soc-investigation-workbench",
+      "retry": "pure transformation; resubmit caller-owned input; no durable server session",
+      "schema_version": "cops.operation/v1",
+      "specification": "specs/headless-agent-interface.spec.md",
+      "version": "1.0.0"
+    },
+    {
+      "authorization": "supplied_data_only; no execution authority",
+      "cancellation": "cooperative; running pure transformation may finish; no external rollback",
+      "coverage": "pilot; not package-wide or live-provider acceptance",
+      "description": "SOC supplied-case handoff; executes no queries",
+      "effects": {
+        "durable_writes": false,
+        "executes_samples": false,
+        "network": false
+      },
+      "feature_id": "soc-handoff",
+      "implementation": "soc_handoff",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "case": {
+            "type": "object"
+          },
+          "step_id": {
+            "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "case",
+          "step_id"
+        ],
+        "type": "object"
+      },
+      "limits": {
+        "input_bytes": 8388608,
+        "output_bytes": 8388608
+      },
+      "operation_id": "cops.soc.handoff",
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "maxLength": 96,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "limitations": {
+            "items": {
+              "maxLength": 512,
+              "type": "string"
+            },
+            "maxItems": 8,
+            "type": "array"
+          },
+          "next_action": {
+            "maxLength": 512,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "operation_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "request_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "result": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "schema_version": {
+            "const": "cops.operation-result/v1"
+          },
+          "status": {
+            "enum": [
+              "succeeded",
+              "needs_input",
+              "blocked",
+              "partial",
+              "failed"
+            ]
+          }
+        },
+        "required": [
+          "schema_version",
+          "operation_id",
+          "request_id",
+          "status",
+          "result",
+          "error",
+          "next_action",
+          "limitations"
+        ],
+        "type": "object"
+      },
+      "owner": "soc-investigation-workbench",
+      "retry": "pure transformation; resubmit caller-owned input; no durable server session",
+      "schema_version": "cops.operation/v1",
+      "specification": "specs/headless-agent-interface.spec.md",
+      "version": "1.0.0"
+    },
+    {
+      "authorization": "supplied_data_only; no execution authority",
+      "cancellation": "cooperative; running pure transformation may finish; no external rollback",
+      "coverage": "pilot; not package-wide or live-provider acceptance",
+      "description": "SOC supplied-case import; executes no queries",
+      "effects": {
+        "durable_writes": false,
+        "executes_samples": false,
+        "network": false
+      },
+      "feature_id": "soc-import",
+      "implementation": "soc_import",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "case": {
+            "type": "object"
+          },
+          "observation": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "case",
+          "observation"
+        ],
+        "type": "object"
+      },
+      "limits": {
+        "input_bytes": 8388608,
+        "output_bytes": 8388608
+      },
+      "operation_id": "cops.soc.import",
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "maxLength": 96,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "limitations": {
+            "items": {
+              "maxLength": 512,
+              "type": "string"
+            },
+            "maxItems": 8,
+            "type": "array"
+          },
+          "next_action": {
+            "maxLength": 512,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "operation_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "request_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "result": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "schema_version": {
+            "const": "cops.operation-result/v1"
+          },
+          "status": {
+            "enum": [
+              "succeeded",
+              "needs_input",
+              "blocked",
+              "partial",
+              "failed"
+            ]
+          }
+        },
+        "required": [
+          "schema_version",
+          "operation_id",
+          "request_id",
+          "status",
+          "result",
+          "error",
+          "next_action",
+          "limitations"
+        ],
+        "type": "object"
+      },
+      "owner": "soc-investigation-workbench",
+      "retry": "pure transformation; resubmit caller-owned input; no durable server session",
+      "schema_version": "cops.operation/v1",
+      "specification": "specs/headless-agent-interface.spec.md",
+      "version": "1.0.0"
+    },
+    {
+      "authorization": "supplied_data_only; no execution authority",
+      "cancellation": "cooperative; running pure transformation may finish; no external rollback",
+      "coverage": "pilot; not package-wide or live-provider acceptance",
+      "description": "SOC supplied-case revise; executes no queries",
+      "effects": {
+        "durable_writes": false,
+        "executes_samples": false,
+        "network": false
+      },
+      "feature_id": "soc-revise",
+      "implementation": "soc_revise",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "case": {
+            "type": "object"
+          },
+          "steps": {
+            "items": {
+              "type": "object"
+            },
+            "maxItems": 1000,
+            "type": "array"
+          }
+        },
+        "required": [
+          "case",
+          "steps"
+        ],
+        "type": "object"
+      },
+      "limits": {
+        "input_bytes": 8388608,
+        "output_bytes": 8388608
+      },
+      "operation_id": "cops.soc.revise",
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "maxLength": 96,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "limitations": {
+            "items": {
+              "maxLength": 512,
+              "type": "string"
+            },
+            "maxItems": 8,
+            "type": "array"
+          },
+          "next_action": {
+            "maxLength": 512,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "operation_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "request_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "result": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "schema_version": {
+            "const": "cops.operation-result/v1"
+          },
+          "status": {
+            "enum": [
+              "succeeded",
+              "needs_input",
+              "blocked",
+              "partial",
+              "failed"
+            ]
+          }
+        },
+        "required": [
+          "schema_version",
+          "operation_id",
+          "request_id",
+          "status",
+          "result",
+          "error",
+          "next_action",
+          "limitations"
+        ],
+        "type": "object"
+      },
+      "owner": "soc-investigation-workbench",
+      "retry": "pure transformation; resubmit caller-owned input; no durable server session",
+      "schema_version": "cops.operation/v1",
+      "specification": "specs/headless-agent-interface.spec.md",
+      "version": "1.0.0"
+    },
+    {
+      "authorization": "supplied_data_only; no execution authority",
+      "cancellation": "cooperative; running pure transformation may finish; no external rollback",
+      "coverage": "pilot; not package-wide or live-provider acceptance",
+      "description": "SOC supplied-case report; executes no queries",
+      "effects": {
+        "durable_writes": false,
+        "executes_samples": false,
+        "network": false
+      },
+      "feature_id": "soc-report",
+      "implementation": "soc_report",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "case": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "case"
+        ],
+        "type": "object"
+      },
+      "limits": {
+        "input_bytes": 8388608,
+        "output_bytes": 8388608
+      },
+      "operation_id": "cops.soc.report",
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "maxLength": 96,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "limitations": {
+            "items": {
+              "maxLength": 512,
+              "type": "string"
+            },
+            "maxItems": 8,
+            "type": "array"
+          },
+          "next_action": {
+            "maxLength": 512,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "operation_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "request_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "result": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "schema_version": {
+            "const": "cops.operation-result/v1"
+          },
+          "status": {
+            "enum": [
+              "succeeded",
+              "needs_input",
+              "blocked",
+              "partial",
+              "failed"
+            ]
+          }
+        },
+        "required": [
+          "schema_version",
+          "operation_id",
+          "request_id",
+          "status",
+          "result",
+          "error",
+          "next_action",
+          "limitations"
+        ],
+        "type": "object"
+      },
+      "owner": "soc-investigation-workbench",
+      "retry": "pure transformation; resubmit caller-owned input; no durable server session",
+      "schema_version": "cops.operation/v1",
+      "specification": "specs/headless-agent-interface.spec.md",
+      "version": "1.0.0"
+    }
+  ],
+  "package_feature_complete": false,
+  "plugin_id": "soc-investigation-workbench",
+  "runtime": "separate COPS headless bundle; not automatically included by plugin installation",
+  "schema_version": "cops.package-operations/v1",
+  "skill_references": [
+    "plugins/detection-hunting/soc-investigation-workbench/skills/soc-investigation-planning/SKILL.md",
+    "plugins/detection-hunting/soc-investigation-workbench/skills/soc-investigation-review/SKILL.md"
+  ]
+}

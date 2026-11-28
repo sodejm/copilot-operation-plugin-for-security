@@ -40,6 +40,7 @@ def main() -> int:
         return 1
     checks = [
         validate_python(),
+        run([sys.executable, "scripts/check_headless_operations.py"]),
         run([sys.executable, "scripts/agent/validate_contract.py"]),
         run([sys.executable, "scripts/agent/validate_docs.py"]),
         run([sys.executable, "scripts/agent/sync_adapters.py", "--check"]),

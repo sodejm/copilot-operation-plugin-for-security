@@ -1,5 +1,16 @@
 # Security Model & Trust Boundaries
 
+## Headless operations and informal handoffs
+
+The CLI and local stdio MCP share a schema-validated allowlist for offline
+defensive work. Supplied content remains inert. Only the operator selects the
+installation and private state locations. Durable submission and resume enforce
+the same allowlist and verify installed implementation bindings before claiming a
+run. A local lease fences concurrent state updates, and a cancellation request
+suppresses subsequent result publication. Classify retained inputs, results and
+peer responses before use. Binding a response to a scope and installed skill
+provides correlation. [Headless operations](HEADLESS_AGENT_WORKFLOWS.md)
+
 ## API import and persistence
 
 Imported API documents are untrusted evidence. Hash exact source bytes and reject

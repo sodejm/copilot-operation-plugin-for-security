@@ -1,0 +1,296 @@
+{
+  "coverage": "pilot_mapped",
+  "feature_inventory": {
+    "by_status": {
+      "blocked_by_prerequisite": 0,
+      "externally_delegated": 1,
+      "implemented": 1,
+      "unsupported": 4
+    },
+    "total": 6,
+    "unresolved_cli_declarations": 0
+  },
+  "features": [
+    {
+      "feature_id": "skill:plugins/governance-compliance/compliance-posture-workbench/skills/compliance-posture-workbench/SKILL.md",
+      "headless_status": "externally_delegated",
+      "kind": "skill",
+      "operation_ids": [],
+      "plugin_id": "compliance-posture-workbench",
+      "reason": "The harness interprets this skill; existence is not executable tool coverage.",
+      "source": "plugins/governance-compliance/compliance-posture-workbench/skills/compliance-posture-workbench/SKILL.md",
+      "source_digest": "b49f7e94c15d7ccd3dd7991eccec8ddee00246693ff9f0cfc81c498c58ef77cc"
+    },
+    {
+      "command": "entrypoint",
+      "feature_id": "cli:plugins/governance-compliance/compliance-posture-workbench/scripts/assess.py:1",
+      "headless_status": "unsupported",
+      "kind": "cli",
+      "line": 1,
+      "operation_ids": [],
+      "plugin_id": "compliance-posture-workbench",
+      "reason": "No reviewed structured binding for this public CLI entrypoint.",
+      "source": "plugins/governance-compliance/compliance-posture-workbench/scripts/assess.py",
+      "source_digest": "053f4ab9f8b525f2413693ce30e90962df4e8f931a5bb78738b81e97da142c89"
+    },
+    {
+      "command": "entrypoint",
+      "feature_id": "cli:plugins/governance-compliance/compliance-posture-workbench/scripts/demo.py:1",
+      "headless_status": "unsupported",
+      "kind": "cli",
+      "line": 1,
+      "operation_ids": [],
+      "plugin_id": "compliance-posture-workbench",
+      "reason": "No reviewed structured binding for this public CLI entrypoint.",
+      "source": "plugins/governance-compliance/compliance-posture-workbench/scripts/demo.py",
+      "source_digest": "eff163c798017ecedd8bf728ab7c634db7c37c1423cbc4f9efccfd08f8b426c4"
+    },
+    {
+      "command": "entrypoint",
+      "feature_id": "cli:plugins/governance-compliance/compliance-posture-workbench/scripts/report.py:1",
+      "headless_status": "unsupported",
+      "kind": "cli",
+      "line": 1,
+      "operation_ids": [],
+      "plugin_id": "compliance-posture-workbench",
+      "reason": "No reviewed structured binding for this public CLI entrypoint.",
+      "source": "plugins/governance-compliance/compliance-posture-workbench/scripts/report.py",
+      "source_digest": "f0b6f55c25695de9db49d1b92f4db135d441812737168810f77cc515cf381c03"
+    },
+    {
+      "command": "entrypoint",
+      "feature_id": "cli:plugins/governance-compliance/compliance-posture-workbench/scripts/validate_package.py:1",
+      "headless_status": "unsupported",
+      "kind": "cli",
+      "line": 1,
+      "operation_ids": [],
+      "plugin_id": "compliance-posture-workbench",
+      "reason": "No reviewed structured binding for this public CLI entrypoint.",
+      "source": "plugins/governance-compliance/compliance-posture-workbench/scripts/validate_package.py",
+      "source_digest": "69f139d72eda96f8fcefb7b4e8ce858802e03a90566ee4d7299357e30957ed20"
+    },
+    {
+      "behavioral_test": "tests/test_headless_operations.py",
+      "feature_id": "operation:cops.assess.compliance_evidence",
+      "headless_status": "implemented",
+      "kind": "operation",
+      "operation_ids": [
+        "cops.assess.compliance_evidence"
+      ],
+      "plugin_id": "compliance-posture-workbench",
+      "reason": "Reviewed shared Python handler with behavioral and distribution conformance.",
+      "source": "cops/operations/catalog.py",
+      "source_digest": "386e184e4d60e20d373b2fdb9409235294e67be4b601015abdf36cefa62586e6"
+    }
+  ],
+  "limitations": [
+    "Source inventory records unmapped skills and CLI steps explicitly; they are not implemented coverage.",
+    "No host-installation, live-provider, or synthetic-laboratory readiness promotion."
+  ],
+  "operations": [
+    {
+      "authorization": "supplied_data_only; no execution authority",
+      "cancellation": "cooperative; running pure transformation may finish; no external rollback",
+      "coverage": "pilot; not package-wide or live-provider acceptance",
+      "description": "Assess supplied offline artifacts: compliance_evidence",
+      "effects": {
+        "durable_writes": false,
+        "executes_samples": false,
+        "network": false
+      },
+      "feature_id": "offline-compliance_evidence",
+      "implementation": "artifact_assessment",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "artifacts": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "artifact_id": {
+                  "maxLength": 96,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "collected_at": {
+                  "maxLength": 32,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "collection_authorized": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "content": {},
+                "content_b64": {
+                  "maxLength": 6000000,
+                  "type": "string"
+                },
+                "custody": {
+                  "items": {
+                    "type": "object"
+                  },
+                  "maxItems": 128,
+                  "type": "array"
+                },
+                "framework": {
+                  "maxLength": 256,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "framework_version": {
+                  "maxLength": 96,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "kind": {
+                  "maxLength": 96,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "sha256": {
+                  "maxLength": 64,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "source_ref": {
+                  "maxLength": 256,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "artifact_id",
+                "kind"
+              ],
+              "type": "object"
+            },
+            "maxItems": 64,
+            "type": "array"
+          },
+          "as_of": {
+            "maxLength": 32,
+            "type": "string"
+          }
+        },
+        "required": [
+          "artifacts",
+          "as_of"
+        ],
+        "type": "object"
+      },
+      "limits": {
+        "input_bytes": 8388608,
+        "output_bytes": 8388608
+      },
+      "operation_id": "cops.assess.compliance_evidence",
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "maxLength": 96,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "limitations": {
+            "items": {
+              "maxLength": 512,
+              "type": "string"
+            },
+            "maxItems": 8,
+            "type": "array"
+          },
+          "next_action": {
+            "maxLength": 512,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "operation_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "request_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "result": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "schema_version": {
+            "const": "cops.operation-result/v1"
+          },
+          "status": {
+            "enum": [
+              "succeeded",
+              "needs_input",
+              "blocked",
+              "partial",
+              "failed"
+            ]
+          }
+        },
+        "required": [
+          "schema_version",
+          "operation_id",
+          "request_id",
+          "status",
+          "result",
+          "error",
+          "next_action",
+          "limitations"
+        ],
+        "type": "object"
+      },
+      "owner": "compliance-posture-workbench",
+      "retry": "pure transformation; resubmit caller-owned input; no durable server session",
+      "schema_version": "cops.operation/v1",
+      "specification": "specs/headless-agent-interface.spec.md",
+      "version": "1.0.0"
+    }
+  ],
+  "package_feature_complete": false,
+  "plugin_id": "compliance-posture-workbench",
+  "runtime": "separate COPS headless bundle; not automatically included by plugin installation",
+  "schema_version": "cops.package-operations/v1",
+  "skill_references": [
+    "plugins/governance-compliance/compliance-posture-workbench/skills/compliance-posture-workbench/SKILL.md"
+  ]
+}

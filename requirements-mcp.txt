@@ -1,0 +1,2 @@
+# Optional local adapter and conformance dependency; not needed by the core CLI.
+mcp==1.30.0

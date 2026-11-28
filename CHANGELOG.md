@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- Add an optional private local ledger for offline runs with deduplicated
+  submission, resumable attempts and cancellation. Add skill-bound peer
+  response records and explicit unsupported-feature inventory entries.
+
+- Add a shared headless operation service, JSON CLI and optional local stdio MCP
+  adapter for existing offline assessments and SOC case operations. Support
+  task-only exploratory requests and informal notes without formal engagement
+  setup; escalation remains a proposal with no execution authority. Add reviewed
+  standalone export, pilot feature mappings, and SDK/export conformance gates.
+  Package-wide completion, live integration and remote hosting remain unclaimed.
+
 - Collect bounded local Windows service DACL configuration evidence without
   modifying services. Add an actual SCM vulnerable/corrected/denied acceptance
   fixture with verified cleanup after success and failure, gated on Windows CI.

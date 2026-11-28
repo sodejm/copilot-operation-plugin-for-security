@@ -1,0 +1,4329 @@
+{
+  "operations": [
+    {
+      "authorization": "supplied_data_only; no execution authority",
+      "cancellation": "cooperative; running pure transformation may finish; no external rollback",
+      "coverage": "pilot; not package-wide or live-provider acceptance",
+      "description": "Assess supplied offline artifacts: application_security",
+      "effects": {
+        "durable_writes": false,
+        "executes_samples": false,
+        "network": false
+      },
+      "feature_id": "offline-application_security",
+      "implementation": "artifact_assessment",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "artifacts": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "artifact_id": {
+                  "maxLength": 96,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "collected_at": {
+                  "maxLength": 32,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "collection_authorized": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "content": {},
+                "content_b64": {
+                  "maxLength": 6000000,
+                  "type": "string"
+                },
+                "custody": {
+                  "items": {
+                    "type": "object"
+                  },
+                  "maxItems": 128,
+                  "type": "array"
+                },
+                "framework": {
+                  "maxLength": 256,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "framework_version": {
+                  "maxLength": 96,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "kind": {
+                  "maxLength": 96,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "sha256": {
+                  "maxLength": 64,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "source_ref": {
+                  "maxLength": 256,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "artifact_id",
+                "kind"
+              ],
+              "type": "object"
+            },
+            "maxItems": 64,
+            "type": "array"
+          },
+          "as_of": {
+            "maxLength": 32,
+            "type": "string"
+          }
+        },
+        "required": [
+          "artifacts",
+          "as_of"
+        ],
+        "type": "object"
+      },
+      "limits": {
+        "input_bytes": 8388608,
+        "output_bytes": 8388608
+      },
+      "operation_id": "cops.assess.application_security",
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "maxLength": 96,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "limitations": {
+            "items": {
+              "maxLength": 512,
+              "type": "string"
+            },
+            "maxItems": 8,
+            "type": "array"
+          },
+          "next_action": {
+            "maxLength": 512,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "operation_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "request_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "result": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "schema_version": {
+            "const": "cops.operation-result/v1"
+          },
+          "status": {
+            "enum": [
+              "succeeded",
+              "needs_input",
+              "blocked",
+              "partial",
+              "failed"
+            ]
+          }
+        },
+        "required": [
+          "schema_version",
+          "operation_id",
+          "request_id",
+          "status",
+          "result",
+          "error",
+          "next_action",
+          "limitations"
+        ],
+        "type": "object"
+      },
+      "owner": "web-api-assessment-workbench",
+      "retry": "pure transformation; resubmit caller-owned input; no durable server session",
+      "schema_version": "cops.operation/v1",
+      "specification": "specs/headless-agent-interface.spec.md",
+      "version": "1.0.0"
+    },
+    {
+      "authorization": "supplied_data_only; no execution authority",
+      "cancellation": "cooperative; running pure transformation may finish; no external rollback",
+      "coverage": "pilot; not package-wide or live-provider acceptance",
+      "description": "Assess supplied offline artifacts: foundry_security",
+      "effects": {
+        "durable_writes": false,
+        "executes_samples": false,
+        "network": false
+      },
+      "feature_id": "offline-foundry_security",
+      "implementation": "artifact_assessment",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "artifacts": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "artifact_id": {
+                  "maxLength": 96,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "collected_at": {
+                  "maxLength": 32,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "collection_authorized": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "content": {},
+                "content_b64": {
+                  "maxLength": 6000000,
+                  "type": "string"
+                },
+                "custody": {
+                  "items": {
+                    "type": "object"
+                  },
+                  "maxItems": 128,
+                  "type": "array"
+                },
+                "framework": {
+                  "maxLength": 256,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "framework_version": {
+                  "maxLength": 96,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "kind": {
+                  "maxLength": 96,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "sha256": {
+                  "maxLength": 64,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "source_ref": {
+                  "maxLength": 256,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "artifact_id",
+                "kind"
+              ],
+              "type": "object"
+            },
+            "maxItems": 64,
+            "type": "array"
+          },
+          "as_of": {
+            "maxLength": 32,
+            "type": "string"
+          }
+        },
+        "required": [
+          "artifacts",
+          "as_of"
+        ],
+        "type": "object"
+      },
+      "limits": {
+        "input_bytes": 8388608,
+        "output_bytes": 8388608
+      },
+      "operation_id": "cops.assess.foundry_security",
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "maxLength": 96,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "limitations": {
+            "items": {
+              "maxLength": 512,
+              "type": "string"
+            },
+            "maxItems": 8,
+            "type": "array"
+          },
+          "next_action": {
+            "maxLength": 512,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "operation_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "request_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "result": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "schema_version": {
+            "const": "cops.operation-result/v1"
+          },
+          "status": {
+            "enum": [
+              "succeeded",
+              "needs_input",
+              "blocked",
+              "partial",
+              "failed"
+            ]
+          }
+        },
+        "required": [
+          "schema_version",
+          "operation_id",
+          "request_id",
+          "status",
+          "result",
+          "error",
+          "next_action",
+          "limitations"
+        ],
+        "type": "object"
+      },
+      "owner": "foundry-agent-harness",
+      "retry": "pure transformation; resubmit caller-owned input; no durable server session",
+      "schema_version": "cops.operation/v1",
+      "specification": "specs/headless-agent-interface.spec.md",
+      "version": "1.0.0"
+    },
+    {
+      "authorization": "supplied_data_only; no execution authority",
+      "cancellation": "cooperative; running pure transformation may finish; no external rollback",
+      "coverage": "pilot; not package-wide or live-provider acceptance",
+      "description": "Assess supplied offline artifacts: compliance_evidence",
+      "effects": {
+        "durable_writes": false,
+        "executes_samples": false,
+        "network": false
+      },
+      "feature_id": "offline-compliance_evidence",
+      "implementation": "artifact_assessment",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "artifacts": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "artifact_id": {
+                  "maxLength": 96,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "collected_at": {
+                  "maxLength": 32,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "collection_authorized": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "content": {},
+                "content_b64": {
+                  "maxLength": 6000000,
+                  "type": "string"
+                },
+                "custody": {
+                  "items": {
+                    "type": "object"
+                  },
+                  "maxItems": 128,
+                  "type": "array"
+                },
+                "framework": {
+                  "maxLength": 256,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "framework_version": {
+                  "maxLength": 96,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "kind": {
+                  "maxLength": 96,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "sha256": {
+                  "maxLength": 64,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "source_ref": {
+                  "maxLength": 256,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "artifact_id",
+                "kind"
+              ],
+              "type": "object"
+            },
+            "maxItems": 64,
+            "type": "array"
+          },
+          "as_of": {
+            "maxLength": 32,
+            "type": "string"
+          }
+        },
+        "required": [
+          "artifacts",
+          "as_of"
+        ],
+        "type": "object"
+      },
+      "limits": {
+        "input_bytes": 8388608,
+        "output_bytes": 8388608
+      },
+      "operation_id": "cops.assess.compliance_evidence",
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "maxLength": 96,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "limitations": {
+            "items": {
+              "maxLength": 512,
+              "type": "string"
+            },
+            "maxItems": 8,
+            "type": "array"
+          },
+          "next_action": {
+            "maxLength": 512,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "operation_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "request_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "result": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "schema_version": {
+            "const": "cops.operation-result/v1"
+          },
+          "status": {
+            "enum": [
+              "succeeded",
+              "needs_input",
+              "blocked",
+              "partial",
+              "failed"
+            ]
+          }
+        },
+        "required": [
+          "schema_version",
+          "operation_id",
+          "request_id",
+          "status",
+          "result",
+          "error",
+          "next_action",
+          "limitations"
+        ],
+        "type": "object"
+      },
+      "owner": "compliance-posture-workbench",
+      "retry": "pure transformation; resubmit caller-owned input; no durable server session",
+      "schema_version": "cops.operation/v1",
+      "specification": "specs/headless-agent-interface.spec.md",
+      "version": "1.0.0"
+    },
+    {
+      "authorization": "supplied_data_only; no execution authority",
+      "cancellation": "cooperative; running pure transformation may finish; no external rollback",
+      "coverage": "pilot; not package-wide or live-provider acceptance",
+      "description": "Assess supplied offline artifacts: forensic_evidence",
+      "effects": {
+        "durable_writes": false,
+        "executes_samples": false,
+        "network": false
+      },
+      "feature_id": "offline-forensic_evidence",
+      "implementation": "artifact_assessment",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "artifacts": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "artifact_id": {
+                  "maxLength": 96,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "collected_at": {
+                  "maxLength": 32,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "collection_authorized": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "content": {},
+                "content_b64": {
+                  "maxLength": 6000000,
+                  "type": "string"
+                },
+                "custody": {
+                  "items": {
+                    "type": "object"
+                  },
+                  "maxItems": 128,
+                  "type": "array"
+                },
+                "framework": {
+                  "maxLength": 256,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "framework_version": {
+                  "maxLength": 96,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "kind": {
+                  "maxLength": 96,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "sha256": {
+                  "maxLength": 64,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "source_ref": {
+                  "maxLength": 256,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "artifact_id",
+                "kind"
+              ],
+              "type": "object"
+            },
+            "maxItems": 64,
+            "type": "array"
+          },
+          "as_of": {
+            "maxLength": 32,
+            "type": "string"
+          }
+        },
+        "required": [
+          "artifacts",
+          "as_of"
+        ],
+        "type": "object"
+      },
+      "limits": {
+        "input_bytes": 8388608,
+        "output_bytes": 8388608
+      },
+      "operation_id": "cops.assess.forensic_evidence",
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "maxLength": 96,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "limitations": {
+            "items": {
+              "maxLength": 512,
+              "type": "string"
+            },
+            "maxItems": 8,
+            "type": "array"
+          },
+          "next_action": {
+            "maxLength": 512,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "operation_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "request_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "result": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "schema_version": {
+            "const": "cops.operation-result/v1"
+          },
+          "status": {
+            "enum": [
+              "succeeded",
+              "needs_input",
+              "blocked",
+              "partial",
+              "failed"
+            ]
+          }
+        },
+        "required": [
+          "schema_version",
+          "operation_id",
+          "request_id",
+          "status",
+          "result",
+          "error",
+          "next_action",
+          "limitations"
+        ],
+        "type": "object"
+      },
+      "owner": "incident-response-sandbox",
+      "retry": "pure transformation; resubmit caller-owned input; no durable server session",
+      "schema_version": "cops.operation/v1",
+      "specification": "specs/headless-agent-interface.spec.md",
+      "version": "1.0.0"
+    },
+    {
+      "authorization": "supplied_data_only; no execution authority",
+      "cancellation": "cooperative; running pure transformation may finish; no external rollback",
+      "coverage": "pilot; not package-wide or live-provider acceptance",
+      "description": "Assess supplied offline artifacts: malware_static",
+      "effects": {
+        "durable_writes": false,
+        "executes_samples": false,
+        "network": false
+      },
+      "feature_id": "offline-malware_static",
+      "implementation": "artifact_assessment",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "artifacts": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "artifact_id": {
+                  "maxLength": 96,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "collected_at": {
+                  "maxLength": 32,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "collection_authorized": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "content": {},
+                "content_b64": {
+                  "maxLength": 6000000,
+                  "type": "string"
+                },
+                "custody": {
+                  "items": {
+                    "type": "object"
+                  },
+                  "maxItems": 128,
+                  "type": "array"
+                },
+                "framework": {
+                  "maxLength": 256,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "framework_version": {
+                  "maxLength": 96,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "kind": {
+                  "maxLength": 96,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "sha256": {
+                  "maxLength": 64,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "source_ref": {
+                  "maxLength": 256,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "artifact_id",
+                "kind"
+              ],
+              "type": "object"
+            },
+            "maxItems": 64,
+            "type": "array"
+          },
+          "as_of": {
+            "maxLength": 32,
+            "type": "string"
+          }
+        },
+        "required": [
+          "artifacts",
+          "as_of"
+        ],
+        "type": "object"
+      },
+      "limits": {
+        "input_bytes": 8388608,
+        "output_bytes": 8388608
+      },
+      "operation_id": "cops.assess.malware_static",
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "maxLength": 96,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "limitations": {
+            "items": {
+              "maxLength": 512,
+              "type": "string"
+            },
+            "maxItems": 8,
+            "type": "array"
+          },
+          "next_action": {
+            "maxLength": 512,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "operation_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "request_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "result": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "schema_version": {
+            "const": "cops.operation-result/v1"
+          },
+          "status": {
+            "enum": [
+              "succeeded",
+              "needs_input",
+              "blocked",
+              "partial",
+              "failed"
+            ]
+          }
+        },
+        "required": [
+          "schema_version",
+          "operation_id",
+          "request_id",
+          "status",
+          "result",
+          "error",
+          "next_action",
+          "limitations"
+        ],
+        "type": "object"
+      },
+      "owner": "soc-investigation-workbench",
+      "retry": "pure transformation; resubmit caller-owned input; no durable server session",
+      "schema_version": "cops.operation/v1",
+      "specification": "specs/headless-agent-interface.spec.md",
+      "version": "1.0.0"
+    },
+    {
+      "authorization": "supplied_data_only; no execution authority",
+      "cancellation": "cooperative; running pure transformation may finish; no external rollback",
+      "coverage": "pilot; not package-wide or live-provider acceptance",
+      "description": "Assess supplied offline artifacts: cloud_configuration",
+      "effects": {
+        "durable_writes": false,
+        "executes_samples": false,
+        "network": false
+      },
+      "feature_id": "offline-cloud_configuration",
+      "implementation": "artifact_assessment",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "artifacts": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "artifact_id": {
+                  "maxLength": 96,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "collected_at": {
+                  "maxLength": 32,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "collection_authorized": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "content": {},
+                "content_b64": {
+                  "maxLength": 6000000,
+                  "type": "string"
+                },
+                "custody": {
+                  "items": {
+                    "type": "object"
+                  },
+                  "maxItems": 128,
+                  "type": "array"
+                },
+                "framework": {
+                  "maxLength": 256,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "framework_version": {
+                  "maxLength": 96,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "kind": {
+                  "maxLength": 96,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "sha256": {
+                  "maxLength": 64,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "source_ref": {
+                  "maxLength": 256,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "artifact_id",
+                "kind"
+              ],
+              "type": "object"
+            },
+            "maxItems": 64,
+            "type": "array"
+          },
+          "as_of": {
+            "maxLength": 32,
+            "type": "string"
+          }
+        },
+        "required": [
+          "artifacts",
+          "as_of"
+        ],
+        "type": "object"
+      },
+      "limits": {
+        "input_bytes": 8388608,
+        "output_bytes": 8388608
+      },
+      "operation_id": "cops.assess.cloud_configuration",
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "maxLength": 96,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "limitations": {
+            "items": {
+              "maxLength": 512,
+              "type": "string"
+            },
+            "maxItems": 8,
+            "type": "array"
+          },
+          "next_action": {
+            "maxLength": 512,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "operation_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "request_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "result": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "schema_version": {
+            "const": "cops.operation-result/v1"
+          },
+          "status": {
+            "enum": [
+              "succeeded",
+              "needs_input",
+              "blocked",
+              "partial",
+              "failed"
+            ]
+          }
+        },
+        "required": [
+          "schema_version",
+          "operation_id",
+          "request_id",
+          "status",
+          "result",
+          "error",
+          "next_action",
+          "limitations"
+        ],
+        "type": "object"
+      },
+      "owner": "cloud-posture-workbench",
+      "retry": "pure transformation; resubmit caller-owned input; no durable server session",
+      "schema_version": "cops.operation/v1",
+      "specification": "specs/headless-agent-interface.spec.md",
+      "version": "1.0.0"
+    },
+    {
+      "authorization": "supplied_data_only; no execution authority",
+      "cancellation": "cooperative; running pure transformation may finish; no external rollback",
+      "coverage": "pilot; not package-wide or live-provider acceptance",
+      "description": "Assess supplied offline artifacts: supply_chain",
+      "effects": {
+        "durable_writes": false,
+        "executes_samples": false,
+        "network": false
+      },
+      "feature_id": "offline-supply_chain",
+      "implementation": "artifact_assessment",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "artifacts": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "artifact_id": {
+                  "maxLength": 96,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "collected_at": {
+                  "maxLength": 32,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "collection_authorized": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "content": {},
+                "content_b64": {
+                  "maxLength": 6000000,
+                  "type": "string"
+                },
+                "custody": {
+                  "items": {
+                    "type": "object"
+                  },
+                  "maxItems": 128,
+                  "type": "array"
+                },
+                "framework": {
+                  "maxLength": 256,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "framework_version": {
+                  "maxLength": 96,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "kind": {
+                  "maxLength": 96,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "sha256": {
+                  "maxLength": 64,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "source_ref": {
+                  "maxLength": 256,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "artifact_id",
+                "kind"
+              ],
+              "type": "object"
+            },
+            "maxItems": 64,
+            "type": "array"
+          },
+          "as_of": {
+            "maxLength": 32,
+            "type": "string"
+          }
+        },
+        "required": [
+          "artifacts",
+          "as_of"
+        ],
+        "type": "object"
+      },
+      "limits": {
+        "input_bytes": 8388608,
+        "output_bytes": 8388608
+      },
+      "operation_id": "cops.assess.supply_chain",
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "maxLength": 96,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "limitations": {
+            "items": {
+              "maxLength": 512,
+              "type": "string"
+            },
+            "maxItems": 8,
+            "type": "array"
+          },
+          "next_action": {
+            "maxLength": 512,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "operation_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "request_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "result": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "schema_version": {
+            "const": "cops.operation-result/v1"
+          },
+          "status": {
+            "enum": [
+              "succeeded",
+              "needs_input",
+              "blocked",
+              "partial",
+              "failed"
+            ]
+          }
+        },
+        "required": [
+          "schema_version",
+          "operation_id",
+          "request_id",
+          "status",
+          "result",
+          "error",
+          "next_action",
+          "limitations"
+        ],
+        "type": "object"
+      },
+      "owner": "supply-chain-cicd-workbench",
+      "retry": "pure transformation; resubmit caller-owned input; no durable server session",
+      "schema_version": "cops.operation/v1",
+      "specification": "specs/headless-agent-interface.spec.md",
+      "version": "1.0.0"
+    },
+    {
+      "authorization": "supplied_data_only; no execution authority",
+      "cancellation": "cooperative; running pure transformation may finish; no external rollback",
+      "coverage": "pilot; not package-wide or live-provider acceptance",
+      "description": "Assess supplied offline artifacts: credential_history",
+      "effects": {
+        "durable_writes": false,
+        "executes_samples": false,
+        "network": false
+      },
+      "feature_id": "offline-credential_history",
+      "implementation": "artifact_assessment",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "artifacts": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "artifact_id": {
+                  "maxLength": 96,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "collected_at": {
+                  "maxLength": 32,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "collection_authorized": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "content": {},
+                "content_b64": {
+                  "maxLength": 6000000,
+                  "type": "string"
+                },
+                "custody": {
+                  "items": {
+                    "type": "object"
+                  },
+                  "maxItems": 128,
+                  "type": "array"
+                },
+                "framework": {
+                  "maxLength": 256,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "framework_version": {
+                  "maxLength": 96,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "kind": {
+                  "maxLength": 96,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "sha256": {
+                  "maxLength": 64,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "source_ref": {
+                  "maxLength": 256,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "artifact_id",
+                "kind"
+              ],
+              "type": "object"
+            },
+            "maxItems": 64,
+            "type": "array"
+          },
+          "as_of": {
+            "maxLength": 32,
+            "type": "string"
+          }
+        },
+        "required": [
+          "artifacts",
+          "as_of"
+        ],
+        "type": "object"
+      },
+      "limits": {
+        "input_bytes": 8388608,
+        "output_bytes": 8388608
+      },
+      "operation_id": "cops.assess.credential_history",
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "maxLength": 96,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "limitations": {
+            "items": {
+              "maxLength": 512,
+              "type": "string"
+            },
+            "maxItems": 8,
+            "type": "array"
+          },
+          "next_action": {
+            "maxLength": 512,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "operation_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "request_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "result": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "schema_version": {
+            "const": "cops.operation-result/v1"
+          },
+          "status": {
+            "enum": [
+              "succeeded",
+              "needs_input",
+              "blocked",
+              "partial",
+              "failed"
+            ]
+          }
+        },
+        "required": [
+          "schema_version",
+          "operation_id",
+          "request_id",
+          "status",
+          "result",
+          "error",
+          "next_action",
+          "limitations"
+        ],
+        "type": "object"
+      },
+      "owner": "secrets-remediation-workbench",
+      "retry": "pure transformation; resubmit caller-owned input; no durable server session",
+      "schema_version": "cops.operation/v1",
+      "specification": "specs/headless-agent-interface.spec.md",
+      "version": "1.0.0"
+    },
+    {
+      "authorization": "supplied_data_only; no execution authority",
+      "cancellation": "cooperative; running pure transformation may finish; no external rollback",
+      "coverage": "pilot; not package-wide or live-provider acceptance",
+      "description": "Assess supplied offline artifacts: network_segmentation",
+      "effects": {
+        "durable_writes": false,
+        "executes_samples": false,
+        "network": false
+      },
+      "feature_id": "offline-network_segmentation",
+      "implementation": "artifact_assessment",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "artifacts": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "artifact_id": {
+                  "maxLength": 96,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "collected_at": {
+                  "maxLength": 32,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "collection_authorized": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "content": {},
+                "content_b64": {
+                  "maxLength": 6000000,
+                  "type": "string"
+                },
+                "custody": {
+                  "items": {
+                    "type": "object"
+                  },
+                  "maxItems": 128,
+                  "type": "array"
+                },
+                "framework": {
+                  "maxLength": 256,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "framework_version": {
+                  "maxLength": 96,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "kind": {
+                  "maxLength": 96,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "sha256": {
+                  "maxLength": 64,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "source_ref": {
+                  "maxLength": 256,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "artifact_id",
+                "kind"
+              ],
+              "type": "object"
+            },
+            "maxItems": 64,
+            "type": "array"
+          },
+          "as_of": {
+            "maxLength": 32,
+            "type": "string"
+          }
+        },
+        "required": [
+          "artifacts",
+          "as_of"
+        ],
+        "type": "object"
+      },
+      "limits": {
+        "input_bytes": 8388608,
+        "output_bytes": 8388608
+      },
+      "operation_id": "cops.assess.network_segmentation",
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "maxLength": 96,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "limitations": {
+            "items": {
+              "maxLength": 512,
+              "type": "string"
+            },
+            "maxItems": 8,
+            "type": "array"
+          },
+          "next_action": {
+            "maxLength": 512,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "operation_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "request_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "result": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "schema_version": {
+            "const": "cops.operation-result/v1"
+          },
+          "status": {
+            "enum": [
+              "succeeded",
+              "needs_input",
+              "blocked",
+              "partial",
+              "failed"
+            ]
+          }
+        },
+        "required": [
+          "schema_version",
+          "operation_id",
+          "request_id",
+          "status",
+          "result",
+          "error",
+          "next_action",
+          "limitations"
+        ],
+        "type": "object"
+      },
+      "owner": "network-segmentation-workbench",
+      "retry": "pure transformation; resubmit caller-owned input; no durable server session",
+      "schema_version": "cops.operation/v1",
+      "specification": "specs/headless-agent-interface.spec.md",
+      "version": "1.0.0"
+    },
+    {
+      "authorization": "supplied_data_only; no execution authority",
+      "cancellation": "cooperative; running pure transformation may finish; no external rollback",
+      "coverage": "pilot; not package-wide or live-provider acceptance",
+      "description": "Assess supplied offline artifacts: transport_identity",
+      "effects": {
+        "durable_writes": false,
+        "executes_samples": false,
+        "network": false
+      },
+      "feature_id": "offline-transport_identity",
+      "implementation": "artifact_assessment",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "artifacts": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "artifact_id": {
+                  "maxLength": 96,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "collected_at": {
+                  "maxLength": 32,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "collection_authorized": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "content": {},
+                "content_b64": {
+                  "maxLength": 6000000,
+                  "type": "string"
+                },
+                "custody": {
+                  "items": {
+                    "type": "object"
+                  },
+                  "maxItems": 128,
+                  "type": "array"
+                },
+                "framework": {
+                  "maxLength": 256,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "framework_version": {
+                  "maxLength": 96,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "kind": {
+                  "maxLength": 96,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "sha256": {
+                  "maxLength": 64,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "source_ref": {
+                  "maxLength": 256,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "artifact_id",
+                "kind"
+              ],
+              "type": "object"
+            },
+            "maxItems": 64,
+            "type": "array"
+          },
+          "as_of": {
+            "maxLength": 32,
+            "type": "string"
+          }
+        },
+        "required": [
+          "artifacts",
+          "as_of"
+        ],
+        "type": "object"
+      },
+      "limits": {
+        "input_bytes": 8388608,
+        "output_bytes": 8388608
+      },
+      "operation_id": "cops.assess.transport_identity",
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "maxLength": 96,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "limitations": {
+            "items": {
+              "maxLength": 512,
+              "type": "string"
+            },
+            "maxItems": 8,
+            "type": "array"
+          },
+          "next_action": {
+            "maxLength": 512,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "operation_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "request_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "result": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "schema_version": {
+            "const": "cops.operation-result/v1"
+          },
+          "status": {
+            "enum": [
+              "succeeded",
+              "needs_input",
+              "blocked",
+              "partial",
+              "failed"
+            ]
+          }
+        },
+        "required": [
+          "schema_version",
+          "operation_id",
+          "request_id",
+          "status",
+          "result",
+          "error",
+          "next_action",
+          "limitations"
+        ],
+        "type": "object"
+      },
+      "owner": "tls-crypto-workbench",
+      "retry": "pure transformation; resubmit caller-owned input; no durable server session",
+      "schema_version": "cops.operation/v1",
+      "specification": "specs/headless-agent-interface.spec.md",
+      "version": "1.0.0"
+    },
+    {
+      "authorization": "supplied_data_only; no execution authority",
+      "cancellation": "cooperative; running pure transformation may finish; no external rollback",
+      "coverage": "pilot; not package-wide or live-provider acceptance",
+      "description": "SOC supplied-case validate; executes no queries",
+      "effects": {
+        "durable_writes": false,
+        "executes_samples": false,
+        "network": false
+      },
+      "feature_id": "soc-validate",
+      "implementation": "soc_validate",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "case": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "case"
+        ],
+        "type": "object"
+      },
+      "limits": {
+        "input_bytes": 8388608,
+        "output_bytes": 8388608
+      },
+      "operation_id": "cops.soc.validate",
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "maxLength": 96,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "limitations": {
+            "items": {
+              "maxLength": 512,
+              "type": "string"
+            },
+            "maxItems": 8,
+            "type": "array"
+          },
+          "next_action": {
+            "maxLength": 512,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "operation_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "request_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "result": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "schema_version": {
+            "const": "cops.operation-result/v1"
+          },
+          "status": {
+            "enum": [
+              "succeeded",
+              "needs_input",
+              "blocked",
+              "partial",
+              "failed"
+            ]
+          }
+        },
+        "required": [
+          "schema_version",
+          "operation_id",
+          "request_id",
+          "status",
+          "result",
+          "error",
+          "next_action",
+          "limitations"
+        ],
+        "type": "object"
+      },
+      "owner": "soc-investigation-workbench",
+      "retry": "pure transformation; resubmit caller-owned input; no durable server session",
+      "schema_version": "cops.operation/v1",
+      "specification": "specs/headless-agent-interface.spec.md",
+      "version": "1.0.0"
+    },
+    {
+      "authorization": "supplied_data_only; no execution authority",
+      "cancellation": "cooperative; running pure transformation may finish; no external rollback",
+      "coverage": "pilot; not package-wide or live-provider acceptance",
+      "description": "SOC supplied-case next; executes no queries",
+      "effects": {
+        "durable_writes": false,
+        "executes_samples": false,
+        "network": false
+      },
+      "feature_id": "soc-next",
+      "implementation": "soc_next",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "case": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "case"
+        ],
+        "type": "object"
+      },
+      "limits": {
+        "input_bytes": 8388608,
+        "output_bytes": 8388608
+      },
+      "operation_id": "cops.soc.next",
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "maxLength": 96,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "limitations": {
+            "items": {
+              "maxLength": 512,
+              "type": "string"
+            },
+            "maxItems": 8,
+            "type": "array"
+          },
+          "next_action": {
+            "maxLength": 512,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "operation_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "request_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "result": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "schema_version": {
+            "const": "cops.operation-result/v1"
+          },
+          "status": {
+            "enum": [
+              "succeeded",
+              "needs_input",
+              "blocked",
+              "partial",
+              "failed"
+            ]
+          }
+        },
+        "required": [
+          "schema_version",
+          "operation_id",
+          "request_id",
+          "status",
+          "result",
+          "error",
+          "next_action",
+          "limitations"
+        ],
+        "type": "object"
+      },
+      "owner": "soc-investigation-workbench",
+      "retry": "pure transformation; resubmit caller-owned input; no durable server session",
+      "schema_version": "cops.operation/v1",
+      "specification": "specs/headless-agent-interface.spec.md",
+      "version": "1.0.0"
+    },
+    {
+      "authorization": "supplied_data_only; no execution authority",
+      "cancellation": "cooperative; running pure transformation may finish; no external rollback",
+      "coverage": "pilot; not package-wide or live-provider acceptance",
+      "description": "SOC supplied-case handoff; executes no queries",
+      "effects": {
+        "durable_writes": false,
+        "executes_samples": false,
+        "network": false
+      },
+      "feature_id": "soc-handoff",
+      "implementation": "soc_handoff",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "case": {
+            "type": "object"
+          },
+          "step_id": {
+            "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "case",
+          "step_id"
+        ],
+        "type": "object"
+      },
+      "limits": {
+        "input_bytes": 8388608,
+        "output_bytes": 8388608
+      },
+      "operation_id": "cops.soc.handoff",
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "maxLength": 96,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "limitations": {
+            "items": {
+              "maxLength": 512,
+              "type": "string"
+            },
+            "maxItems": 8,
+            "type": "array"
+          },
+          "next_action": {
+            "maxLength": 512,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "operation_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "request_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "result": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "schema_version": {
+            "const": "cops.operation-result/v1"
+          },
+          "status": {
+            "enum": [
+              "succeeded",
+              "needs_input",
+              "blocked",
+              "partial",
+              "failed"
+            ]
+          }
+        },
+        "required": [
+          "schema_version",
+          "operation_id",
+          "request_id",
+          "status",
+          "result",
+          "error",
+          "next_action",
+          "limitations"
+        ],
+        "type": "object"
+      },
+      "owner": "soc-investigation-workbench",
+      "retry": "pure transformation; resubmit caller-owned input; no durable server session",
+      "schema_version": "cops.operation/v1",
+      "specification": "specs/headless-agent-interface.spec.md",
+      "version": "1.0.0"
+    },
+    {
+      "authorization": "supplied_data_only; no execution authority",
+      "cancellation": "cooperative; running pure transformation may finish; no external rollback",
+      "coverage": "pilot; not package-wide or live-provider acceptance",
+      "description": "SOC supplied-case import; executes no queries",
+      "effects": {
+        "durable_writes": false,
+        "executes_samples": false,
+        "network": false
+      },
+      "feature_id": "soc-import",
+      "implementation": "soc_import",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "case": {
+            "type": "object"
+          },
+          "observation": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "case",
+          "observation"
+        ],
+        "type": "object"
+      },
+      "limits": {
+        "input_bytes": 8388608,
+        "output_bytes": 8388608
+      },
+      "operation_id": "cops.soc.import",
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "maxLength": 96,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "limitations": {
+            "items": {
+              "maxLength": 512,
+              "type": "string"
+            },
+            "maxItems": 8,
+            "type": "array"
+          },
+          "next_action": {
+            "maxLength": 512,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "operation_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "request_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "result": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "schema_version": {
+            "const": "cops.operation-result/v1"
+          },
+          "status": {
+            "enum": [
+              "succeeded",
+              "needs_input",
+              "blocked",
+              "partial",
+              "failed"
+            ]
+          }
+        },
+        "required": [
+          "schema_version",
+          "operation_id",
+          "request_id",
+          "status",
+          "result",
+          "error",
+          "next_action",
+          "limitations"
+        ],
+        "type": "object"
+      },
+      "owner": "soc-investigation-workbench",
+      "retry": "pure transformation; resubmit caller-owned input; no durable server session",
+      "schema_version": "cops.operation/v1",
+      "specification": "specs/headless-agent-interface.spec.md",
+      "version": "1.0.0"
+    },
+    {
+      "authorization": "supplied_data_only; no execution authority",
+      "cancellation": "cooperative; running pure transformation may finish; no external rollback",
+      "coverage": "pilot; not package-wide or live-provider acceptance",
+      "description": "SOC supplied-case revise; executes no queries",
+      "effects": {
+        "durable_writes": false,
+        "executes_samples": false,
+        "network": false
+      },
+      "feature_id": "soc-revise",
+      "implementation": "soc_revise",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "case": {
+            "type": "object"
+          },
+          "steps": {
+            "items": {
+              "type": "object"
+            },
+            "maxItems": 1000,
+            "type": "array"
+          }
+        },
+        "required": [
+          "case",
+          "steps"
+        ],
+        "type": "object"
+      },
+      "limits": {
+        "input_bytes": 8388608,
+        "output_bytes": 8388608
+      },
+      "operation_id": "cops.soc.revise",
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "maxLength": 96,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "limitations": {
+            "items": {
+              "maxLength": 512,
+              "type": "string"
+            },
+            "maxItems": 8,
+            "type": "array"
+          },
+          "next_action": {
+            "maxLength": 512,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "operation_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "request_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "result": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "schema_version": {
+            "const": "cops.operation-result/v1"
+          },
+          "status": {
+            "enum": [
+              "succeeded",
+              "needs_input",
+              "blocked",
+              "partial",
+              "failed"
+            ]
+          }
+        },
+        "required": [
+          "schema_version",
+          "operation_id",
+          "request_id",
+          "status",
+          "result",
+          "error",
+          "next_action",
+          "limitations"
+        ],
+        "type": "object"
+      },
+      "owner": "soc-investigation-workbench",
+      "retry": "pure transformation; resubmit caller-owned input; no durable server session",
+      "schema_version": "cops.operation/v1",
+      "specification": "specs/headless-agent-interface.spec.md",
+      "version": "1.0.0"
+    },
+    {
+      "authorization": "supplied_data_only; no execution authority",
+      "cancellation": "cooperative; running pure transformation may finish; no external rollback",
+      "coverage": "pilot; not package-wide or live-provider acceptance",
+      "description": "SOC supplied-case report; executes no queries",
+      "effects": {
+        "durable_writes": false,
+        "executes_samples": false,
+        "network": false
+      },
+      "feature_id": "soc-report",
+      "implementation": "soc_report",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "case": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "case"
+        ],
+        "type": "object"
+      },
+      "limits": {
+        "input_bytes": 8388608,
+        "output_bytes": 8388608
+      },
+      "operation_id": "cops.soc.report",
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "maxLength": 96,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "limitations": {
+            "items": {
+              "maxLength": 512,
+              "type": "string"
+            },
+            "maxItems": 8,
+            "type": "array"
+          },
+          "next_action": {
+            "maxLength": 512,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "operation_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "request_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "result": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "schema_version": {
+            "const": "cops.operation-result/v1"
+          },
+          "status": {
+            "enum": [
+              "succeeded",
+              "needs_input",
+              "blocked",
+              "partial",
+              "failed"
+            ]
+          }
+        },
+        "required": [
+          "schema_version",
+          "operation_id",
+          "request_id",
+          "status",
+          "result",
+          "error",
+          "next_action",
+          "limitations"
+        ],
+        "type": "object"
+      },
+      "owner": "soc-investigation-workbench",
+      "retry": "pure transformation; resubmit caller-owned input; no durable server session",
+      "schema_version": "cops.operation/v1",
+      "specification": "specs/headless-agent-interface.spec.md",
+      "version": "1.0.0"
+    },
+    {
+      "authorization": "supplied_data_only; no execution authority",
+      "cancellation": "cooperative; running pure transformation may finish; no external rollback",
+      "coverage": "pilot; not package-wide or live-provider acceptance",
+      "description": "Exploratory request; no authority or mandatory specialist",
+      "effects": {
+        "durable_writes": false,
+        "executes_samples": false,
+        "network": false
+      },
+      "feature_id": "exploration-request",
+      "implementation": "work_request",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "artifacts": {
+            "items": {
+              "maxLength": 256,
+              "type": "string"
+            },
+            "maxItems": 64,
+            "type": "array"
+          },
+          "context": {
+            "maxLength": 4096,
+            "minLength": 1,
+            "type": "string"
+          },
+          "notes": {
+            "items": {
+              "maxLength": 4096,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 32,
+            "type": "array"
+          },
+          "schema_version": {
+            "const": "cops.work-request/v1"
+          },
+          "task": {
+            "maxLength": 4096,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "task"
+        ],
+        "type": "object"
+      },
+      "limits": {
+        "input_bytes": 8388608,
+        "output_bytes": 8388608
+      },
+      "operation_id": "cops.work.request",
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "maxLength": 96,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "limitations": {
+            "items": {
+              "maxLength": 512,
+              "type": "string"
+            },
+            "maxItems": 8,
+            "type": "array"
+          },
+          "next_action": {
+            "maxLength": 512,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "operation_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "request_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "result": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "schema_version": {
+            "const": "cops.operation-result/v1"
+          },
+          "status": {
+            "enum": [
+              "succeeded",
+              "needs_input",
+              "blocked",
+              "partial",
+              "failed"
+            ]
+          }
+        },
+        "required": [
+          "schema_version",
+          "operation_id",
+          "request_id",
+          "status",
+          "result",
+          "error",
+          "next_action",
+          "limitations"
+        ],
+        "type": "object"
+      },
+      "owner": "cops-core",
+      "retry": "pure transformation; resubmit caller-owned input; no durable server session",
+      "schema_version": "cops.operation/v1",
+      "specification": "specs/headless-agent-interface.spec.md",
+      "version": "1.0.0"
+    },
+    {
+      "authorization": "supplied_data_only; no execution authority",
+      "cancellation": "cooperative; running pure transformation may finish; no external rollback",
+      "coverage": "pilot; not package-wide or live-provider acceptance",
+      "description": "Exploratory note; no authority or mandatory specialist",
+      "effects": {
+        "durable_writes": false,
+        "executes_samples": false,
+        "network": false
+      },
+      "feature_id": "exploration-note",
+      "implementation": "work_note",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "note": {
+            "maxLength": 4096,
+            "minLength": 1,
+            "type": "string"
+          },
+          "request": {
+            "additionalProperties": false,
+            "properties": {
+              "artifacts": {
+                "items": {
+                  "maxLength": 256,
+                  "type": "string"
+                },
+                "maxItems": 64,
+                "type": "array"
+              },
+              "context": {
+                "maxLength": 4096,
+                "minLength": 1,
+                "type": "string"
+              },
+              "notes": {
+                "items": {
+                  "maxLength": 4096,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "maxItems": 32,
+                "type": "array"
+              },
+              "schema_version": {
+                "const": "cops.work-request/v1"
+              },
+              "task": {
+                "maxLength": 4096,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "task"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "request",
+          "note"
+        ],
+        "type": "object"
+      },
+      "limits": {
+        "input_bytes": 8388608,
+        "output_bytes": 8388608
+      },
+      "operation_id": "cops.work.note",
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "maxLength": 96,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "limitations": {
+            "items": {
+              "maxLength": 512,
+              "type": "string"
+            },
+            "maxItems": 8,
+            "type": "array"
+          },
+          "next_action": {
+            "maxLength": 512,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "operation_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "request_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "result": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "schema_version": {
+            "const": "cops.operation-result/v1"
+          },
+          "status": {
+            "enum": [
+              "succeeded",
+              "needs_input",
+              "blocked",
+              "partial",
+              "failed"
+            ]
+          }
+        },
+        "required": [
+          "schema_version",
+          "operation_id",
+          "request_id",
+          "status",
+          "result",
+          "error",
+          "next_action",
+          "limitations"
+        ],
+        "type": "object"
+      },
+      "owner": "cops-core",
+      "retry": "pure transformation; resubmit caller-owned input; no durable server session",
+      "schema_version": "cops.operation/v1",
+      "specification": "specs/headless-agent-interface.spec.md",
+      "version": "1.0.0"
+    },
+    {
+      "authorization": "supplied_data_only; no execution authority",
+      "cancellation": "cooperative; running pure transformation may finish; no external rollback",
+      "coverage": "pilot; not package-wide or live-provider acceptance",
+      "description": "Exploratory escalate; no authority or mandatory specialist",
+      "effects": {
+        "durable_writes": false,
+        "executes_samples": false,
+        "network": false
+      },
+      "feature_id": "exploration-escalate",
+      "implementation": "work_escalate",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "maxLength": 4096,
+            "minLength": 1,
+            "type": "string"
+          },
+          "request": {
+            "additionalProperties": false,
+            "properties": {
+              "artifacts": {
+                "items": {
+                  "maxLength": 256,
+                  "type": "string"
+                },
+                "maxItems": 64,
+                "type": "array"
+              },
+              "context": {
+                "maxLength": 4096,
+                "minLength": 1,
+                "type": "string"
+              },
+              "notes": {
+                "items": {
+                  "maxLength": 4096,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "maxItems": 32,
+                "type": "array"
+              },
+              "schema_version": {
+                "const": "cops.work-request/v1"
+              },
+              "task": {
+                "maxLength": 4096,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "task"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "request",
+          "action"
+        ],
+        "type": "object"
+      },
+      "limits": {
+        "input_bytes": 8388608,
+        "output_bytes": 8388608
+      },
+      "operation_id": "cops.work.escalate",
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "maxLength": 96,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "limitations": {
+            "items": {
+              "maxLength": 512,
+              "type": "string"
+            },
+            "maxItems": 8,
+            "type": "array"
+          },
+          "next_action": {
+            "maxLength": 512,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "operation_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "request_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "result": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "schema_version": {
+            "const": "cops.operation-result/v1"
+          },
+          "status": {
+            "enum": [
+              "succeeded",
+              "needs_input",
+              "blocked",
+              "partial",
+              "failed"
+            ]
+          }
+        },
+        "required": [
+          "schema_version",
+          "operation_id",
+          "request_id",
+          "status",
+          "result",
+          "error",
+          "next_action",
+          "limitations"
+        ],
+        "type": "object"
+      },
+      "owner": "cops-core",
+      "retry": "pure transformation; resubmit caller-owned input; no durable server session",
+      "schema_version": "cops.operation/v1",
+      "specification": "specs/headless-agent-interface.spec.md",
+      "version": "1.0.0"
+    },
+    {
+      "authorization": "installation-owned private runtime; supplied offline data only",
+      "cancellation": "durable request; a running offline transformation may finish",
+      "coverage": "pilot; not package-wide or live-provider acceptance",
+      "description": "Durable local run create",
+      "effects": {
+        "durable_writes": true,
+        "executes_samples": false,
+        "network": false
+      },
+      "feature_id": "run-create",
+      "implementation": "run_create",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "idempotency_key": {
+            "pattern": "^[A-Za-z0-9_.:-]{1,96}$",
+            "type": "string"
+          },
+          "request": {
+            "additionalProperties": false,
+            "properties": {
+              "arguments": {
+                "type": "object"
+              },
+              "operation_id": {
+                "enum": [
+                  "cops.assess.application_security",
+                  "cops.assess.foundry_security",
+                  "cops.assess.compliance_evidence",
+                  "cops.assess.forensic_evidence",
+                  "cops.assess.malware_static",
+                  "cops.assess.cloud_configuration",
+                  "cops.assess.supply_chain",
+                  "cops.assess.credential_history",
+                  "cops.assess.network_segmentation",
+                  "cops.assess.transport_identity",
+                  "cops.soc.validate",
+                  "cops.soc.next",
+                  "cops.soc.handoff",
+                  "cops.soc.import",
+                  "cops.soc.revise",
+                  "cops.soc.report",
+                  "cops.work.request",
+                  "cops.work.note",
+                  "cops.work.escalate"
+                ]
+              },
+              "request_id": {
+                "pattern": "^[A-Za-z0-9_.:-]{1,96}$",
+                "type": "string"
+              },
+              "schema_version": {
+                "const": "cops.operation-request/v1"
+              }
+            },
+            "required": [
+              "schema_version",
+              "operation_id",
+              "arguments"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "request"
+        ],
+        "type": "object"
+      },
+      "limits": {
+        "input_bytes": 8388608,
+        "output_bytes": 8388608
+      },
+      "operation_id": "cops.run.create",
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "maxLength": 96,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "limitations": {
+            "items": {
+              "maxLength": 512,
+              "type": "string"
+            },
+            "maxItems": 8,
+            "type": "array"
+          },
+          "next_action": {
+            "maxLength": 512,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "operation_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "request_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "result": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "schema_version": {
+            "const": "cops.operation-result/v1"
+          },
+          "status": {
+            "enum": [
+              "succeeded",
+              "needs_input",
+              "blocked",
+              "partial",
+              "failed"
+            ]
+          }
+        },
+        "required": [
+          "schema_version",
+          "operation_id",
+          "request_id",
+          "status",
+          "result",
+          "error",
+          "next_action",
+          "limitations"
+        ],
+        "type": "object"
+      },
+      "owner": "cops-core",
+      "retry": "atomic local admission; completed results are reused and expired offline attempts may retry",
+      "schema_version": "cops.operation/v1",
+      "specification": "specs/headless-agent-interface.spec.md",
+      "version": "1.0.0"
+    },
+    {
+      "authorization": "installation-owned private runtime; supplied offline data only",
+      "cancellation": "durable request; a running offline transformation may finish",
+      "coverage": "pilot; not package-wide or live-provider acceptance",
+      "description": "Durable local run status",
+      "effects": {
+        "durable_writes": true,
+        "executes_samples": false,
+        "network": false
+      },
+      "feature_id": "run-status",
+      "implementation": "run_status",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "run_id": {
+            "pattern": "^[A-Za-z0-9_.:-]{1,96}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id"
+        ],
+        "type": "object"
+      },
+      "limits": {
+        "input_bytes": 8388608,
+        "output_bytes": 8388608
+      },
+      "operation_id": "cops.run.status",
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "maxLength": 96,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "limitations": {
+            "items": {
+              "maxLength": 512,
+              "type": "string"
+            },
+            "maxItems": 8,
+            "type": "array"
+          },
+          "next_action": {
+            "maxLength": 512,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "operation_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "request_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "result": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "schema_version": {
+            "const": "cops.operation-result/v1"
+          },
+          "status": {
+            "enum": [
+              "succeeded",
+              "needs_input",
+              "blocked",
+              "partial",
+              "failed"
+            ]
+          }
+        },
+        "required": [
+          "schema_version",
+          "operation_id",
+          "request_id",
+          "status",
+          "result",
+          "error",
+          "next_action",
+          "limitations"
+        ],
+        "type": "object"
+      },
+      "owner": "cops-core",
+      "retry": "atomic local admission; completed results are reused and expired offline attempts may retry",
+      "schema_version": "cops.operation/v1",
+      "specification": "specs/headless-agent-interface.spec.md",
+      "version": "1.0.0"
+    },
+    {
+      "authorization": "installation-owned private runtime; supplied offline data only",
+      "cancellation": "durable request; a running offline transformation may finish",
+      "coverage": "pilot; not package-wide or live-provider acceptance",
+      "description": "Durable local run resume",
+      "effects": {
+        "durable_writes": true,
+        "executes_samples": false,
+        "network": false
+      },
+      "feature_id": "run-resume",
+      "implementation": "run_resume",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "run_id": {
+            "pattern": "^[A-Za-z0-9_.:-]{1,96}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id"
+        ],
+        "type": "object"
+      },
+      "limits": {
+        "input_bytes": 8388608,
+        "output_bytes": 8388608
+      },
+      "operation_id": "cops.run.resume",
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "maxLength": 96,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "limitations": {
+            "items": {
+              "maxLength": 512,
+              "type": "string"
+            },
+            "maxItems": 8,
+            "type": "array"
+          },
+          "next_action": {
+            "maxLength": 512,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "operation_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "request_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "result": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "schema_version": {
+            "const": "cops.operation-result/v1"
+          },
+          "status": {
+            "enum": [
+              "succeeded",
+              "needs_input",
+              "blocked",
+              "partial",
+              "failed"
+            ]
+          }
+        },
+        "required": [
+          "schema_version",
+          "operation_id",
+          "request_id",
+          "status",
+          "result",
+          "error",
+          "next_action",
+          "limitations"
+        ],
+        "type": "object"
+      },
+      "owner": "cops-core",
+      "retry": "atomic local admission; completed results are reused and expired offline attempts may retry",
+      "schema_version": "cops.operation/v1",
+      "specification": "specs/headless-agent-interface.spec.md",
+      "version": "1.0.0"
+    },
+    {
+      "authorization": "installation-owned private runtime; supplied offline data only",
+      "cancellation": "durable request; a running offline transformation may finish",
+      "coverage": "pilot; not package-wide or live-provider acceptance",
+      "description": "Durable local run cancel",
+      "effects": {
+        "durable_writes": true,
+        "executes_samples": false,
+        "network": false
+      },
+      "feature_id": "run-cancel",
+      "implementation": "run_cancel",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "run_id": {
+            "pattern": "^[A-Za-z0-9_.:-]{1,96}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id"
+        ],
+        "type": "object"
+      },
+      "limits": {
+        "input_bytes": 8388608,
+        "output_bytes": 8388608
+      },
+      "operation_id": "cops.run.cancel",
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "maxLength": 96,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "limitations": {
+            "items": {
+              "maxLength": 512,
+              "type": "string"
+            },
+            "maxItems": 8,
+            "type": "array"
+          },
+          "next_action": {
+            "maxLength": 512,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "operation_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "request_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "result": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "schema_version": {
+            "const": "cops.operation-result/v1"
+          },
+          "status": {
+            "enum": [
+              "succeeded",
+              "needs_input",
+              "blocked",
+              "partial",
+              "failed"
+            ]
+          }
+        },
+        "required": [
+          "schema_version",
+          "operation_id",
+          "request_id",
+          "status",
+          "result",
+          "error",
+          "next_action",
+          "limitations"
+        ],
+        "type": "object"
+      },
+      "owner": "cops-core",
+      "retry": "atomic local admission; completed results are reused and expired offline attempts may retry",
+      "schema_version": "cops.operation/v1",
+      "specification": "specs/headless-agent-interface.spec.md",
+      "version": "1.0.0"
+    },
+    {
+      "authorization": "installation-owned private runtime; supplied offline data only",
+      "cancellation": "durable request; a running offline transformation may finish",
+      "coverage": "pilot; not package-wide or live-provider acceptance",
+      "description": "Durable local run recover",
+      "effects": {
+        "durable_writes": true,
+        "executes_samples": false,
+        "network": false
+      },
+      "feature_id": "run-recover",
+      "implementation": "run_recover",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "run_id": {
+            "pattern": "^[A-Za-z0-9_.:-]{1,96}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id"
+        ],
+        "type": "object"
+      },
+      "limits": {
+        "input_bytes": 8388608,
+        "output_bytes": 8388608
+      },
+      "operation_id": "cops.run.recover",
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "maxLength": 96,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "limitations": {
+            "items": {
+              "maxLength": 512,
+              "type": "string"
+            },
+            "maxItems": 8,
+            "type": "array"
+          },
+          "next_action": {
+            "maxLength": 512,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "operation_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "request_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "result": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "schema_version": {
+            "const": "cops.operation-result/v1"
+          },
+          "status": {
+            "enum": [
+              "succeeded",
+              "needs_input",
+              "blocked",
+              "partial",
+              "failed"
+            ]
+          }
+        },
+        "required": [
+          "schema_version",
+          "operation_id",
+          "request_id",
+          "status",
+          "result",
+          "error",
+          "next_action",
+          "limitations"
+        ],
+        "type": "object"
+      },
+      "owner": "cops-core",
+      "retry": "atomic local admission; completed results are reused and expired offline attempts may retry",
+      "schema_version": "cops.operation/v1",
+      "specification": "specs/headless-agent-interface.spec.md",
+      "version": "1.0.0"
+    },
+    {
+      "authorization": "supplied_data_only; no execution authority",
+      "cancellation": "cooperative; running pure transformation may finish; no external rollback",
+      "coverage": "pilot; not package-wide or live-provider acceptance",
+      "description": "Optional bound peer delegation prepare",
+      "effects": {
+        "durable_writes": true,
+        "executes_samples": false,
+        "network": false
+      },
+      "feature_id": "delegation-prepare",
+      "implementation": "delegate_prepare",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "operation_id": {
+            "enum": [
+              "cops.assess.application_security",
+              "cops.assess.foundry_security",
+              "cops.assess.compliance_evidence",
+              "cops.assess.forensic_evidence",
+              "cops.assess.malware_static",
+              "cops.assess.cloud_configuration",
+              "cops.assess.supply_chain",
+              "cops.assess.credential_history",
+              "cops.assess.network_segmentation",
+              "cops.assess.transport_identity",
+              "cops.soc.validate",
+              "cops.soc.next",
+              "cops.soc.handoff",
+              "cops.soc.import",
+              "cops.soc.revise",
+              "cops.soc.report",
+              "cops.work.request",
+              "cops.work.note",
+              "cops.work.escalate"
+            ]
+          },
+          "scope_ref": {
+            "pattern": "^[A-Za-z0-9_.:-]{1,96}$",
+            "type": "string"
+          },
+          "skill_id": {
+            "pattern": "^[A-Za-z0-9_.:-]{1,96}$",
+            "type": "string"
+          },
+          "specialist_id": {
+            "pattern": "^[A-Za-z0-9_.:-]{1,96}$",
+            "type": "string"
+          },
+          "task": {
+            "maxLength": 4096,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "task"
+        ],
+        "type": "object"
+      },
+      "limits": {
+        "input_bytes": 8388608,
+        "output_bytes": 8388608
+      },
+      "operation_id": "cops.delegate.prepare",
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "maxLength": 96,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "limitations": {
+            "items": {
+              "maxLength": 512,
+              "type": "string"
+            },
+            "maxItems": 8,
+            "type": "array"
+          },
+          "next_action": {
+            "maxLength": 512,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "operation_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "request_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "result": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "schema_version": {
+            "const": "cops.operation-result/v1"
+          },
+          "status": {
+            "enum": [
+              "succeeded",
+              "needs_input",
+              "blocked",
+              "partial",
+              "failed"
+            ]
+          }
+        },
+        "required": [
+          "schema_version",
+          "operation_id",
+          "request_id",
+          "status",
+          "result",
+          "error",
+          "next_action",
+          "limitations"
+        ],
+        "type": "object"
+      },
+      "owner": "cops-core",
+      "retry": "accept peer response once; informal work notes remain available without this contract",
+      "schema_version": "cops.operation/v1",
+      "specification": "specs/headless-agent-interface.spec.md",
+      "version": "1.0.0"
+    },
+    {
+      "authorization": "supplied_data_only; no execution authority",
+      "cancellation": "cooperative; running pure transformation may finish; no external rollback",
+      "coverage": "pilot; not package-wide or live-provider acceptance",
+      "description": "Optional bound peer delegation accept",
+      "effects": {
+        "durable_writes": true,
+        "executes_samples": false,
+        "network": false
+      },
+      "feature_id": "delegation-accept",
+      "implementation": "delegate_accept",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "delegation_id": {
+            "pattern": "^[A-Za-z0-9_.:-]{1,96}$",
+            "type": "string"
+          },
+          "peer_response": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "delegation_id",
+          "peer_response"
+        ],
+        "type": "object"
+      },
+      "limits": {
+        "input_bytes": 8388608,
+        "output_bytes": 8388608
+      },
+      "operation_id": "cops.delegate.accept",
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "maxLength": 96,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "limitations": {
+            "items": {
+              "maxLength": 512,
+              "type": "string"
+            },
+            "maxItems": 8,
+            "type": "array"
+          },
+          "next_action": {
+            "maxLength": 512,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "operation_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "request_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "result": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "schema_version": {
+            "const": "cops.operation-result/v1"
+          },
+          "status": {
+            "enum": [
+              "succeeded",
+              "needs_input",
+              "blocked",
+              "partial",
+              "failed"
+            ]
+          }
+        },
+        "required": [
+          "schema_version",
+          "operation_id",
+          "request_id",
+          "status",
+          "result",
+          "error",
+          "next_action",
+          "limitations"
+        ],
+        "type": "object"
+      },
+      "owner": "cops-core",
+      "retry": "accept peer response once; informal work notes remain available without this contract",
+      "schema_version": "cops.operation/v1",
+      "specification": "specs/headless-agent-interface.spec.md",
+      "version": "1.0.0"
+    },
+    {
+      "authorization": "supplied_data_only; no execution authority",
+      "cancellation": "cooperative; running pure transformation may finish; no external rollback",
+      "coverage": "pilot; not package-wide or live-provider acceptance",
+      "description": "Inspect source-indexed headless feature coverage",
+      "effects": {
+        "durable_writes": false,
+        "executes_samples": false,
+        "network": false
+      },
+      "feature_id": "features-list",
+      "implementation": "features_list",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "limit": {
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "offset": {
+            "maximum": 100000,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "plugin_id": {
+            "pattern": "^[A-Za-z0-9_.:-]{1,96}$",
+            "type": "string"
+          }
+        },
+        "required": [],
+        "type": "object"
+      },
+      "limits": {
+        "input_bytes": 8388608,
+        "output_bytes": 8388608
+      },
+      "operation_id": "cops.features.list",
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "maxLength": 96,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "limitations": {
+            "items": {
+              "maxLength": 512,
+              "type": "string"
+            },
+            "maxItems": 8,
+            "type": "array"
+          },
+          "next_action": {
+            "maxLength": 512,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "operation_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "request_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "result": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "schema_version": {
+            "const": "cops.operation-result/v1"
+          },
+          "status": {
+            "enum": [
+              "succeeded",
+              "needs_input",
+              "blocked",
+              "partial",
+              "failed"
+            ]
+          }
+        },
+        "required": [
+          "schema_version",
+          "operation_id",
+          "request_id",
+          "status",
+          "result",
+          "error",
+          "next_action",
+          "limitations"
+        ],
+        "type": "object"
+      },
+      "owner": "cops-core",
+      "retry": "pure transformation; resubmit caller-owned input; no durable server session",
+      "schema_version": "cops.operation/v1",
+      "specification": "specs/headless-agent-interface.spec.md",
+      "version": "1.0.0"
+    },
+    {
+      "authorization": "supplied_data_only; no execution authority",
+      "cancellation": "cooperative; running pure transformation may finish; no external rollback",
+      "coverage": "pilot; not package-wide or live-provider acceptance",
+      "description": "Inspect source-indexed headless feature coverage",
+      "effects": {
+        "durable_writes": false,
+        "executes_samples": false,
+        "network": false
+      },
+      "feature_id": "features-info",
+      "implementation": "features_info",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "feature_id": {
+            "maxLength": 1024,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "feature_id"
+        ],
+        "type": "object"
+      },
+      "limits": {
+        "input_bytes": 8388608,
+        "output_bytes": 8388608
+      },
+      "operation_id": "cops.features.info",
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "maxLength": 96,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "limitations": {
+            "items": {
+              "maxLength": 512,
+              "type": "string"
+            },
+            "maxItems": 8,
+            "type": "array"
+          },
+          "next_action": {
+            "maxLength": 512,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "operation_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "request_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "result": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "schema_version": {
+            "const": "cops.operation-result/v1"
+          },
+          "status": {
+            "enum": [
+              "succeeded",
+              "needs_input",
+              "blocked",
+              "partial",
+              "failed"
+            ]
+          }
+        },
+        "required": [
+          "schema_version",
+          "operation_id",
+          "request_id",
+          "status",
+          "result",
+          "error",
+          "next_action",
+          "limitations"
+        ],
+        "type": "object"
+      },
+      "owner": "cops-core",
+      "retry": "pure transformation; resubmit caller-owned input; no durable server session",
+      "schema_version": "cops.operation/v1",
+      "specification": "specs/headless-agent-interface.spec.md",
+      "version": "1.0.0"
+    }
+  ],
+  "schema_version": "cops.operation-catalog/v1"
+}

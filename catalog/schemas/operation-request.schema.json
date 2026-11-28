@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Headless operation invocation",
+  "type": "object", "additionalProperties": false,
+  "required": ["schema_version", "operation_id", "arguments"],
+  "properties": {
+    "schema_version": {"const": "cops.operation-request/v1"},
+    "operation_id": {"type": "string", "pattern": "^cops\\.[a-z_]+\\.[a-z_]+$", "maxLength": 96},
+    "request_id": {"type": "string", "pattern": "^[A-Za-z0-9_.:-]{1,96}$"},
+    "arguments": {"type": "object"}
+  }
+}

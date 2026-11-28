@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import importlib.util
+import itertools
 import json
 import os
 import shutil
@@ -85,31 +86,38 @@ class PolicyTests(unittest.TestCase):
                 f"  {job}:\n    if: github.event_name != 'pull_request' || !github.event.pull_request.draft",
                 jobs,
             )
+        self.assertIn("  headless-conformance:\n", jobs)
         self.assertIn(
-            "needs: [isolated-service-laboratory, portability-smoke]", validate
+            "needs: [headless-conformance, isolated-service-laboratory, portability-smoke]",
+            validate,
+        )
+        self.assertIn(
+            "HEADLESS_RESULT: ${{ needs.headless-conformance.result }}", validate
         )
         self.assertIn("if: always()", validate)
         self.assertIn("python3 tools/push_gate/checks.py cops-full-suite", validate)
         script = textwrap.dedent(
             validate.split("        run: |\n", 1)[1].split("      - name:", 1)[0]
         )
-        for draft in ("true", "false"):
-            for lab in ("success", "failure", "skipped", "cancelled"):
-                for smoke in ("success", "failure", "skipped", "cancelled"):
-                    with self.subTest(draft=draft, lab=lab, smoke=smoke):
-                        proc = subprocess.run(
-                            ["bash", "-e", "-c", script],
-                            env={
-                                "DRAFT": draft,
-                                "LAB_RESULT": lab,
-                                "SMOKE_RESULT": smoke,
-                            },
-                            check=False,
-                        )
-                        self.assertEqual(
-                            proc.returncode == 0,
-                            (draft, lab, smoke) == ("false", "success", "success"),
-                        )
+        results = ("success", "failure", "skipped", "cancelled")
+        for draft, headless, lab, smoke in itertools.product(
+            ("true", "false"), results, results, results
+        ):
+            with self.subTest(draft=draft, headless=headless, lab=lab, smoke=smoke):
+                proc = subprocess.run(
+                    ["bash", "-e", "-c", script],
+                    env={
+                        "DRAFT": draft,
+                        "HEADLESS_RESULT": headless,
+                        "LAB_RESULT": lab,
+                        "SMOKE_RESULT": smoke,
+                    },
+                    check=False,
+                )
+                self.assertEqual(
+                    proc.returncode == 0,
+                    draft == "false" and headless == lab == smoke == "success",
+                )
 
     def test_draft_defers_only_the_full_suite(self):
         def commands(profile):

@@ -17,6 +17,29 @@ COPS distributes security operations plugins and skills, local validation/market
 
 ## Drafting and routing boundary
 
+### Headless CLI/MCP pilot and exploratory collaboration
+
+The headless entry point accepts untrusted harness requests and peer notes.
+Its strict JSON decoder and schemas bound input and reject unknown fields.
+The operation allowlist admits supplied-data transformations with
+installation-owned SOC dependencies. Durable submission and resume recheck
+the offline allowlist and implementation binding before admission. Worker
+configuration and older worker-backed ledger records fail closed. Informal
+handoffs and escalation results have no execution authority.
+
+The optional owner-only POSIX ledger retains classified input, output and
+peer claims. It fences attempts with lease tokens and serializes admission.
+Cancellation suppresses later results. An expired worker thread may still finish
+a pure transformation after a replacement attempt begins. Skill digest and scope
+checks bind peer responses to the original handoff, while independent verification
+of those claims remains the harness's responsibility.
+
+Headless unit, BDD, stdio and standalone tests cover invalid inputs, boundary
+rejections, missing dependencies, durable retry, cancellation and de-duplication.
+Residual assumptions include a trusted local installation and OS account,
+classified inputs, and operator-managed ledger retention. Bundle hashes check
+content consistency. Independent human review remains pending.
+
 Plain-language triggers select a specialist; they do not confer execution
 authority. An attacker could try to present draft notes, an imported endpoint,
 or a routing recommendation as approval. Drafts must record unknowns and must

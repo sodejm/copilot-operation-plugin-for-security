@@ -1,0 +1,462 @@
+{
+  "coverage": "pilot_mapped",
+  "feature_inventory": {
+    "by_status": {
+      "blocked_by_prerequisite": 0,
+      "externally_delegated": 3,
+      "implemented": 1,
+      "unsupported": 16
+    },
+    "total": 20,
+    "unresolved_cli_declarations": 0
+  },
+  "features": [
+    {
+      "feature_id": "skill:plugins/offensive-security/foundry-agent-harness/skills/ai-agent-mcp-laboratories/SKILL.md",
+      "headless_status": "externally_delegated",
+      "kind": "skill",
+      "operation_ids": [],
+      "plugin_id": "foundry-agent-harness",
+      "reason": "The harness interprets this skill; existence is not executable tool coverage.",
+      "source": "plugins/offensive-security/foundry-agent-harness/skills/ai-agent-mcp-laboratories/SKILL.md",
+      "source_digest": "789845deee1a80679832d2ed827b8f983d1176c1a2319fb6a86363afce10b7b8"
+    },
+    {
+      "feature_id": "skill:plugins/offensive-security/foundry-agent-harness/skills/ai-provider-assessment/SKILL.md",
+      "headless_status": "externally_delegated",
+      "kind": "skill",
+      "operation_ids": [],
+      "plugin_id": "foundry-agent-harness",
+      "reason": "The harness interprets this skill; existence is not executable tool coverage.",
+      "source": "plugins/offensive-security/foundry-agent-harness/skills/ai-provider-assessment/SKILL.md",
+      "source_digest": "8384b1cf07da223bd43f68893ff0c6bc354413066ccce26774bef4e7c91bef06"
+    },
+    {
+      "feature_id": "skill:plugins/offensive-security/foundry-agent-harness/skills/foundry-agent-review/SKILL.md",
+      "headless_status": "externally_delegated",
+      "kind": "skill",
+      "operation_ids": [],
+      "plugin_id": "foundry-agent-harness",
+      "reason": "The harness interprets this skill; existence is not executable tool coverage.",
+      "source": "plugins/offensive-security/foundry-agent-harness/skills/foundry-agent-review/SKILL.md",
+      "source_digest": "f4c838d91595160b0c040ea25aa95d105c15967c881ff5ff30c796024f0a4478"
+    },
+    {
+      "command": "entrypoint",
+      "feature_id": "cli:plugins/offensive-security/foundry-agent-harness/foundryharness/auth_effect_observer.py:1",
+      "headless_status": "unsupported",
+      "kind": "cli",
+      "line": 1,
+      "operation_ids": [],
+      "plugin_id": "foundry-agent-harness",
+      "reason": "No reviewed structured binding for this public CLI entrypoint.",
+      "source": "plugins/offensive-security/foundry-agent-harness/foundryharness/auth_effect_observer.py",
+      "source_digest": "33ad8f35c32551e3904ebce173692bea1cd20e537d334fe0efd2edf9aa46e30f"
+    },
+    {
+      "command": "entrypoint",
+      "feature_id": "cli:plugins/offensive-security/foundry-agent-harness/foundryharness/auth_fixture_server.py:1",
+      "headless_status": "unsupported",
+      "kind": "cli",
+      "line": 1,
+      "operation_ids": [],
+      "plugin_id": "foundry-agent-harness",
+      "reason": "No reviewed structured binding for this public CLI entrypoint.",
+      "source": "plugins/offensive-security/foundry-agent-harness/foundryharness/auth_fixture_server.py",
+      "source_digest": "37ed30dd5bbeb95b63476d0cc7579e488cee4283a6480890fcbc2bf0c14b3155"
+    },
+    {
+      "command": "entrypoint",
+      "feature_id": "cli:plugins/offensive-security/foundry-agent-harness/foundryharness/auth_peer_fixture.py:1",
+      "headless_status": "unsupported",
+      "kind": "cli",
+      "line": 1,
+      "operation_ids": [],
+      "plugin_id": "foundry-agent-harness",
+      "reason": "No reviewed structured binding for this public CLI entrypoint.",
+      "source": "plugins/offensive-security/foundry-agent-harness/foundryharness/auth_peer_fixture.py",
+      "source_digest": "a0166f5d0bceca1e35695c6d59bfb6566ae4aab180ae786d8b7b13d0f47a2c55"
+    },
+    {
+      "command": "evaluate",
+      "feature_id": "cli:plugins/offensive-security/foundry-agent-harness/foundryharness/cli.py:79",
+      "headless_status": "unsupported",
+      "kind": "cli",
+      "line": 79,
+      "operation_ids": [],
+      "plugin_id": "foundry-agent-harness",
+      "reason": "No reviewed structured binding for this public CLI entrypoint.",
+      "source": "plugins/offensive-security/foundry-agent-harness/foundryharness/cli.py",
+      "source_digest": "c9f5325f34cb01014c2dc75ceb3351959847b8850352aff5f2dbf96af65e7ed7"
+    },
+    {
+      "command": "list",
+      "feature_id": "cli:plugins/offensive-security/foundry-agent-harness/foundryharness/cli.py:88",
+      "headless_status": "unsupported",
+      "kind": "cli",
+      "line": 88,
+      "operation_ids": [],
+      "plugin_id": "foundry-agent-harness",
+      "reason": "No reviewed structured binding for this public CLI entrypoint.",
+      "source": "plugins/offensive-security/foundry-agent-harness/foundryharness/cli.py",
+      "source_digest": "c9f5325f34cb01014c2dc75ceb3351959847b8850352aff5f2dbf96af65e7ed7"
+    },
+    {
+      "command": "lab",
+      "feature_id": "cli:plugins/offensive-security/foundry-agent-harness/foundryharness/cli.py:91",
+      "headless_status": "unsupported",
+      "kind": "cli",
+      "line": 91,
+      "operation_ids": [],
+      "plugin_id": "foundry-agent-harness",
+      "reason": "No reviewed structured binding for this public CLI entrypoint.",
+      "source": "plugins/offensive-security/foundry-agent-harness/foundryharness/cli.py",
+      "source_digest": "c9f5325f34cb01014c2dc75ceb3351959847b8850352aff5f2dbf96af65e7ed7"
+    },
+    {
+      "command": "auth-plan",
+      "feature_id": "cli:plugins/offensive-security/foundry-agent-harness/foundryharness/cli.py:101",
+      "headless_status": "unsupported",
+      "kind": "cli",
+      "line": 101,
+      "operation_ids": [],
+      "plugin_id": "foundry-agent-harness",
+      "reason": "No reviewed structured binding for this public CLI entrypoint.",
+      "source": "plugins/offensive-security/foundry-agent-harness/foundryharness/cli.py",
+      "source_digest": "c9f5325f34cb01014c2dc75ceb3351959847b8850352aff5f2dbf96af65e7ed7"
+    },
+    {
+      "command": "auth-lab",
+      "feature_id": "cli:plugins/offensive-security/foundry-agent-harness/foundryharness/cli.py:116",
+      "headless_status": "unsupported",
+      "kind": "cli",
+      "line": 116,
+      "operation_ids": [],
+      "plugin_id": "foundry-agent-harness",
+      "reason": "No reviewed structured binding for this public CLI entrypoint.",
+      "source": "plugins/offensive-security/foundry-agent-harness/foundryharness/cli.py",
+      "source_digest": "c9f5325f34cb01014c2dc75ceb3351959847b8850352aff5f2dbf96af65e7ed7"
+    },
+    {
+      "command": "entrypoint",
+      "feature_id": "cli:plugins/offensive-security/foundry-agent-harness/foundryharness/fixture_agent.py:1",
+      "headless_status": "unsupported",
+      "kind": "cli",
+      "line": 1,
+      "operation_ids": [],
+      "plugin_id": "foundry-agent-harness",
+      "reason": "No reviewed structured binding for this public CLI entrypoint.",
+      "source": "plugins/offensive-security/foundry-agent-harness/foundryharness/fixture_agent.py",
+      "source_digest": "5c93bdf5fd4d70983c2d02fbdfa16566145d1c94c72128a18135ea3ba63e2fc3"
+    },
+    {
+      "command": "entrypoint",
+      "feature_id": "cli:plugins/offensive-security/foundry-agent-harness/foundryharness/mcp_fixture_server.py:1",
+      "headless_status": "unsupported",
+      "kind": "cli",
+      "line": 1,
+      "operation_ids": [],
+      "plugin_id": "foundry-agent-harness",
+      "reason": "No reviewed structured binding for this public CLI entrypoint.",
+      "source": "plugins/offensive-security/foundry-agent-harness/foundryharness/mcp_fixture_server.py",
+      "source_digest": "a1658e7de4547b85282df13e70ae8e072c87ea2be4e5b780f57e5708695092b1"
+    },
+    {
+      "command": "entrypoint",
+      "feature_id": "cli:plugins/offensive-security/foundry-agent-harness/foundryharness/provider_assessment.py:1",
+      "headless_status": "unsupported",
+      "kind": "cli",
+      "line": 1,
+      "operation_ids": [],
+      "plugin_id": "foundry-agent-harness",
+      "reason": "No reviewed structured binding for this public CLI entrypoint.",
+      "source": "plugins/offensive-security/foundry-agent-harness/foundryharness/provider_assessment.py",
+      "source_digest": "fbb9fffc9b011fe8268875434ca0c802dbea2a1f32b05ecfedba4e9a3bb81778"
+    },
+    {
+      "command": "entrypoint",
+      "feature_id": "cli:plugins/offensive-security/foundry-agent-harness/scripts/run_auth_demo.py:1",
+      "headless_status": "unsupported",
+      "kind": "cli",
+      "line": 1,
+      "operation_ids": [],
+      "plugin_id": "foundry-agent-harness",
+      "reason": "No reviewed structured binding for this public CLI entrypoint.",
+      "source": "plugins/offensive-security/foundry-agent-harness/scripts/run_auth_demo.py",
+      "source_digest": "a9c160d5abeb33e586b2876e4d66436536a4930cf02aa72c31e6f771f63565fb"
+    },
+    {
+      "command": "entrypoint",
+      "feature_id": "cli:plugins/offensive-security/foundry-agent-harness/scripts/run_demo.py:1",
+      "headless_status": "unsupported",
+      "kind": "cli",
+      "line": 1,
+      "operation_ids": [],
+      "plugin_id": "foundry-agent-harness",
+      "reason": "No reviewed structured binding for this public CLI entrypoint.",
+      "source": "plugins/offensive-security/foundry-agent-harness/scripts/run_demo.py",
+      "source_digest": "a8a21badc3717e60b11025e38da4cc5613b97e7f9bf85af9a4ddddd856762fad"
+    },
+    {
+      "command": "entrypoint",
+      "feature_id": "cli:plugins/offensive-security/foundry-agent-harness/scripts/run_playback.py:1",
+      "headless_status": "unsupported",
+      "kind": "cli",
+      "line": 1,
+      "operation_ids": [],
+      "plugin_id": "foundry-agent-harness",
+      "reason": "No reviewed structured binding for this public CLI entrypoint.",
+      "source": "plugins/offensive-security/foundry-agent-harness/scripts/run_playback.py",
+      "source_digest": "4829a0abcc74a30a0ccd2040d258107aa7d3870d8faaec55c08572c02d67e7be"
+    },
+    {
+      "command": "entrypoint",
+      "feature_id": "cli:plugins/offensive-security/foundry-agent-harness/scripts/run_provider_assessment.py:1",
+      "headless_status": "unsupported",
+      "kind": "cli",
+      "line": 1,
+      "operation_ids": [],
+      "plugin_id": "foundry-agent-harness",
+      "reason": "No reviewed structured binding for this public CLI entrypoint.",
+      "source": "plugins/offensive-security/foundry-agent-harness/scripts/run_provider_assessment.py",
+      "source_digest": "701f35619c52403a6e3fe66d7f25529e29d40849b346fa8391ba5f6326611a2c"
+    },
+    {
+      "command": "entrypoint",
+      "feature_id": "cli:plugins/offensive-security/foundry-agent-harness/scripts/validate_package.py:1",
+      "headless_status": "unsupported",
+      "kind": "cli",
+      "line": 1,
+      "operation_ids": [],
+      "plugin_id": "foundry-agent-harness",
+      "reason": "No reviewed structured binding for this public CLI entrypoint.",
+      "source": "plugins/offensive-security/foundry-agent-harness/scripts/validate_package.py",
+      "source_digest": "bb26ae4d79369f490b0a28db6d992ad2745c14cb707299010c38acc11fdb075c"
+    },
+    {
+      "behavioral_test": "tests/test_headless_operations.py",
+      "feature_id": "operation:cops.assess.foundry_security",
+      "headless_status": "implemented",
+      "kind": "operation",
+      "operation_ids": [
+        "cops.assess.foundry_security"
+      ],
+      "plugin_id": "foundry-agent-harness",
+      "reason": "Reviewed shared Python handler with behavioral and distribution conformance.",
+      "source": "cops/operations/catalog.py",
+      "source_digest": "386e184e4d60e20d373b2fdb9409235294e67be4b601015abdf36cefa62586e6"
+    }
+  ],
+  "limitations": [
+    "Source inventory records unmapped skills and CLI steps explicitly; they are not implemented coverage.",
+    "No host-installation, live-provider, or synthetic-laboratory readiness promotion."
+  ],
+  "operations": [
+    {
+      "authorization": "supplied_data_only; no execution authority",
+      "cancellation": "cooperative; running pure transformation may finish; no external rollback",
+      "coverage": "pilot; not package-wide or live-provider acceptance",
+      "description": "Assess supplied offline artifacts: foundry_security",
+      "effects": {
+        "durable_writes": false,
+        "executes_samples": false,
+        "network": false
+      },
+      "feature_id": "offline-foundry_security",
+      "implementation": "artifact_assessment",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "artifacts": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "artifact_id": {
+                  "maxLength": 96,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "collected_at": {
+                  "maxLength": 32,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "collection_authorized": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "content": {},
+                "content_b64": {
+                  "maxLength": 6000000,
+                  "type": "string"
+                },
+                "custody": {
+                  "items": {
+                    "type": "object"
+                  },
+                  "maxItems": 128,
+                  "type": "array"
+                },
+                "framework": {
+                  "maxLength": 256,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "framework_version": {
+                  "maxLength": 96,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "kind": {
+                  "maxLength": 96,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "sha256": {
+                  "maxLength": 64,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "source_ref": {
+                  "maxLength": 256,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "artifact_id",
+                "kind"
+              ],
+              "type": "object"
+            },
+            "maxItems": 64,
+            "type": "array"
+          },
+          "as_of": {
+            "maxLength": 32,
+            "type": "string"
+          }
+        },
+        "required": [
+          "artifacts",
+          "as_of"
+        ],
+        "type": "object"
+      },
+      "limits": {
+        "input_bytes": 8388608,
+        "output_bytes": 8388608
+      },
+      "operation_id": "cops.assess.foundry_security",
+      "output_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "maxLength": 96,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "limitations": {
+            "items": {
+              "maxLength": 512,
+              "type": "string"
+            },
+            "maxItems": 8,
+            "type": "array"
+          },
+          "next_action": {
+            "maxLength": 512,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "operation_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "request_id": {
+            "maxLength": 96,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "result": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "schema_version": {
+            "const": "cops.operation-result/v1"
+          },
+          "status": {
+            "enum": [
+              "succeeded",
+              "needs_input",
+              "blocked",
+              "partial",
+              "failed"
+            ]
+          }
+        },
+        "required": [
+          "schema_version",
+          "operation_id",
+          "request_id",
+          "status",
+          "result",
+          "error",
+          "next_action",
+          "limitations"
+        ],
+        "type": "object"
+      },
+      "owner": "foundry-agent-harness",
+      "retry": "pure transformation; resubmit caller-owned input; no durable server session",
+      "schema_version": "cops.operation/v1",
+      "specification": "specs/headless-agent-interface.spec.md",
+      "version": "1.0.0"
+    }
+  ],
+  "package_feature_complete": false,
+  "plugin_id": "foundry-agent-harness",
+  "runtime": "separate COPS headless bundle; not automatically included by plugin installation",
+  "schema_version": "cops.package-operations/v1",
+  "skill_references": [
+    "plugins/offensive-security/foundry-agent-harness/skills/ai-agent-mcp-laboratories/SKILL.md",
+    "plugins/offensive-security/foundry-agent-harness/skills/ai-provider-assessment/SKILL.md",
+    "plugins/offensive-security/foundry-agent-harness/skills/foundry-agent-review/SKILL.md"
+  ]
+}

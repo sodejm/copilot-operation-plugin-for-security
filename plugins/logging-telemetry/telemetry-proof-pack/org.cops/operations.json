@@ -1,0 +1,85 @@
+{
+  "coverage": "not_mapped",
+  "feature_inventory": {
+    "by_status": {
+      "blocked_by_prerequisite": 0,
+      "externally_delegated": 1,
+      "implemented": 0,
+      "unsupported": 4
+    },
+    "total": 5,
+    "unresolved_cli_declarations": 0
+  },
+  "features": [
+    {
+      "feature_id": "skill:plugins/logging-telemetry/telemetry-proof-pack/skills/telemetry-proof-tracing/SKILL.md",
+      "headless_status": "externally_delegated",
+      "kind": "skill",
+      "operation_ids": [],
+      "plugin_id": "telemetry-proof-pack",
+      "reason": "The harness interprets this skill; existence is not executable tool coverage.",
+      "source": "plugins/logging-telemetry/telemetry-proof-pack/skills/telemetry-proof-tracing/SKILL.md",
+      "source_digest": "b78e1ebac1ac92fcbdc629e9a96a192dc596f4c4b406e05282b92ad0f35c33f9"
+    },
+    {
+      "command": "trace",
+      "feature_id": "cli:plugins/logging-telemetry/telemetry-proof-pack/proofpack/cli.py:29",
+      "headless_status": "unsupported",
+      "kind": "cli",
+      "line": 29,
+      "operation_ids": [],
+      "plugin_id": "telemetry-proof-pack",
+      "reason": "No reviewed structured binding for this public CLI entrypoint.",
+      "source": "plugins/logging-telemetry/telemetry-proof-pack/proofpack/cli.py",
+      "source_digest": "1a696a7020f7763c9d6580b74d7a5c2fcd5dd6cc5a596cb9bcdc4d4069bd12ef"
+    },
+    {
+      "command": "validate",
+      "feature_id": "cli:plugins/logging-telemetry/telemetry-proof-pack/proofpack/cli.py:36",
+      "headless_status": "unsupported",
+      "kind": "cli",
+      "line": 36,
+      "operation_ids": [],
+      "plugin_id": "telemetry-proof-pack",
+      "reason": "No reviewed structured binding for this public CLI entrypoint.",
+      "source": "plugins/logging-telemetry/telemetry-proof-pack/proofpack/cli.py",
+      "source_digest": "1a696a7020f7763c9d6580b74d7a5c2fcd5dd6cc5a596cb9bcdc4d4069bd12ef"
+    },
+    {
+      "command": "entrypoint",
+      "feature_id": "cli:plugins/logging-telemetry/telemetry-proof-pack/scripts/run_demo.py:1",
+      "headless_status": "unsupported",
+      "kind": "cli",
+      "line": 1,
+      "operation_ids": [],
+      "plugin_id": "telemetry-proof-pack",
+      "reason": "No reviewed structured binding for this public CLI entrypoint.",
+      "source": "plugins/logging-telemetry/telemetry-proof-pack/scripts/run_demo.py",
+      "source_digest": "24d48a7aaeb1178eff0cbad7e63ffbf48914e2c1ec9b5c6cf55e51433d8fc799"
+    },
+    {
+      "command": "entrypoint",
+      "feature_id": "cli:plugins/logging-telemetry/telemetry-proof-pack/scripts/validate_package.py:1",
+      "headless_status": "unsupported",
+      "kind": "cli",
+      "line": 1,
+      "operation_ids": [],
+      "plugin_id": "telemetry-proof-pack",
+      "reason": "No reviewed structured binding for this public CLI entrypoint.",
+      "source": "plugins/logging-telemetry/telemetry-proof-pack/scripts/validate_package.py",
+      "source_digest": "ae8044cf78662cc00f8e98ccd5479d5e52c33fbf3479218b291d421480b30514"
+    }
+  ],
+  "limitations": [
+    "Source inventory records unmapped skills and CLI steps explicitly; they are not implemented coverage.",
+    "No host-installation, live-provider, or synthetic-laboratory readiness promotion."
+  ],
+  "operations": [],
+  "package_feature_complete": false,
+  "plugin_id": "telemetry-proof-pack",
+  "runtime": "separate COPS headless bundle; not automatically included by plugin installation",
+  "schema_version": "cops.package-operations/v1",
+  "skill_references": [
+    "plugins/logging-telemetry/telemetry-proof-pack/skills/telemetry-proof-tracing/SKILL.md"
+  ]
+}

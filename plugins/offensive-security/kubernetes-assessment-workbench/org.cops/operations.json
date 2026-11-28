@@ -1,0 +1,133 @@
+{
+  "coverage": "not_mapped",
+  "feature_inventory": {
+    "by_status": {
+      "blocked_by_prerequisite": 0,
+      "externally_delegated": 1,
+      "implemented": 0,
+      "unsupported": 8
+    },
+    "total": 9,
+    "unresolved_cli_declarations": 0
+  },
+  "features": [
+    {
+      "feature_id": "skill:plugins/offensive-security/kubernetes-assessment-workbench/skills/kubernetes-assessment-context/SKILL.md",
+      "headless_status": "externally_delegated",
+      "kind": "skill",
+      "operation_ids": [],
+      "plugin_id": "kubernetes-assessment-workbench",
+      "reason": "The harness interprets this skill; existence is not executable tool coverage.",
+      "source": "plugins/offensive-security/kubernetes-assessment-workbench/skills/kubernetes-assessment-context/SKILL.md",
+      "source_digest": "3ad44e52619b6402e899874b9f64c0a3e7bcf2ec8d037de0ba219a8b7472f081"
+    },
+    {
+      "feature_id": "step:plugins/offensive-security/kubernetes-assessment-workbench/skills/kubernetes-assessment-context/SKILL.md:8",
+      "headless_status": "unsupported",
+      "kind": "skill_step",
+      "line": 8,
+      "operation_ids": [],
+      "ordinal": "1",
+      "plugin_id": "kubernetes-assessment-workbench",
+      "reason": "This specific prose step has no reviewed typed-operation binding yet.",
+      "source": "plugins/offensive-security/kubernetes-assessment-workbench/skills/kubernetes-assessment-context/SKILL.md",
+      "source_digest": "3ad44e52619b6402e899874b9f64c0a3e7bcf2ec8d037de0ba219a8b7472f081"
+    },
+    {
+      "feature_id": "step:plugins/offensive-security/kubernetes-assessment-workbench/skills/kubernetes-assessment-context/SKILL.md:11",
+      "headless_status": "unsupported",
+      "kind": "skill_step",
+      "line": 11,
+      "operation_ids": [],
+      "ordinal": "2",
+      "plugin_id": "kubernetes-assessment-workbench",
+      "reason": "This specific prose step has no reviewed typed-operation binding yet.",
+      "source": "plugins/offensive-security/kubernetes-assessment-workbench/skills/kubernetes-assessment-context/SKILL.md",
+      "source_digest": "3ad44e52619b6402e899874b9f64c0a3e7bcf2ec8d037de0ba219a8b7472f081"
+    },
+    {
+      "feature_id": "step:plugins/offensive-security/kubernetes-assessment-workbench/skills/kubernetes-assessment-context/SKILL.md:13",
+      "headless_status": "unsupported",
+      "kind": "skill_step",
+      "line": 13,
+      "operation_ids": [],
+      "ordinal": "3",
+      "plugin_id": "kubernetes-assessment-workbench",
+      "reason": "This specific prose step has no reviewed typed-operation binding yet.",
+      "source": "plugins/offensive-security/kubernetes-assessment-workbench/skills/kubernetes-assessment-context/SKILL.md",
+      "source_digest": "3ad44e52619b6402e899874b9f64c0a3e7bcf2ec8d037de0ba219a8b7472f081"
+    },
+    {
+      "feature_id": "step:plugins/offensive-security/kubernetes-assessment-workbench/skills/kubernetes-assessment-context/SKILL.md:15",
+      "headless_status": "unsupported",
+      "kind": "skill_step",
+      "line": 15,
+      "operation_ids": [],
+      "ordinal": "4",
+      "plugin_id": "kubernetes-assessment-workbench",
+      "reason": "This specific prose step has no reviewed typed-operation binding yet.",
+      "source": "plugins/offensive-security/kubernetes-assessment-workbench/skills/kubernetes-assessment-context/SKILL.md",
+      "source_digest": "3ad44e52619b6402e899874b9f64c0a3e7bcf2ec8d037de0ba219a8b7472f081"
+    },
+    {
+      "feature_id": "step:plugins/offensive-security/kubernetes-assessment-workbench/skills/kubernetes-assessment-context/SKILL.md:19",
+      "headless_status": "unsupported",
+      "kind": "skill_step",
+      "line": 19,
+      "operation_ids": [],
+      "ordinal": "5",
+      "plugin_id": "kubernetes-assessment-workbench",
+      "reason": "This specific prose step has no reviewed typed-operation binding yet.",
+      "source": "plugins/offensive-security/kubernetes-assessment-workbench/skills/kubernetes-assessment-context/SKILL.md",
+      "source_digest": "3ad44e52619b6402e899874b9f64c0a3e7bcf2ec8d037de0ba219a8b7472f081"
+    },
+    {
+      "command": "entrypoint",
+      "feature_id": "cli:plugins/offensive-security/kubernetes-assessment-workbench/scripts/assess.py:1",
+      "headless_status": "unsupported",
+      "kind": "cli",
+      "line": 1,
+      "operation_ids": [],
+      "plugin_id": "kubernetes-assessment-workbench",
+      "reason": "No reviewed structured binding for this public CLI entrypoint.",
+      "source": "plugins/offensive-security/kubernetes-assessment-workbench/scripts/assess.py",
+      "source_digest": "b20aa2ac6a77b5f63e088b7890e20f47f091fef9219a80cfd99e36804063b3a8"
+    },
+    {
+      "command": "entrypoint",
+      "feature_id": "cli:plugins/offensive-security/kubernetes-assessment-workbench/scripts/demo.py:1",
+      "headless_status": "unsupported",
+      "kind": "cli",
+      "line": 1,
+      "operation_ids": [],
+      "plugin_id": "kubernetes-assessment-workbench",
+      "reason": "No reviewed structured binding for this public CLI entrypoint.",
+      "source": "plugins/offensive-security/kubernetes-assessment-workbench/scripts/demo.py",
+      "source_digest": "feea1b278dd3ca6b6a305b6e3fea0c34ca724522c79ae9daef9aaf7a5192847c"
+    },
+    {
+      "command": "entrypoint",
+      "feature_id": "cli:plugins/offensive-security/kubernetes-assessment-workbench/scripts/validate-package.py:1",
+      "headless_status": "unsupported",
+      "kind": "cli",
+      "line": 1,
+      "operation_ids": [],
+      "plugin_id": "kubernetes-assessment-workbench",
+      "reason": "No reviewed structured binding for this public CLI entrypoint.",
+      "source": "plugins/offensive-security/kubernetes-assessment-workbench/scripts/validate-package.py",
+      "source_digest": "c91e4e7240a4ac67a9a9041abfaef7ef84071156b99009a409900804e9ff1564"
+    }
+  ],
+  "limitations": [
+    "Source inventory records unmapped skills and CLI steps explicitly; they are not implemented coverage.",
+    "No host-installation, live-provider, or synthetic-laboratory readiness promotion."
+  ],
+  "operations": [],
+  "package_feature_complete": false,
+  "plugin_id": "kubernetes-assessment-workbench",
+  "runtime": "separate COPS headless bundle; not automatically included by plugin installation",
+  "schema_version": "cops.package-operations/v1",
+  "skill_references": [
+    "plugins/offensive-security/kubernetes-assessment-workbench/skills/kubernetes-assessment-context/SKILL.md"
+  ]
+}

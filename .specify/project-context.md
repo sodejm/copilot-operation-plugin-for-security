@@ -33,6 +33,20 @@ dependency-free operator smoke test on Linux, macOS, and Windows.
 
 ## Package boundaries
 
+The headless pilot shares `cops.operations` between a strict-JSON CLI and an
+optional local stdio MCP adapter. Task-only exploratory work and informal notes
+are supported without a formal engagement. Named tools process supplied data
+only; escalation returns a proposal, never authority. Package operation manifests
+track pilot mappings, including explicit unmapped states. Standalone export
+bundles runtime dependencies; individual plugin installation does not imply core
+runtime installation. See `specs/headless-agent-interface.spec.md`.
+
+The optional persistent extension uses owner-only POSIX SQLite for run identity,
+idempotent submission, fenced admission, cancellation and conservative recovery.
+The headless catalog and durable runtime admit only offline defensive operations.
+Peer responses remain untrusted claims. Feature inventories cover current skill
+workflows and public CLI declarations with explicit unsupported mappings.
+
 - Security Logging Advisor scans local repository signals and supports reviewed,
   cost-aware security logging recommendations. It does not prove security or
   compliance, and host installation remains unverified.

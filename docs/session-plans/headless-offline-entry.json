@@ -1,0 +1,261 @@
+{
+  "stage": "implementation",
+  "request": "Restrict the COPS headless entry point to offline defensive work, refresh its public metadata, and verify Detection Quality chat resume.",
+  "scope": "The offline operation catalog, standalone CLI and MCP adapters, private run state, and regression coverage for the existing workspace chat entry point.",
+  "setup": "Use the dedicated issue 334 worktree with repository dependencies and the optional MCP SDK for conformance tests.",
+  "constraints": "The headless surface operates on supplied data, leaves worker-backed records intact, and grants no execution authority. The required review and merge gates remain in force.",
+  "steps": [
+    {
+      "action": "Bind discovery, validation, and dispatch to the published offline operations and regenerate per-package metadata.",
+      "paths": [
+        "cops/operations/catalog.py",
+        "cops/operations/service.py",
+        "catalog/operations.json",
+        "catalog/features.json",
+        "scripts/check_headless_operations.py"
+      ],
+      "verify": {
+        "command": "python3 scripts/check_headless_operations.py",
+        "expected": "The checked-in schemas and catalogs match the offline bindings."
+      }
+    },
+    {
+      "action": "Persist offline receipts in the private runtime and refuse prototype worker records and configuration.",
+      "paths": [
+        "cops/operations/runtime.py",
+        "cops/operations/runs.py",
+        "tests/test_operation_runs.py"
+      ],
+      "verify": {
+        "command": "python3 -m pytest -q tests/test_operation_runs.py",
+        "expected": "An offline run survives restart and worker input cannot advance any state."
+      }
+    },
+    {
+      "action": "Exercise the CLI, MCP and workspace Copilot entry points under the headless conformance job.",
+      "paths": [
+        "cops/mcp/server.py",
+        "cops/operations/bundle.py",
+        "Makefile",
+        ".github/workflows/repository-contract.yml",
+        "docs/HEADLESS_AGENT_WORKFLOWS.md"
+      ],
+      "verify": {
+        "command": "make check-headless",
+        "expected": "The standalone adapters pass and the chat harness reuses its completed suite after interruption."
+      }
+    }
+  ],
+  "acceptance": [
+    {
+      "kind": "success",
+      "entrypoint": "cops tools invoke",
+      "given": "An offline defensive request supplies its input as JSON.",
+      "when": "Invoke the work request through the CLI and service.",
+      "then": "Both return equivalent structured results and redact rejected input.",
+      "paths": [
+        "cops/cli.py",
+        "cops/operations/__init__.py",
+        "cops/operations/__main__.py",
+        "cops/operations/cli.py",
+        "cops/operations/contracts.py",
+        "cops/operations/exploration.py",
+        "cops/operations/service.py",
+        "tests/test_headless_operations.py"
+      ],
+      "runner": "pytest",
+      "test": "tests/test_headless_operations.py::test_cli_equivalence_and_redacted_errors"
+    },
+    {
+      "kind": "success",
+      "entrypoint": "cops tools invoke with a private runtime",
+      "given": "A local operator configures a private state directory.",
+      "when": "Accept an offline request, restart the CLI, and resume with its run ID.",
+      "then": "The fresh process completes the saved request and status records one attempt.",
+      "paths": [
+        "cops/_filesystem.py",
+        "cops/execution/filesystem.py",
+        "cops/operations/runtime.py",
+        "cops/operations/runs.py",
+        "tests/test_operation_runs.py"
+      ],
+      "runner": "pytest",
+      "test": "tests/test_operation_runs.py::test_cli_restart_uses_installation_owned_configuration"
+    },
+    {
+      "kind": "boundary",
+      "entrypoint": "cops.run.status and cops.run.resume",
+      "given": "The private ledger contains a row written by the prototype worker integration.",
+      "when": "Read or resume the stored run through the offline entry point.",
+      "then": "The entry point refuses to read or advance it and preserves its bytes.",
+      "paths": [
+        "cops/operations/runs.py",
+        "cops/operations/service.py"
+      ],
+      "runner": "pytest",
+      "test": "tests/test_operation_runs.py::test_legacy_worker_run_cannot_be_read_or_advanced"
+    },
+    {
+      "kind": "boundary",
+      "entrypoint": "cops.run.status with an installed runtime",
+      "given": "The runtime configuration contains the prototype worker field.",
+      "when": "Invoke the entry point with the configuration.",
+      "then": "The entry point rejects the configuration before creating a state directory.",
+      "paths": [
+        "cops/operations/runtime.py"
+      ],
+      "runner": "pytest",
+      "test": "tests/test_operation_runs.py::test_configuration_rejects_legacy_dispatch_settings_before_creating_state"
+    },
+    {
+      "kind": "boundary",
+      "entrypoint": "cops.delegate.accept",
+      "given": "An external specialist returns a different operation or claims execution authority.",
+      "when": "Submit the peer response to the offline runtime.",
+      "then": "The ledger rejects the response under its original delegation binding.",
+      "paths": [
+        "cops/operations/delegation.py",
+        "tests/test_operation_delegation.py"
+      ],
+      "runner": "pytest",
+      "test": "tests/test_operation_delegation.py::test_operation_substitution_and_fake_authority_rejected"
+    },
+    {
+      "kind": "success",
+      "entrypoint": "headless operation metadata",
+      "given": "All registered packages contribute to the feature inventory.",
+      "when": "Generate the central catalog and each plugin's operation metadata.",
+      "then": "Each package is represented and unsupported features stay labeled unsupported.",
+      "paths": [
+        "catalog/features.json",
+        "catalog/operations.json",
+        "catalog/schemas/operation-request.schema.json",
+        "catalog/schemas/operation-result.schema.json",
+        "catalog/schemas/operation-run.schema.json",
+        "catalog/schemas/operation.schema.json",
+        "plugins/detection-hunting/attack-path-workbench/org.cops/operations.json",
+        "plugins/detection-hunting/detection-quality-workbench/org.cops/operations.json",
+        "plugins/detection-hunting/sentinel-hunt-workbench/org.cops/operations.json",
+        "plugins/detection-hunting/soc-investigation-workbench/org.cops/operations.json",
+        "plugins/detection-hunting/threat-intelligence-enrichment/org.cops/operations.json",
+        "plugins/governance-compliance/compliance-posture-workbench/org.cops/operations.json",
+        "plugins/identity-access/ad-assessment-workbench/org.cops/operations.json",
+        "plugins/identity-access/entra-identity-workbench/org.cops/operations.json",
+        "plugins/identity-access/secrets-remediation-workbench/org.cops/operations.json",
+        "plugins/incident-response/incident-response-sandbox/org.cops/operations.json",
+        "plugins/logging-telemetry/security-logging-advisor/org.cops/operations.json",
+        "plugins/logging-telemetry/telemetry-proof-pack/org.cops/operations.json",
+        "plugins/offensive-security/attack-surface-planner/org.cops/operations.json",
+        "plugins/offensive-security/foundry-agent-harness/org.cops/operations.json",
+        "plugins/offensive-security/host-assessment-workbench/org.cops/operations.json",
+        "plugins/offensive-security/kubernetes-assessment-workbench/org.cops/operations.json",
+        "plugins/offensive-security/offensive-engagement-workbench/org.cops/operations.json",
+        "plugins/offensive-security/web-api-assessment-workbench/org.cops/operations.json",
+        "plugins/vulnerability-management/cloud-posture-workbench/org.cops/operations.json",
+        "plugins/vulnerability-management/exploit-validation-workbench/org.cops/operations.json",
+        "plugins/vulnerability-management/exposure-triage-workbench/org.cops/operations.json",
+        "plugins/vulnerability-management/network-segmentation-workbench/org.cops/operations.json",
+        "plugins/vulnerability-management/patch-security-review/org.cops/operations.json",
+        "plugins/vulnerability-management/supply-chain-cicd-workbench/org.cops/operations.json",
+        "plugins/vulnerability-management/tls-crypto-workbench/org.cops/operations.json",
+        "cops/operations/catalog.py",
+        "cops/operations/inventory.py",
+        "cops/operations/metadata.py",
+        "scripts/check_headless_operations.py",
+        "tests/test_operation_inventory.py",
+        "tests/test_headless_distribution.py"
+      ],
+      "runner": "pytest",
+      "test": "tests/test_headless_distribution.py::test_metadata_covers_all_catalog_packages_without_completion_claims"
+    },
+    {
+      "kind": "success",
+      "entrypoint": "standalone bundle launcher",
+      "given": "An exported bundle sits outside the source checkout.",
+      "when": "Invoke its supplied-data SOC and assessment operations.",
+      "then": "The bundle executes the registered offline bindings from its own files.",
+      "paths": [
+        "cops/operations/bundle.py",
+        "tests/test_headless_distribution.py"
+      ],
+      "runner": "pytest",
+      "test": "tests/test_headless_distribution.py::test_bundle_runs_real_soc_and_assessment_outside_repository"
+    },
+    {
+      "kind": "success",
+      "entrypoint": "headless MCP discovery",
+      "given": "A harness can import the MCP entry point before installing the optional SDK.",
+      "when": "Load the advertised operation catalog.",
+      "then": "Discovery returns the available offline tools without requiring the SDK.",
+      "paths": [
+        "cops/mcp/__init__.py",
+        "cops/mcp/__main__.py",
+        "cops/mcp/server.py",
+        "pyproject.toml",
+        "requirements-mcp.txt",
+        "tests/test_cops_mcp.py"
+      ],
+      "runner": "pytest",
+      "test": "tests/test_cops_mcp.py::test_optional_sdk_is_not_needed_for_discovery"
+    },
+    {
+      "kind": "boundary",
+      "entrypoint": "offline operation invocation",
+      "given": "A harness requests a removed worker operation.",
+      "when": "Invoke the former operation ID.",
+      "then": "Invocation is blocked with an unknown operation error.",
+      "paths": [
+        "cops/operations/catalog.py",
+        "specs/features/headless_agent_interface.feature",
+        "tests/step_defs/test_headless_agent_interface.py"
+      ],
+      "runner": "pytest",
+      "test": "tests/step_defs/test_headless_agent_interface.py::test_worker_operations_are_unavailable"
+    },
+    {
+      "kind": "success",
+      "entrypoint": "workspace Copilot MCP request",
+      "given": "An operator asks in ordinary language to review the bundled detections.",
+      "when": "Run the existing workspace request tool through the stdio harness.",
+      "then": "Routing selects the Detection Quality workbench and skill and reports gaps from both suites.",
+      "paths": [
+        "Makefile",
+        "scripts/agent/check.py",
+        ".github/workflows/repository-contract.yml",
+        "README.md",
+        "ARCHITECTURE.md",
+        ".specify/project-context.md"
+      ],
+      "runner": "unittest",
+      "test": "tests/test_copilot_entry.py::CopilotTests::test_one_chat_request"
+    },
+    {
+      "kind": "boundary",
+      "entrypoint": "workspace Copilot MCP resume",
+      "given": "The harness exits after recording the Sentinel suite receipt.",
+      "when": "Restart with the same chat run ID and replay after completion.",
+      "then": "The second process reuses Sentinel, evaluates Splunk once, and replay returns both saved receipts.",
+      "paths": [
+        "Makefile",
+        "scripts/agent/check.py",
+        ".github/workflows/repository-contract.yml"
+      ],
+      "runner": "unittest",
+      "test": "tests/test_copilot_entry.py::CopilotTests::test_interrupted_chat_resumes"
+    },
+    {
+      "kind": "boundary",
+      "entrypoint": "required GitHub validate job",
+      "given": "A pull request is draft or ready and the three prerequisite jobs return terminal states.",
+      "when": "Run the validation step for every combination of readiness and job results.",
+      "then": "Only a ready PR with headless conformance, laboratory, and portability checks all successful proceeds to the full suite.",
+      "paths": [
+        ".github/workflows/repository-contract.yml",
+        "tests/test_local_push_gate.py"
+      ],
+      "runner": "unittest",
+      "test": "tests/test_local_push_gate.py::PolicyTests::test_draft_review_workflow_blocks_until_ready_and_all_jobs_pass"
+    }
+  ],
+  "pending": []
+}
