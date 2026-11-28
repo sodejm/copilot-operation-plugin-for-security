@@ -1,0 +1,325 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Foundry bounded execution trace v1",
+  "$defs": {
+    "bindings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "engagement_id",
+        "session_id",
+        "role_id",
+        "tenant_id",
+        "scenario_id",
+        "plan_digest",
+        "approval_digest",
+        "envelope_digest"
+      ],
+      "properties": {
+        "engagement_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$"
+        },
+        "session_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$"
+        },
+        "role_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$"
+        },
+        "tenant_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$"
+        },
+        "scenario_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$"
+        },
+        "plan_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "approval_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "envelope_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "event": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "sequence",
+            "event_kind",
+            "bindings_digest",
+            "summary",
+            "output_digest"
+          ],
+          "properties": {
+            "sequence": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 255
+            },
+            "event_kind": {
+              "const": "model_output"
+            },
+            "bindings_digest": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "summary": {
+              "type": "string",
+              "maxLength": 2048
+            },
+            "output_digest": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "sequence",
+            "event_kind",
+            "bindings_digest",
+            "summary",
+            "request_digest"
+          ],
+          "properties": {
+            "sequence": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 255
+            },
+            "event_kind": {
+              "const": "tool_call_attempted"
+            },
+            "bindings_digest": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "summary": {
+              "type": "string",
+              "maxLength": 2048
+            },
+            "request_digest": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "sequence",
+            "event_kind",
+            "bindings_digest",
+            "summary",
+            "request_digest",
+            "decision_digest"
+          ],
+          "properties": {
+            "sequence": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 255
+            },
+            "event_kind": {
+              "const": "tool_call_denied"
+            },
+            "bindings_digest": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "summary": {
+              "type": "string",
+              "maxLength": 2048
+            },
+            "request_digest": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "decision_digest": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "sequence",
+            "event_kind",
+            "bindings_digest",
+            "summary",
+            "request_digest",
+            "before_state_digest",
+            "after_state_digest",
+            "effect_count",
+            "observer_id"
+          ],
+          "properties": {
+            "sequence": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 255
+            },
+            "event_kind": {
+              "const": "tool_effect_executed"
+            },
+            "bindings_digest": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "summary": {
+              "type": "string",
+              "maxLength": 2048
+            },
+            "request_digest": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "before_state_digest": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "after_state_digest": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+              "effect_count": {
+                "type": "integer",
+                "const": 1
+            },
+            "observer_id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "sequence",
+            "event_kind",
+            "bindings_digest",
+            "summary",
+            "reason_code",
+            "decision_digest"
+          ],
+          "properties": {
+            "sequence": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 255
+            },
+            "event_kind": {
+              "const": "unsupported_feature"
+            },
+            "bindings_digest": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "summary": {
+              "type": "string",
+              "maxLength": 2048
+            },
+            "reason_code": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$"
+            },
+            "decision_digest": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "trace_id",
+    "bindings",
+    "limits",
+    "events",
+    "cleanup"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "foundry.execution-trace/v1"
+    },
+    "trace_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$"
+    },
+    "bindings": {
+      "$ref": "#/$defs/bindings"
+    },
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "max_trace_events",
+        "max_trace_bytes"
+      ],
+      "properties": {
+        "max_trace_events": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 256
+        },
+        "max_trace_bytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1048576
+        }
+      }
+    },
+    "events": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 256,
+      "items": {
+        "$ref": "#/$defs/event"
+      }
+    },
+    "cleanup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "verified",
+        "before_state_digest",
+        "after_state_digest"
+      ],
+      "properties": {
+        "verified": {
+          "type": "boolean"
+        },
+        "before_state_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "after_state_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    }
+  }
+}

@@ -12,9 +12,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from _template_common import (  # noqa: E402
-    DISTRIBUTION_IGNORE, TemplateError, is_squad_managed_skill, synchronize_claude_skills,
+    DISTRIBUTION_IGNORE,
+    TemplateError,
+    is_squad_managed_skill,
+    synchronize_claude_skills,
 )
-
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -40,8 +42,7 @@ def main() -> int:
         if args.check:
             with tempfile.TemporaryDirectory(prefix="park-adapters-") as temp:
                 scratch = Path(temp)
-                shutil.copytree(ROOT / ".agents" / "skills", scratch / ".agents" / "skills",
-                                ignore=DISTRIBUTION_IGNORE)
+                shutil.copytree(ROOT / ".agents" / "skills", scratch / ".agents" / "skills", ignore=DISTRIBUTION_IGNORE)
                 synchronize_claude_skills(scratch)
                 expected = scratch / ".claude" / "skills"
                 if not target.is_dir() or not trees_match(expected, target, allow_squad_skills=True):

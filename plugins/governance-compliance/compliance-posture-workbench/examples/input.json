@@ -1,0 +1,22 @@
+{
+  "artifacts": [
+    {
+      "artifact_id": "control-vuln",
+      "kind": "control_evidence",
+      "content": {
+        "controls": [
+          {
+            "framework": "SOC2",
+            "framework_version": "2017",
+            "control_id": "CC6.1",
+            "collected_at": "2026-10-01T12:00:00Z",
+            "evidence_refs": [
+              "ev-1"
+            ],
+            "status": "ineffective"
+          }
+        ]
+      }
+    }
+  ]
+}

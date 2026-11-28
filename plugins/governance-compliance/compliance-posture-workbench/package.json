@@ -1,0 +1,36 @@
+{
+  "schema_version": "1.0",
+  "id": "compliance-posture-workbench",
+  "display_name": "COPS Compliance Posture Workbench",
+  "maturity": "experimental",
+  "summary": "Map versioned SOC 2, CIS and NIST controls to dated evidence; identify unsupported and unknown control claims.",
+  "support": {
+    "structural_validation": "unverified",
+    "offline_workflow": "unverified",
+    "host_installation": "unverified",
+    "live_integration": "unverified"
+  },
+  "limitations": [
+    "The built-in rules inspect bounded supplied artifacts; absence of findings does not establish safety.",
+    "Isolated laboratory acceptance and production integrations require separate execution evidence.",
+    "Unsupported formats require a registered acquisition or parsing adapter with pinned prerequisites."
+  ],
+  "demo": {
+    "description": "Compare vulnerable, corrected, insufficient and benign synthetic evidence.",
+    "command": [
+      "$PYTHON",
+      "plugins/governance-compliance/compliance-posture-workbench/scripts/demo.py"
+    ],
+    "timeout_seconds": 60
+  },
+  "validation": [
+    {
+      "name": "artifact-correction-playback",
+      "command": [
+        "$PYTHON",
+        "plugins/governance-compliance/compliance-posture-workbench/scripts/validate_package.py"
+      ],
+      "timeout_seconds": 60
+    }
+  ]
+}

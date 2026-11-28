@@ -101,6 +101,15 @@
             "type": "array",
             "items": {"type": "string"}
           },
+          "workflow_definitions": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "pattern": "^catalog/workflows/[a-z0-9-]+\\.workflow\\.json$"
+            }
+          },
           "owner_issue": {
             "type": "integer",
             "minimum": 1

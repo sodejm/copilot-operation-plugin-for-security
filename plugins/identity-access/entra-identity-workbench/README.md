@@ -1,109 +1,70 @@
 # COPS Entra Identity Workbench
 
-Offline Entra ID, Azure RBAC, and AI Agent identity graph modeling, privilege analysis, and exposure review.
+The Entra Identity Workbench turns a checksummed, offline tenant export into an identity graph and a set of evidence-linked exposure hypotheses. It models people, applications, service principals, managed identities, AI agents, groups, roles, resources, credentials, and relationship edges without contacting Microsoft Graph or Azure Resource Manager.
 
-## Overview
+Use the results to decide what an analyst should validate next. A graph path or hypothesis shows structural reachability in the supplied export. It does not prove that an attacker exercised the path, that a credential is usable, or that the export covers the production tenant.
 
-The **Entra Identity Workbench** (`entra-identity-workbench`) provides security engineers and identity analysts with an offline, deterministic tool to analyze complex privilege relationships across Microsoft Entra ID (Azure AD), Azure Resource Manager RBAC, and emerging AI Agent identities (such as Microsoft Foundry blueprints and runtime Agent IDs).
+## Prerequisites and quick start
 
-Operating entirely from verified, content-hashed export manifests, the workbench models identity relationships without requiring live directory connectivity or cloud credentials. It identifies risky architectural patterns, broad application consents, unmonitored agent privileges, and stale federated trust relationships before they can be leveraged in attack paths.
-
-```mermaid
-flowchart LR
-    A[Export Manifest + Source Files] --> B[Deterministic Ingestion & SHA-256 Gate]
-    B --> C[Normalized Identity Graph]
-    C --> D[Privilege & Entitlement Analysis]
-    D --> E[Prioritized Exposure Review Report]
-```
-
-## Key Capabilities
-
-1. **Explicit Principal Classification**
-   - Distinguishes human users (direct members vs. external B2B guests), application registrations, service principals (including legacy Azure AI Foundry service principals), managed identities (user-assigned and system-assigned), declarative agent blueprints, and runtime Agent IDs.
-   - Never infers entity types from display names or ad-hoc naming patterns.
-
-2. **Autonomous vs. Delegated Privilege Distinction**
-   - Accurately differentiates direct Azure RBAC assignments, inherited group roles, active vs. eligible Privileged Identity Management (PIM) assignments, delegated On-Behalf-Of (OBO) user consents, and autonomous application grants.
-
-3. **AI Agent Privilege Verification**
-   - Compares declarative agent blueprints (specifying approved tools, models, and intended read-only access) against instantiated runtime Agent IDs.
-   - Detects over-privileged agents where high-risk write or management permissions have been assigned to an agent runtime.
-
-4. **Multi-Tenant Boundary Enforcement**
-   - Strictly enforces tenant isolation boundaries.
-   - Flags cross-tenant assignments or external federated access without creating spurious multi-tenant reachability paths.
-
-5. **Actionable Review Hypotheses**
-   - Outputs review findings categorized by risk, explicitly stating supporting graph edges, missing telemetry required to confirm exploitation, and concrete remediation recommendations.
-
-## Directory Structure
-
-```
-entra-identity-workbench/
-├── .claude-plugin/plugin.json         # Claude marketplace manifest
-├── .codex-plugin/plugin.json          # Codex marketplace manifest
-├── org.cops/prerequisites.json # Copilot Studio runtime prerequisites
-├── package.json                       # Canonical package descriptor
-├── plugin.json                        # Universal plugin manifest
-├── README.md                          # Primary overview and usage documentation
-├── docs/
-│   └── PLAYBOOK.md                    # Step-by-step analyst triage playbook
-├── entrawb/                           # Standard-library runtime engine
-│   ├── analysis.py                    # Hypothesis evaluation rules
-│   ├── cli.py                         # Operator CLI commands
-│   ├── graph.py                       # In-memory typed graph builder
-│   ├── ingestion.py                   # Manifest & SHA-256 hash validator
-│   ├── models.py                      # Frozen dataclasses & error hierarchy
-│   └── reporting.py                   # Markdown & JSON report formatters
-├── fixtures/                          # Synthetic multi-principal test tenant
-│   ├── generate_fixtures.py           # Deterministic fixture generator
-│   └── tenants/contoso-corp/          # Tenant export files and manifest
-├── schemas/                           # JSON schemas for offline artifacts
-│   ├── graph.schema.json              # Normalized graph schema
-│   ├── manifest.schema.json           # Ingestion manifest schema
-│   └── report.schema.json             # Exposure report schema
-├── scripts/
-│   ├── run_demo.py                    # Executable offline demo runner
-│   └── validate_package.py            # Package integrity gate
-├── skills/
-│   └── entra-identity-analysis/       # Contributor and agent skill definition
-│       └── SKILL.md
-└── tests/                             # Automated test suite
-    └── test_workbench.py
-```
-
-## Quick Start
-
-### 1. Run the Offline Demo
-
-Run the end-to-end demo using the bundled Contoso synthetic tenant fixture:
+Run from the repository root with Python 3.14 or later. The package has no network prerequisite.
 
 ```bash
-python3 plugins/identity-access/entra-identity-workbench/scripts/run_demo.py
+python3 -m cops demo entra-identity-workbench
 ```
 
-### 2. Analyze a Tenant Export via CLI
-
-To inspect a tenant export manifest and generate a Markdown review report:
+The public command creates an owner-only temporary workspace and removes it
+after the playback. Use the package runner directly with a new directory when
+you need to retain artifacts for inspection:
 
 ```bash
-python3 -m entrawb.cli analyze --manifest plugins/identity-access/entra-identity-workbench/fixtures/tenants/contoso-corp/manifest.json
+PYTHON="${PYTHON:-python3.14}"
+scratch="$(mktemp -d "${TMPDIR:-/tmp}/cops-entra-playback.XXXXXX")"
+chmod 700 "$scratch"
+"$PYTHON" plugins/identity-access/entra-identity-workbench/scripts/run_demo.py \
+  --workspace "$scratch/playback"
+cat "$scratch/playback/playback-summary.json"
 ```
 
-To export structured JSON for automated ingestion into SOC or compliance pipelines:
+The playback refuses an existing workspace so that a prior report cannot be
+mistaken for current output. The command retains artifacts under
+`$scratch/playback`; after review, remove the private scratch directory with
+`rm -rf "$scratch"` in the same shell.
 
-```bash
-python3 -m entrawb.cli analyze --manifest <path/to/manifest.json> --json --output report.json
-```
+For a separate export, create a manifest conforming to `schemas/manifest.schema.json`, include the declared SHA-256 for every source file, and use the package modules as shown in `scripts/run_demo.py`. See [the playbook](docs/PLAYBOOK.md) for the operational sequence and [the verification guide](docs/VERIFICATION.md) for package checks.
 
-To export the normalized identity graph:
+## Preparing a private export
 
-```bash
-python3 -m entrawb.cli graph --manifest <path/to/manifest.json> --output graph.json
-```
+An authorized collector must obtain the tenant data separately. Grant that collector only the read permissions needed for the selected sources and tenant; this offline package requests no Microsoft Graph permissions and cannot confirm the collector's effective rights or whether pagination completed. Record the collector's permitted tenant, source set, collection time, and any gaps outside the report. A missing source or an incomplete collection must not be represented as full coverage.
 
-## Limitations & Boundary Rules
+Exports can contain names, user principal names, application identifiers, and relationship details. Remove secrets and unnecessary personal data before ingestion, and replace identifiers consistently across source files so graph joins still work. The workbench does not automatically redact input or output. Recompute each manifest SHA-256 after sanitizing, keep the source bundle and generated graph and reports in access-controlled storage, and apply the engagement's retention and deletion rules. Do not commit real tenant exports or reports.
 
-- **Offline Analysis Only**: The workbench analyzes offline exports. It does not initiate network calls to Microsoft Graph or Azure Resource Manager.
-- **Entitlement Potential vs. Exploitation**: Identified graph paths represent structural privilege reachability. They indicate exposure potential, not confirmed compromise.
-- **Strict Evidence Integrity**: All exports must include a `manifest.json` with matching SHA-256 hashes. Incomplete or altered exports are rejected rather than assumed safe.
+Set each source's `exported_at` to its actual collection time; if omitted, the manifest-level `exported_at` is used. Timestamps may have up to six fractional-second digits; greater precision cannot be assessed reliably and is marked invalid. The assessment uses a 24-hour window measured from its UTC `assessed_at`. Only an available, fully collected source with a valid timestamp inside that window is `fresh`. Missing, partial, future-dated, invalid-time, and older sources are `unknown` with a reason in `source_coverage`. Their nodes and edges are not current evidence for a hypothesis. A hash match proves file integrity relative to the manifest, not collection completeness or freshness.
+
+Graph and report export and v2 artifact validation reject an `assessed_at` more than five minutes ahead of the validating host's UTC clock. Keep that clock accurate. Historical artifacts retain their original assessment time; `fresh` describes evidence at that time, not at the time the artifact is read. These checks cannot establish whether the collector supplied truthful timestamps.
+
+## Design and data flow
+
+1. **Intake:** `ingest_tenant_export` validates the manifest, confines source paths to the manifest directory, verifies hashes, and parses the declared sources.
+2. **Graph construction:** `build_identity_graph` normalizes identities and relationships and records source coverage and freshness.
+3. **Assessment:** `analyze_identity_graph` derives bounded exposure hypotheses from observed graph structure.
+4. **Reporting:** JSON and Markdown renderers produce a machine-readable report and a review copy. Freshness and provenance cross-field checks run before playback succeeds.
+
+No stage enriches missing evidence with a live lookup. Missing, stale, or incomplete sources remain coverage limits in the output.
+
+## Contracts and artifacts
+
+| Contract or artifact | Purpose | Key fields | Producer and consumer | Definition and validation |
+| --- | --- | --- | --- | --- |
+| Export manifest | Binds one tenant export to named, hashed source files | `schema_version`, `tenant_id`, `exported_at`, `sources` | Export preparer → ingestion | `schemas/manifest.schema.json`; structural checks plus file SHA-256 verification |
+| Identity graph | Normalized evidence for structural traversal | `tenant_id`, `assessed_at`, `source_coverage`, `nodes`, `edges` | Graph builder → analyzer and reviewer | `schemas/graph.v2.schema.json`; `validate_graph_artifact` |
+| Exposure report | Prioritized review hypotheses with evidence and caveats | `summary`, `source_coverage`, `hypotheses` | Analyzer → JSON/Markdown renderer and analyst | `schemas/report.v2.schema.json`; `validate_report_artifact` |
+| `report.md` | Human review view of the JSON report | Summary, coverage, hypotheses | Renderer → analyst | Derived from the validated in-memory graph and hypotheses |
+| `playback-summary.json` | Retained playback acceptance result | counts, rerun result, expected-failure result | Demo → package validator or reviewer | Written only after semantic assertions pass |
+
+The original `graph.schema.json` and `report.schema.json` retain the v1 contract for historical artifacts. Current exports use v2 and require assessment time and complete source coverage; consumers should select the schema from `schema_version`.
+
+## Reading the output
+
+Start with `source_coverage`; it determines how broadly any hypothesis can be read. Review each hypothesis's evidence and uncertainty before considering remediation. The included fixture produces 18 nodes, 13 edges, and 7 hypotheses. Those numbers are regression expectations for synthetic data, not production benchmarks.
+
+The package is offline and read-only. It does not validate live permissions, credential viability, conditional-access enforcement, exploitability, or complete tenant coverage. A clean report cannot establish that a tenant is secure.

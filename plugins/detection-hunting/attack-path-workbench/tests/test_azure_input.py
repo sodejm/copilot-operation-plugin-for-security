@@ -1,14 +1,15 @@
 """Hostile local bundles fail before analysis; no payloads escape errors."""
-import hashlib
 import os
-from pathlib import Path
 import tempfile
 import unittest
-from attackpath.azure.input import read_regular, load
+from pathlib import Path
+
+from attackpath.azure.input import load, read_regular
 from attackpath.azure.model import AzureError
-from attackpath.ingestion import Limits, RunBudget, iter_jsonl, parse_json, IngestError
+from attackpath.ingestion import IngestError, Limits, RunBudget, iter_jsonl, parse_json
 from azure_fixtures import NOW, write_bundle
 from test_azure_paths import base
+
 
 class InputTests(unittest.TestCase):
     def test_descriptor_reader_rejects_links_traversal_and_nonregular(self):

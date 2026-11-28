@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-import copy
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -23,15 +22,27 @@ def context():
 
 
 def setup(context):
-    context["fixture"] = {"schema": "cops.ir-fixture/v1", "tenant": "example", "revision": 0,
-                          "permissions": ["isolate-host"], "throttled": False,
-                          "failure_mode": "none", "targets": {
-                              "host-1": {"action": "isolate-host", "state": "active"},
-                              "host-2": {"action": "isolate-host", "state": "active"}},
-                          "executions": []}
-    context["plan"] = build_plan(action="isolate-host", tenant="example", target="host-1",
-                                 expires_at=(datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(),
-                                 nonce="acceptance-1", approver_assertion="analyst")
+    context["fixture"] = {
+        "schema": "cops.ir-fixture/v1",
+        "tenant": "example",
+        "revision": 0,
+        "permissions": ["isolate-host"],
+        "throttled": False,
+        "failure_mode": "none",
+        "targets": {
+            "host-1": {"action": "isolate-host", "state": "active"},
+            "host-2": {"action": "isolate-host", "state": "active"},
+        },
+        "executions": [],
+    }
+    context["plan"] = build_plan(
+        action="isolate-host",
+        tenant="example",
+        target="host-1",
+        expires_at=(datetime.now(UTC) + timedelta(hours=1)).isoformat(),
+        nonce="acceptance-1",
+        approver_assertion="analyst",
+    )
 
 
 @given("a synthetic tenant fixture and a matching expiring plan")
@@ -51,6 +62,12 @@ def partial(context):
     context["fixture"]["failure_mode"] = "partial"
 
 
+@given("a fixture configured with unavailable post-action verification")
+def unavailable_verification(context):
+    setup(context)
+    context["fixture"]["verification_available"] = False
+
+
 @when("the analyst dry runs and executes the plan")
 def run(context):
     receipt = dry_run(context["plan"], context["fixture"])
@@ -67,13 +84,21 @@ def changed(context):
 @when("the analyst executes a dry run plan")
 def run_partial(context):
     context["updated"], context["result"] = execute(
-        context["plan"], dry_run(context["plan"], context["fixture"]), context["fixture"])
+        context["plan"], dry_run(context["plan"], context["fixture"]), context["fixture"]
+    )
 
 
 @then("only the named fixture target changes")
 def named(context):
     assert context["updated"]["targets"]["host-1"]["state"] == "isolated"
     assert context["updated"]["targets"]["host-2"]["state"] == "active"
+
+
+@then("the result records successful post-action verification")
+def successful_verification(context):
+    assert context["result"]["provider_request_id"].startswith("fixture-request-")
+    assert context["result"]["post_action_verification"]["result"] == "succeeded"
+    assert context["result"]["post_action_verification"]["reference"].startswith("fixture-state-sha256-")
 
 
 @then("a replay of the same plan is rejected")
@@ -92,3 +117,18 @@ def no_apply(context):
 def rollback(context):
     assert context["result"]["outcome"] == "partial-rolled-back"
     assert context["updated"]["targets"]["host-1"]["state"] == "active"
+
+
+@then("the result records failed post-action verification")
+def failed_verification(context):
+    verification = context["result"]["post_action_verification"]
+    assert verification["result"] == "failed"
+    assert verification["reference"].startswith("fixture-state-sha256-")
+
+
+@then("the result records unavailable post-action verification")
+def unavailable_result(context):
+    assert context["result"]["post_action_verification"] == {
+        "reference": None,
+        "result": "unavailable",
+    }

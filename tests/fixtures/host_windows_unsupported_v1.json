@@ -1,0 +1,40 @@
+{
+  "bridge": {
+    "canary_assertions": false,
+    "capabilities": [],
+    "mode": "offline_windows_export",
+    "platform": "windows"
+  },
+  "coverage": {
+    "filesystem_controls": "not_assessed",
+    "local_credential_references": "not_assessed",
+    "registry_controls": "not_assessed",
+    "scheduled_task_permissions": "not_assessed",
+    "service_permissions": "not_assessed",
+    "token_privileges": "not_assessed",
+    "versioned_escalation_families": "unsupported"
+  },
+  "host": {
+    "architecture": "x64",
+    "os_build": "10.0.19045",
+    "protections": {
+      "applocker": "unknown",
+      "credential_guard": "unknown",
+      "uac": "enabled",
+      "vbs": "unknown",
+      "wdac": "unknown"
+    },
+    "token": {
+      "elevated": true,
+      "integrity": "high",
+      "privileges": [
+        "SeChangeNotifyPrivilege"
+      ],
+      "privileges_complete": true
+    }
+  },
+  "observations": [],
+  "schema_version": "windows-1.0",
+  "source_id": "synthetic_windows_unsupported",
+  "source_kind": "synthetic_lab"
+}

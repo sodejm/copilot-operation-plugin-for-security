@@ -8,21 +8,19 @@ and emits a validated case snapshot.
 from __future__ import annotations
 
 import csv
-from datetime import datetime, timedelta, timezone
-from hashlib import sha256
 import io
 import json
-from pathlib import Path
 import re
+from datetime import UTC, datetime, timedelta, timezone
+from hashlib import sha256
+from pathlib import Path
 from typing import Any
 
-from .engine import ContractError, Document, alias, digest, fields, prose, require, utc, validate
+from .engine import ContractError, Document, alias, require, utc, validate
 from .files import read_regular
 
 ID_PATTERN = re.compile(r"[a-z][a-z0-9_-]{0,63}\Z")
-ISO_TZ_PATTERN = re.compile(
-    r"^(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2})(?:\.\d+)?(Z|[+-]\d{2}:?\d{2})?$"
-)
+ISO_TZ_PATTERN = re.compile(r"^(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2})(?:\.\d+)?(Z|[+-]\d{2}:?\d{2})?$")
 IP_PATTERN = re.compile(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$")
 
 
@@ -60,7 +58,7 @@ def parse_timestamp(value: Any) -> str:
         # Try unix epoch in seconds
         try:
             epoch = float(cleaned)
-            dt = datetime.fromtimestamp(epoch, tz=timezone.utc)
+            dt = datetime.fromtimestamp(epoch, tz=UTC)
             return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
         except (ValueError, OverflowError, OSError) as exc:
             raise ContractError(f"Unrecognized timestamp format: {value}") from exc
@@ -68,7 +66,7 @@ def parse_timestamp(value: Any) -> str:
     base_time, offset = match.groups()
     dt = datetime.fromisoformat(base_time)
     if not offset or offset == "Z":
-        dt = dt.replace(tzinfo=timezone.utc)
+        dt = dt.replace(tzinfo=UTC)
     else:
         # Normalize offset format (e.g. +0500 -> +05:00)
         norm_offset = offset
@@ -78,7 +76,7 @@ def parse_timestamp(value: Any) -> str:
         minutes = int(norm_offset[4:6])
         sign = 1 if norm_offset[0] == "+" else -1
         delta_tz = timezone(sign * timedelta(hours=hours, minutes=minutes))
-        dt = dt.replace(tzinfo=delta_tz).astimezone(timezone.utc)
+        dt = dt.replace(tzinfo=delta_tz).astimezone(UTC)
 
     return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -126,11 +124,17 @@ def parse_sentinel(content: bytes, filename: str, expected_tenant: str | None) -
 
             entities: list[tuple[str, str]] = []
             if item.get("Account") or item.get("UserPrincipalName") or item.get("AccountName"):
-                entities.append(("account", str(item.get("Account") or item.get("UserPrincipalName") or item.get("AccountName"))))
+                entities.append(
+                    ("account", str(item.get("Account") or item.get("UserPrincipalName") or item.get("AccountName")))
+                )
             if item.get("IPAddress") or item.get("ClientIP") or item.get("CallerIpAddress"):
-                entities.append(("ip", str(item.get("IPAddress") or item.get("ClientIP") or item.get("CallerIpAddress"))))
+                entities.append(
+                    ("ip", str(item.get("IPAddress") or item.get("ClientIP") or item.get("CallerIpAddress")))
+                )
             if item.get("AppDisplayName") or item.get("AppId") or item.get("ApplicationId"):
-                entities.append(("app", str(item.get("AppDisplayName") or item.get("AppId") or item.get("ApplicationId"))))
+                entities.append(
+                    ("app", str(item.get("AppDisplayName") or item.get("AppId") or item.get("ApplicationId")))
+                )
             if item.get("ResourceId") or item.get("Resource"):
                 entities.append(("resource", str(item.get("ResourceId") or item.get("Resource"))))
             if item.get("DeviceName") or item.get("Computer"):
@@ -467,9 +471,7 @@ def ingest_sources(
         all_records.extend(records)
 
     # Filter records within case interval [start, end)
-    scoped_records = [
-        r for r in all_records if start_dt <= utc(r.timestamp_utc) < end_dt
-    ]
+    scoped_records = [r for r in all_records if start_dt <= utc(r.timestamp_utc) < end_dt]
     require(bool(scoped_records), "No records found within the specified case time window.")
 
     # Sort deterministically: timestamp, source, record_ref
@@ -482,7 +484,7 @@ def ingest_sources(
 
     def get_or_create_entity(kind: str, raw_value: str) -> str:
         clean_val = raw_value.strip().lower()
-        key = sha256(f"{case_id}:{kind}:{clean_val}".encode("utf-8")).hexdigest()
+        key = sha256(f"{case_id}:{kind}:{clean_val}".encode()).hexdigest()
         if key in entity_key_to_alias:
             return entity_key_to_alias[key]
 
@@ -533,55 +535,29 @@ def ingest_sources(
             fallback_alias = get_or_create_entity("resource", "unspecified-system")
             ent_aliases.append(fallback_alias)
 
-        # Build initial assessments based on indicators
-        assessments: list[Document] = []
-        is_suspicious = False
-
-        if rec.indicators.get("severity") in ("High", "Critical", "Medium"):
-            is_suspicious = True
-        elif rec.indicators.get("error_code") and rec.indicators.get("error_code") != 0:
-            is_suspicious = True
-        elif rec.indicators.get("risk") not in ("none", "", None):
-            is_suspicious = True
-        elif rec.indicators.get("action") in ("blocked", "failure"):
-            is_suspicious = True
-
-        if is_suspicious:
-            assessments.append({
-                "hypothesis_id": "malicious-activity",
-                "stance": "supports",
-                "reason": f"Observed anomaly or security alert ({rec.summary}) in {rec.source_system}.",
-            })
-            assessments.append({
-                "hypothesis_id": "benign-explanation",
-                "stance": "refutes",
-                "reason": f"Alert severity or failure code contradicts expected benign workflow.",
-            })
-        else:
-            assessments.append({
-                "hypothesis_id": "benign-explanation",
-                "stance": "supports",
-                "reason": f"Activity in {rec.source_system} conforms to standard event baseline.",
-            })
-            assessments.append({
-                "hypothesis_id": "malicious-activity",
-                "stance": "refutes",
-                "reason": f"Clean completion or normal telemetry weakens compromise hypothesis.",
-            })
-
-        evidence_list.append({
-            "id": ev_id,
-            "source": source_alias,
-            "record_ref": rec.record_ref,
-            "scope": {"tenant": tenant, "workspace": workspace},
-            "event_time": rec.timestamp_utc,
-            "entities": sorted(ent_aliases),
-            "assessments": assessments,
-            "summary": rec.summary,
-        })
+        evidence_list.append(
+            {
+                "id": ev_id,
+                "source": source_alias,
+                "record_ref": rec.record_ref,
+                "scope": {"tenant": tenant, "workspace": workspace},
+                "event_time": rec.timestamp_utc,
+                "entities": sorted(ent_aliases),
+                # Severity, risk labels, failures, and successful actions are source
+                # observations. They do not establish either hypothesis until an
+                # analyst assesses the evidence in the context of the case.
+                "assessments": [],
+                "summary": rec.summary,
+            }
+        )
 
     # Generate initial investigative inquiry steps
-    primary_entities = [e["id"] for e in entities_list[:2]]
+    def entity_context(*kinds: str) -> list[str]:
+        selected = [entity["id"] for kind in kinds for entity in entities_list if entity["kind"] == kind]
+        return list(dict.fromkeys(selected)) or [entities_list[0]["id"]]
+
+    signin_entities = entity_context("account", "ip")
+    consent_entities = entity_context("account", "app")
     steps: list[Document] = [
         {
             "id": "signin-triage",
@@ -593,7 +569,7 @@ def ingest_sources(
             "query": {
                 "hunt_id": "H01",
                 "surface": "sentinel_analytics",
-                "entities": primary_entities,
+                "entities": signin_entities,
                 "start": start,
                 "end": end,
             },
@@ -616,17 +592,12 @@ def ingest_sources(
             "question": "Were any high-privilege tokens or OAuth applications consented during this interval?",
             "hypothesis_ids": ["malicious-activity"],
             "basis": [],
-            "depends_on": ["signin-triage"],
-            "when": [
-                {
-                    "step_id": "signin-triage",
-                    "outcomes": ["supports", "inconclusive"],
-                }
-            ],
+            "depends_on": [],
+            "when": [],
             "query": {
-                "hunt_id": "H02",
+                "hunt_id": "H10",
                 "surface": "sentinel_analytics",
-                "entities": primary_entities,
+                "entities": consent_entities,
                 "start": start,
                 "end": end,
             },

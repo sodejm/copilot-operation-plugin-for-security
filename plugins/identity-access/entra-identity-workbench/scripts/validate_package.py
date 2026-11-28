@@ -1,3 +1,5 @@
+# Repository path setup precedes standalone entry point imports.
+# ruff: noqa: E402
 #!/usr/bin/env python3
 """Offline package gate validator for Entra Identity Workbench."""
 
@@ -5,6 +7,7 @@ from __future__ import annotations
 
 import json
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 
 PLUGIN_ROOT = Path(__file__).resolve().parent.parent
@@ -13,10 +16,21 @@ REPO_ROOT = PLUGIN_ROOT.parent.parent
 if str(PLUGIN_ROOT) not in sys.path:
     sys.path.insert(0, str(PLUGIN_ROOT))
 
-from entrawb.analysis import analyze_identity_graph
-from entrawb.graph import build_identity_graph
-from entrawb.ingestion import ingest_tenant_export
-from entrawb.reporting import render_json_report, render_markdown_report
+from entrawb.analysis import (
+    analyze_identity_graph,
+)
+from entrawb.graph import (
+    build_identity_graph,
+)
+from entrawb.ingestion import (
+    ingest_tenant_export,
+)
+from entrawb.reporting import (
+    render_json_report,
+    render_markdown_report,
+)
+
+FIXTURE_AS_OF = datetime(2026, 9, 30, 18, tzinfo=UTC)
 
 
 def validate() -> int:
@@ -32,6 +46,8 @@ def validate() -> int:
         PLUGIN_ROOT / "schemas" / "manifest.schema.json",
         PLUGIN_ROOT / "schemas" / "graph.schema.json",
         PLUGIN_ROOT / "schemas" / "report.schema.json",
+        PLUGIN_ROOT / "schemas" / "graph.v2.schema.json",
+        PLUGIN_ROOT / "schemas" / "report.v2.schema.json",
     ]
 
     for p in json_files:
@@ -59,7 +75,8 @@ def validate() -> int:
     # 3. Ingestion and Graph Invariants
     manifest_path = PLUGIN_ROOT / "fixtures" / "tenants" / "contoso-corp" / "manifest.json"
     manifest, sources = ingest_tenant_export(manifest_path)
-    graph = build_identity_graph(manifest, sources)
+    # The synthetic export is historical; validate it at its documented fixture time.
+    graph = build_identity_graph(manifest, sources, as_of=FIXTURE_AS_OF)
 
     # Invariant: all edges connect existing nodes
     node_ids = set(graph.nodes.keys())

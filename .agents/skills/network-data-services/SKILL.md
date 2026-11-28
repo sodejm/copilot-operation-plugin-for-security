@@ -7,6 +7,8 @@ description: Assess databases (MySQL, Postgres, MSSQL, Oracle), NoSQL/document s
 
 Execute authorized, bounded exposure and configuration assessments across relational databases, NoSQL stores, in-memory caches, and search/analytics engines under strict Rules of Engagement and operational boundaries.
 
+**Execution boundary:** External live collection is unavailable through this skill and its public assessment APIs. Use the plan-bound service-validation laboratory for approved disposable loopback validation. Offline synthetic assessment remains available; destination allowlists and effect-classification flags do not authorize network execution.
+
 ## Core Capabilities
 
 1. **Protocol-Specific Coverage**:

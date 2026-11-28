@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/sodejm/copilot-operation-plugin-for-security/catalog/schemas/cleanup-receipt-v2.schema.json",
+  "title": "COPS Cleanup Receipt Contract v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "receipt_id",
+    "plan_id",
+    "engagement_id",
+    "worker_identity",
+    "status",
+    "created_at",
+    "completed_at",
+    "cleaned_effects",
+    "unresolved_effects",
+    "evidence_hash"
+  ],
+  "properties": {
+    "schema_version": {"const": "cops.cleanup-receipt/v2"},
+    "receipt_id": {
+      "type": "string",
+      "pattern": "^cln-[a-z0-9_-]{4,64}$"
+    },
+    "plan_id": {
+      "type": "string",
+      "pattern": "^plan-[a-z0-9_-]{4,64}$"
+    },
+    "engagement_id": {
+      "type": "string",
+      "pattern": "^eng-[a-z0-9_-]{4,64}$"
+    },
+    "worker_identity": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "enum": ["completed", "partial", "failed", "not_required"]
+    },
+    "created_at": {"type": "string", "format": "date-time"},
+    "completed_at": {"type": "string", "format": "date-time"},
+    "cleaned_effects": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["effect_id", "resource_type", "target", "action_taken"],
+        "properties": {
+          "effect_id": {"type": "string", "minLength": 1},
+          "resource_type": {"type": "string", "minLength": 1},
+          "target": {"type": "string", "minLength": 1},
+          "action_taken": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "unresolved_effects": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["effect_id", "resource_type", "target", "reason"],
+        "properties": {
+          "effect_id": {"type": "string", "minLength": 1},
+          "resource_type": {"type": "string", "minLength": 1},
+          "target": {"type": "string", "minLength": 1},
+          "quarantine_target": {"type": "string", "minLength": 1},
+          "reason": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "evidence_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
+}

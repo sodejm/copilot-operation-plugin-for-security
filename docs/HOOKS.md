@@ -17,8 +17,8 @@ If the project uses `pre-commit`:
 pre-commit install
 ```
 
-The checked-in configuration runs `python3 scripts/agent/check.py`. Installing it
-is optional; CI repeats the same contract.
+This installs the staged handoff and issue-coverage checks. To enable the heavy
+push checks as well, follow [Session handoffs](SESSION_HANDOFF.md).
 
 ## Vendor hooks
 

@@ -13,3 +13,11 @@
   Narrow a claim when the evidence cannot establish the broader claim.
 - Keep local validation, commit, push, pull request, merge, release, and
   deployment as distinct delivery states.
+
+## Source contribution governance
+
+When changing this repository, follow the root [AGENTS.md](../AGENTS.md):
+checkpoint each substantial coherent change with operational commit messages,
+update documentation and the threat model, and require independent human review
+including affected existing code. Installed plugin execution does not gain Git
+write or publishing authority from these source-contribution instructions.

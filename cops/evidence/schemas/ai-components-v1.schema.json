@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cops.example/schemas/ai-components-v1.schema.json",
+  "title": "COPS AI component manifest v1",
+  "description": "Structural contract for locally supplied AI component declarations. The offline verifier performs registry and receipt checks separately.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "manifest_id", "policy", "components"],
+  "properties": {
+    "schema_version": {"const": "cops.ai-components/v1"},
+    "manifest_id": {"$ref": "#/$defs/nonEmptyString"},
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "signing_required"],
+      "properties": {
+        "version": {"$ref": "#/$defs/nonEmptyString"},
+        "signing_required": {"type": "boolean"}
+      }
+    },
+    "components": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 256,
+      "items": {"$ref": "#/$defs/component"}
+    }
+  },
+  "$defs": {
+    "nonEmptyString": {"type": "string", "minLength": 1, "maxLength": 512},
+    "component": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["component_id", "component_type", "source", "version", "expected_publisher", "provenance_evidence_refs", "licensing_decision_id", "dependencies", "behavior"],
+      "properties": {
+        "component_id": {"$ref": "#/$defs/nonEmptyString"},
+        "component_type": {"enum": ["mcp_tool", "prompt_bundle", "skill_bundle", "model_alias", "dataset_reference"]},
+        "source": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["provider", "name"],
+          "properties": {"provider": {"$ref": "#/$defs/nonEmptyString"}, "name": {"$ref": "#/$defs/nonEmptyString"}}
+        },
+        "version": {"$ref": "#/$defs/nonEmptyString"},
+        "expected_publisher": {"$ref": "#/$defs/nonEmptyString"},
+        "provenance_evidence_refs": {"type": "array", "maxItems": 128, "items": {"$ref": "#/$defs/nonEmptyString"}},
+        "licensing_decision_id": {"$ref": "#/$defs/nonEmptyString"},
+        "dependencies": {"type": "array", "maxItems": 128, "items": {"$ref": "#/$defs/nonEmptyString"}},
+        "behavior": {"type": "object"},
+        "signature": {"type": "object"},
+        "organizational_approval": {"type": "object"},
+        "inventory_asset_id": {"$ref": "#/$defs/nonEmptyString"}
+      }
+    }
+  }
+}

@@ -10,8 +10,6 @@ from pathlib import Path
 
 from cops.cli import main
 from cops.coverage import (
-    CoverageError,
-    CoverageMapping,
     evaluate_coverage_gaps,
     generate_attack_flow,
     generate_coverage_matrix,

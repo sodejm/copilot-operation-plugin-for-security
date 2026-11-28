@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sodejm.github.io/copilot-operation-plugin-for-security/schemas/source-anchor.schema.json",
+  "title": "COPS immutable source anchor",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["finding_id", "path", "start_line"],
+  "properties": {
+    "finding_id": {"type": "string", "minLength": 1, "maxLength": 200},
+    "path": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*[\\\\:])[ -~]+$"
+    },
+    "start_line": {"type": "integer", "minimum": 1},
+    "end_line": {"type": "integer", "minimum": 1},
+    "replacement": {"type": "string", "maxLength": 1048576}
+  }
+}

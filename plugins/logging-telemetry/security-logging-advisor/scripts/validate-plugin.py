@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Validate the Security Logging Advisor in a checkout or portable package."""
 from __future__ import annotations
+
 import json
-from pathlib import Path
 import re
+from pathlib import Path
 
 SOURCE_PACKAGE = Path("plugins/logging-telemetry/security-logging-advisor")
 REQUIRED_FILES = [

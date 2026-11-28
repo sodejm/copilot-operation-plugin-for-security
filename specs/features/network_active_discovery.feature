@@ -3,6 +3,12 @@ Feature: Network Active Discovery and Service Identification
   I want bounded active port, protocol, and TLS assessment with explicit vantages, rate limits, and resumable checkpoints
   So that service identification distinguishes observed configs from inferred fingerprints, exposes visible uncertainty, and strictly bounds execution side effects
 
+  Scenario: Live active scan is unavailable until it is worker authorized
+    Given an active scan session plan
+    When the operator requests live execution
+    Then the command refuses before constructing a live dispatcher
+    And the refusal directs the operator to the plan-bound service-validation laboratory
+
   Scenario: Bounded active port and TLS assessment with explicit scan vantage and rate limits
     Given an approved target list and port range with external vantage
     And an explicit rate limit of 50 probes per second and 2 second timeout
@@ -16,10 +22,39 @@ Feature: Network Active Discovery and Service Identification
     Then previously completed probes are skipped
     And zero redundant probe side effects are dispatched to already assessed ports
 
+  Scenario: Explicit serial concurrency and cancellable resumable coverage
+    Given an approved two-port scan with explicit serial concurrency
+    When cancellation is requested after the first durable result
+    Then the checkpoint reports one attempted probe and one unassessed probe
+    And resuming completes only the remaining probe
+
+  Scenario: Live assessment requires explicit boundaries and durable state
+    Given a live TCP assessment of approved hosts and ports
+    When the operator omits the approved IP ranges, a positive rate limit, or a checkpoint path
+    Then the scanner refuses admission before dispatching a probe
+    And literal IPv4 and IPv6 targets are evaluated against their approved IP ranges even when domain limits are present
+
+  Scenario: Explicit comprehensive TCP selection remains cumulatively bounded
+    Given an operator selects all 65,535 TCP ports
+    When the operator has not explicitly allowed a full TCP selection and budgeted every target-port pair
+    Then planning rejects the request
+    And a separately scoped UDP assessment is not implied by TCP selection
+
+  Scenario: Uncertain live side effects require reconciliation before restart
+    Given a live probe reserved in a durable checkpoint before network dispatch
+    When execution crashes or returns an uncertain error
+    Then the probe remains pending and restart does not dispatch it again
+    And a changed plan or scope cannot resume under the old checkpoint
+
+  Scenario: Rejecting a controller lock replaced during acquisition
+    Given a live checkpoint controller lock path
+    When that lock path is replaced during advisory lock acquisition
+    Then the protected live-scan section is not entered
+
   Scenario: Distinguishing reachable services, inferred fingerprints, and observed configuration with visible uncertainty
     Given target endpoints with varying service configurations and reverse proxies
     When the service identification engine evaluates observed response banners and TLS handshakes
-    Then SSH banners produce high-confidence product and OS inferences
+    Then SSH banners identify a self-reported product and version without inferring the host OS
     And HTTP server headers fronted by reverse proxies record explicit uncertainty reasons
     And mismatched TLS certificate subjects lower inference confidence
 
@@ -45,5 +80,10 @@ Feature: Network Active Discovery and Service Identification
     Given a baseline active scan session observing open vulnerable ports
     And a subsequent re-test session after security remediation
     When the active scan delta comparison is evaluated
-    Then closed or filtered ports are identified as remediated exposures
+    Then closed ports are remediated and filtered ports remain unverified
     And an exact remediation rate percentage is calculated
+
+  Scenario: Excluding deprecated TLS versions from live probes
+    Given the standard socket TLS probe
+    When it creates a TLS client context
+    Then the minimum TLS version is TLS 1.2

@@ -1,3 +1,5 @@
+# Repository path setup precedes standalone entry point imports.
+# ruff: noqa: E402
 #!/usr/bin/env python3
 """Audit, reconcile, and generate capability truth-in-advertising matrices for COPS."""
 
@@ -5,8 +7,8 @@ from __future__ import annotations
 
 import argparse
 import json
-from pathlib import Path
 import sys
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -15,7 +17,6 @@ from cops.capabilities import (
     CapabilityTruthError,
     audit_capabilities,
     build_capability_registry,
-    generate_capability_matrix_markdown,
 )
 
 

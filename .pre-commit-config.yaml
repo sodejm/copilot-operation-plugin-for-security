@@ -1,6 +1,13 @@
 repos:
   - repo: local
     hooks:
+      - id: session-handoff
+        name: Validate staged session handoff
+        entry: python3 tools/push_gate/session_delivery.py quick
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
       - id: cops-issue-coverage
         name: COPS issue documentation & test coverage check
         entry: python3 scripts/agent/check_issue_coverage.py --staged

@@ -6,16 +6,31 @@
 
 <p align="center">
   <a href="https://sodejm.github.io/copilot-operation-plugin-for-security/"><img src="https://img.shields.io/badge/docs-GitHub%20Pages-blue.svg" alt="Documentation Site"></a>
-  <img src="https://img.shields.io/badge/python-3.11+-3776AB.svg?logo=python&logoColor=white" alt="Python 3.11+">
+  <img src="https://img.shields.io/badge/python-3.14+-3776AB.svg?logo=python&logoColor=white" alt="Python 3.14+">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-PolyForm%20Noncommercial-green.svg" alt="License"></a>
   <img src="https://img.shields.io/badge/execution-100%25%20offline--first-success.svg" alt="Offline First">
   <a href="docs/COVERAGE_MATRIX.md"><img src="https://img.shields.io/badge/MITRE%20ATT%26CK-v18.0-orange.svg" alt="MITRE ATT&CK v18.0"></a>
   <img src="https://img.shields.io/badge/assistants-Copilot%20%7C%20Claude%20%7C%20Codex-purple.svg" alt="Universal Portability">
 </p>
 
-Welcome to **COPS (Copilot Operations Plugins for Security)**! COPS is an open-source, universal catalog of defensive cybersecurity plugins, 18 specialist agent profiles, and deterministic offline verification tools.
+Welcome to **COPS (Copilot Operations Plugins for Security)**! COPS is an open-source, universal catalog of 25 defensive cybersecurity plugins, 27 specialist agent profiles, 37 canonical scenarios, and deterministic offline verification tools. The current registries reconcile these sources into 89 capabilities.
 
-Whether your team works in **GitHub Copilot**, **Claude Code**, or **Codex / ChatGPT**, COPS provides production-grade cybersecurity capabilities without ecosystem lock-in. Everything is designed **offline-first**: you can explore tools, run demos, and validate detection logic directly from your local terminal using standard Python—no cloud credentials, assistant installations, or live tenant connections required.
+The [AI asset inventory](docs/AI_ASSET_INVENTORY.md) documents the bounded, offline evidence graph contract.
+
+Start with [Investigate possible malicious access](docs/investigate-malicious-access.md)
+for a complete case with malicious, benign, and insufficient-evidence outcomes.
+The [runnable workflow index](docs/plugin-playbacks.md) links every plugin's
+usage, design, schema reference, and checked playback.
+
+The [service attack notice registry](docs/SERVICE_ATTACK_NOTICES.md) provides a
+versioned, source-scoped offline assessment contract for service inventory and
+endpoint-validation evidence.
+
+Use the [plugin verification playbooks](docs/plugin-verification.md) to test each
+package end to end, record qualification evidence, and update its maturity status
+after review.
+
+Whether your team works in **GitHub Copilot**, **Claude Code**, or **Codex / ChatGPT**, COPS provides bounded, evidence-aware cybersecurity workflows without ecosystem lock-in. Everything is designed **offline-first**: you can explore tools, run demos, and validate detection logic directly from your local terminal using standard Python—no cloud credentials, assistant installations, or live tenant connections required.
 
 📖 **Visit the complete [COPS Documentation Website](https://sodejm.github.io/copilot-operation-plugin-for-security/)** for interactive guides, playbooks, and reference architectures.
 
@@ -23,7 +38,11 @@ Whether your team works in **GitHub Copilot**, **Claude Code**, or **Codex / Cha
 
 ## Five-Minute Quickstart
 
-All you need is **Python 3.11 or newer**. These commands use only the Python standard library and make zero external network calls:
+Start with an ordinary-language goal, even if scope or evidence is incomplete.
+The [getting-started guide](docs/getting-started.md) separates drafting, local
+inspection, contract validation, and authorized execution.
+
+The core commands require **Python 3.14 or newer** and use the Python standard library. Cloning the repository requires Git and network access; you can also use an existing local copy. After setup, the `cops` commands below run locally without external network calls:
 
 ```bash
 # 1. Clone the repository and enter the directory
@@ -33,10 +52,10 @@ cd copilot-operation-plugin-for-security
 # 2. Check your local environment health
 python3 -m cops doctor
 
-# 3. List all 13 available security plugins and their status
+# 3. List all 25 available security plugins and their status
 python3 -m cops list
 
-# 4. Route any natural language task to the best specialist agent
+# 4. Recommend a specialist profile for a natural language task
 python3 -m cops route "Optimize Microsoft Sentinel KQL query for sign-in anomalies"
 
 # 5. Inspect details and operational playbooks for a plugin
@@ -49,52 +68,96 @@ python3 -m cops demo sentinel-hunt-workbench
 python3 -m cops check sentinel-hunt-workbench
 ```
 
+Given an Engagement contract, you can resolve a narrow ordinary-language
+assessment request to an exact in-scope target:
+
+```bash
+python3 -m cops engagement goal \
+  "Assess 10.100.0.10 for exposed services safely." \
+  --engagement engagement.json \
+  --json
+```
+
+The command accepts one exact target named directly in the request, or the
+engagement's recorded `metadata.goal_selection.target` when the request says
+"the selected endpoint". It rejects ambiguous, excluded, quoted, illustrative,
+and unsupported instructions, including targets beneath an excluded domain.
+After validating the contract, clarification responses include its ID and digest
+so the next request can be tied to the same version. Successful resolution retains
+the requested verb and contract digest while marking review and action binding as
+unverified. It reports `needs_execution_path` and
+`not_assessed`: no executable plan, approval, worker action, or recovery
+checkpoint is created. See [Authenticated Execution](docs/AUTHENTICATED_EXECUTION.md#resolve-an-ordinary-language-goal-offline)
+for the current boundary and remaining work.
+
+In Copilot chat, ask “Check whether our Sentinel and Splunk detections catch the bundled cases.” COPS selects the workbench and skill, evaluates both fixture sets and reports the gaps. If interrupted, say “Resume my review” in the same chat. [Detection Quality pilot](docs/detection-quality-pilot.md)
+
 ### What these commands do for you
-- `cops doctor`: Quickly checks that your Python environment is ready and your package catalogs are in sync.
-- `cops list`: Displays the thirteen available security plugins, their maturity stage, and their validation status.
-- `cops route`: Deterministically routes any natural language task to the optimal specialist profile with zero LLM token cost.
+- `cops doctor`: Checks the Python version, catalog and package manifests, and generated marketplace indexes. It does not run plugins or audit their network behavior.
+- `cops list`: Displays the 25 available security plugins, their maturity stage, and their validation status.
+- `cops route`: Uses local keyword rules to recommend a specialist profile without an LLM or external API call. It does not launch an agent.
 - `cops demo`: Runs a self-contained, offline walkthrough using synthetic test data.
 - `cops check`: Executes deterministic verification suites (syntax checks, schema tests, mutation tests) right on your machine.
+- `cops engagement goal`: Resolves a narrow request to one in-scope target and reports that execution is unavailable and coverage is `not_assessed`.
 
 ---
 
-## Available Security Plugins (13 Packages)
+## Available Security Plugins (25 Packages)
 
 Each package lives in its own self-contained directory under `plugins/<category>/<plugin-id>/` and includes a complete practitioner playbook:
 
 | Security Plugin | Category | Maturity | What it solves | Try it out |
 | :--- | :--- | :---: | :--- | :--- |
 | **[Security Logging Advisor](plugins/logging-telemetry/security-logging-advisor/README.md)** | Logging & Telemetry | <span class="badge badge-stable">Stable</span> | Audits codebases for security logging gaps, flags sensitive data leaks, and prioritizes CVE reachability. | `python3 -m cops demo security-logging-advisor` |
-| **[Telemetry Proof Pack](plugins/logging-telemetry/telemetry-proof-pack/README.md)** | Logging & Telemetry | <span class="badge badge-beta">Beta</span> | Verifies end-to-end telemetry routes and pipeline health from Cribl Stream to Splunk and Sentinel. | `python3 -m cops check telemetry-proof-pack` |
+| **[Telemetry Proof Pack](plugins/logging-telemetry/telemetry-proof-pack/README.md)** | Logging & Telemetry | <span class="badge badge-beta">Beta</span> | Correlates supplied synthetic marker records across source, Cribl routing, destination, query, and alert stages. | `python3 -m cops check telemetry-proof-pack` |
 | **[SOC Investigation Workbench](plugins/detection-hunting/soc-investigation-workbench/README.md)** | Detection & Hunting | <span class="badge badge-beta">Beta</span> | Guides alert triage using competing hypotheses, question ranking, and evidence dependency graphs. | `python3 -m cops demo soc-investigation-workbench` |
 | **[Sentinel Hunt Workbench](plugins/detection-hunting/sentinel-hunt-workbench/README.md)** | Detection & Hunting | <span class="badge badge-beta">Beta</span> | Authors, adapts, and stress-tests 12 defensive Microsoft Sentinel and Defender KQL threat hunts offline. | `python3 -m cops demo sentinel-hunt-workbench` |
 | **[Attack Path Workbench](plugins/detection-hunting/attack-path-workbench/README.md)** | Detection & Hunting | <span class="badge badge-experimental">Experimental</span> | Traces multi-hop cloud lateral movement paths from local exports to crown jewels and finds choke points. | `python3 -m cops demo attack-path-workbench` |
 | **[Detection Quality Workbench](plugins/detection-hunting/detection-quality-workbench/README.md)** | Detection & Hunting | <span class="badge badge-beta">Beta</span> | Validates detection syntax, regressions, and quality metrics across Microsoft Sentinel KQL and Splunk SPL. | `python3 -m cops check detection-quality-workbench` |
 | **[Threat Intelligence Enrichment](plugins/detection-hunting/threat-intelligence-enrichment/README.md)** | Detection & Hunting | <span class="badge badge-experimental">Experimental</span> | Enriches network, host, and hash indicators with provenance-tracked threat intelligence metadata. | `python3 -m cops check threat-intelligence-enrichment` |
 | **[Entra Identity Workbench](plugins/identity-access/entra-identity-workbench/README.md)** | Identity & Access | <span class="badge badge-beta">Beta</span> | Evaluates Entra ID role assignments, service principals, consent grants, and credential exposures. | `python3 -m cops check entra-identity-workbench` |
+| **[AD Assessment Workbench](plugins/identity-access/ad-assessment-workbench/README.md)** | Identity & Access | <span class="badge badge-experimental">Experimental</span> | Maps scoped Active Directory relationships and candidate paths from offline exports with explicit collection coverage. | `python3 -m cops demo ad-assessment-workbench` |
+| **[Secrets Remediation Workbench](plugins/identity-access/secrets-remediation-workbench/README.md)** | Identity & Access | <span class="badge badge-experimental">Experimental</span> | Builds redacted secret-incident records and reviewable revocation and rotation plans from imported evidence. | `python3 -m cops demo secrets-remediation-workbench` |
 | **[Exposure Triage Workbench](plugins/vulnerability-management/exposure-triage-workbench/README.md)** | Vulnerability Management | <span class="badge badge-beta">Beta</span> | Prioritizes vulnerability triage by correlating advisory CVEs, SBOM components, and call graph reachability. | `python3 -m cops check exposure-triage-workbench` |
+| **[Exploit Validation Workbench](plugins/vulnerability-management/exploit-validation-workbench/README.md)** | Vulnerability Management | <span class="badge badge-experimental">Experimental</span> | Checks exact-version reproduction plans and local file digests offline; never authorizes or runs a proof. | `python3 -m cops demo exploit-validation-workbench` |
 | **[Patch Security Review](plugins/vulnerability-management/patch-security-review/README.md)** | Vulnerability Management | <span class="badge badge-beta">Beta</span> | Analyzes code patches and pull request diffs for dangerous patterns, authorization flaws, and regression risks. | `python3 -m cops check patch-security-review` |
+| **[Cloud Posture Workbench](plugins/vulnerability-management/cloud-posture-workbench/README.md)** | Vulnerability Management | <span class="badge badge-experimental">Experimental</span> | Assesses imported infrastructure, Kubernetes, IAM, and cloud configuration evidence without connecting to a tenant. | `python3 -m cops demo cloud-posture-workbench` |
+| **[Supply Chain CI/CD Workbench](plugins/vulnerability-management/supply-chain-cicd-workbench/README.md)** | Vulnerability Management | <span class="badge badge-experimental">Experimental</span> | Reviews imported lockfiles, SBOMs, workflow definitions, and provenance records for supply-chain risks. | `python3 -m cops demo supply-chain-cicd-workbench` |
+| **[Network Segmentation Workbench](plugins/vulnerability-management/network-segmentation-workbench/README.md)** | Vulnerability Management | <span class="badge badge-experimental">Experimental</span> | Evaluates imported policy, flow, DNS, packet, and reachability evidence against intended network boundaries. | `python3 -m cops demo network-segmentation-workbench` |
+| **[TLS and Crypto Workbench](plugins/vulnerability-management/tls-crypto-workbench/README.md)** | Vulnerability Management | <span class="badge badge-experimental">Experimental</span> | Reviews imported certificate, TLS, JWT, JWKS, and OpenSSL evidence with explicit provenance and coverage limits. | `python3 -m cops demo tls-crypto-workbench` |
 | **[Attack Surface Planner](plugins/offensive-security/attack-surface-planner/README.md)** | Offensive Security | <span class="badge badge-experimental">Experimental</span> | Translates authorized rules of engagement into bounded, passive review plans from local export manifests. | `python3 -m cops demo attack-surface-planner` |
-| **[Foundry Agent Harness](plugins/offensive-security/foundry-agent-harness/README.md)** | Offensive Security | <span class="badge badge-beta">Beta</span> | Evaluates AI agent behavior, prompt injection resistance, and safety boundaries in a simulated sandbox. | `python3 -m cops check foundry-agent-harness` |
-| **[Incident Response Sandbox](plugins/incident-response/incident-response-sandbox/README.md)** | Incident Response | <span class="badge badge-beta">Beta</span> | Rehearses containment workflows, calculates blast radius, and generates cryptographic execution receipts. | `python3 -m cops check incident-response-sandbox` |
+| **[Kubernetes Assessment Workbench](plugins/offensive-security/kubernetes-assessment-workbench/README.md)** | Offensive Security | <span class="badge badge-experimental">Experimental</span> | Reconciles an approved Kubernetes context and namespace scope with a sanitized local observation. | `python3 -m cops demo kubernetes-assessment-workbench` |
+| **[Offensive Engagement Workbench](plugins/offensive-security/offensive-engagement-workbench/README.md)** | Offensive Security | <span class="badge badge-experimental">Experimental</span> | Validates authorized engagement scope and prepares reviewable action plans from local inputs. | `python3 -m cops check offensive-engagement-workbench` |
+| **[Host Assessment Workbench](plugins/offensive-security/host-assessment-workbench/README.md)** | Offensive Security | <span class="badge badge-experimental">Experimental</span> | Classifies local Linux and Windows privilege-boundary exports and imported canary reports without host execution. | `python3 -m cops demo host-assessment-workbench` |
+| **[Foundry Agent Harness](plugins/offensive-security/foundry-agent-harness/README.md)** | Offensive Security | <span class="badge badge-beta">Beta</span> | Rehearses synthetic agent/MCP authorization and provider response normalization with deterministic local fixtures. | `python3 -m cops check foundry-agent-harness` |
+| **[Web API Assessment Workbench](plugins/offensive-security/web-api-assessment-workbench/README.md)** | Offensive Security | <span class="badge badge-experimental">Experimental</span> | Inventories and assesses imported HAR, OpenAPI, GraphQL, Postman, and gateway records through offline fixtures. | `python3 -m cops demo web-api-assessment-workbench` |
+| **[Incident Response Sandbox](plugins/incident-response/incident-response-sandbox/README.md)** | Incident Response | <span class="badge badge-experimental">Experimental</span> | Rehearses containment workflows, calculates blast radius, and generates cryptographic execution receipts. | `python3 -m cops check incident-response-sandbox` |
+| **[Compliance Posture Workbench](plugins/governance-compliance/compliance-posture-workbench/README.md)** | Governance & Compliance | <span class="badge badge-experimental">Experimental</span> | Maps dated, versioned evidence to SOC 2, NIST, CIS, ISO, and PCI controls while preserving missing and stale states. | `python3 -m cops demo compliance-posture-workbench` |
 
 For in-depth guidance on choosing the right plugin for your operational scenario, see the **[When to Use Each Plugin Guide](docs/plugin-guide.md)**.
 
 ---
 
-## 18 Specialist Cybersecurity Agent Profiles & Dynamic Routing
+## 27 Specialist Cybersecurity Agent Profiles & Dynamic Routing
 
-COPS centralizes **18 specialist cybersecurity agent profiles** in [`agents/`](agents/README.md) across offensive, defensive, forensics, identity, and governance disciplines. The deterministic zero-token router dynamically matches incoming tasks to the best specialist profile:
+COPS centralizes **27 specialist cybersecurity agent profiles** in [`agents/`](agents/README.md) across offensive, defensive, forensics, identity, and governance disciplines. The six newest profiles route API security (`cops-api-security-specialist`), cloud posture (`cops-cloud-posture-specialist`), network segmentation (`cops-network-segmentation-specialist`), secrets remediation (`cops-secrets-remediation-specialist`), software supply chain and CI/CD (`cops-supply-chain-specialist`), and TLS and cryptography (`cops-tls-crypto-specialist`) work. The deterministic router uses local keyword rules to recommend a specialist profile:
 
 ```bash
 # Route any security request or natural language task:
 python3 -m cops route "Optimize this Sentinel KQL query for low ingestion cost"
 
-# List all 18 specialist profiles:
+# List all 27 specialist profiles:
 python3 -m cops specialists
 ```
 
-For high-risk operations (e.g. penetration testing, red team emulation, active containment, or cloud privilege escalation), COPS automatically activates **Triad Orchestration** (Primary Specialist + Domain Skeptic + Evidence Auditor) with mandatory interactive operator authorization. Read the **[Specialist Agents Guide](docs/specialist-agents.md)** for architecture details.
+When the selected profile is marked critical, or you pass `--critical`, the router returns a proposed **Triad Orchestration** plan with a Primary Specialist, Domain Skeptic, Evidence Auditor, and handoff steps. It does not launch agents or execute the task. Read the **[Specialist Agents Guide](docs/specialist-agents.md)** for routing, handoff, and authorization boundaries.
+
+Add `--suggest-model --model-catalog model-catalog.json` to receive offline model
+and reasoning-effort suggestions from fresh host evidence. Daybreak, Fable,
+Mythos, Astra, and other families qualify only through exact availability,
+access, capability, and effort records. See the
+[model routing guide](docs/model-effort-routing.md) for catalog setup and the
+required preflight before implementing an issue.
 
 ---
 
@@ -109,7 +172,7 @@ COPS capability logic, queries, and investigation workflows are formally mapped 
 
 ## How Universal Portability Works
 
-Different AI assistants expect different file structures, manifests, and skill formats. COPS removes that headache through automated, drift-free synchronization:
+Different AI assistants expect different file structures, manifests, and skill formats. COPS generates host indexes from the catalog and checks for drift:
 
 1. **One Source of Truth**: The central inventory in `catalog/plugins.json` defines all package metadata, versions, and categories.
 2. **Standardized Packages**: Each plugin maintains its core Agent Plugins v1.0.0 manifest (`plugin.json`), host manifests (`.claude-plugin/`, `.codex-plugin/`), and reusable skills.
@@ -117,7 +180,7 @@ Different AI assistants expect different file structures, manifests, and skill f
    - **GitHub Copilot**: `.github/plugin/marketplace.json`
    - **Claude Code**: `.claude-plugin/marketplace.json`
    - **Codex / ChatGPT**: `.agents/plugins/marketplace.json`
-4. **Guaranteed Consistency**: Our test gates verify that host indexes never drift out of sync with the catalog.
+4. **Consistency Checks**: Validation reports differences between the catalog and generated host indexes when the checks run.
 
 Learn more in the **[Portability Architecture](docs/PORTABILITY.md)** and **[Repository Layout](docs/REPOSITORY_LAYOUT.md)** guides.
 
@@ -125,7 +188,7 @@ Learn more in the **[Portability Architecture](docs/PORTABILITY.md)** and **[Rep
 
 ## Contributor Setup
 
-If you want to contribute new plugins, skills, or core features:
+To contribute new plugins, skills, or core features, install the test dependencies below. Installation requires network access unless you have prepared local packages; see the [offline installation instructions](docs/troubleshooting.md).
 
 ```bash
 # Set up a dedicated virtual environment
@@ -145,6 +208,10 @@ make check PYTHON=.venv/bin/python
 Before creating new plugins or modifying contracts, please review:
 - **[Documentation Site](https://sodejm.github.io/copilot-operation-plugin-for-security/)**: The official documentation website.
 - **[Getting Started Guide](docs/getting-started.md)**: Quickstart and command walkthroughs.
+- **[Authenticated Execution Guide](docs/AUTHENTICATED_EXECUTION.md)**: Configure verifier trust, immutable approval binding, one-time execution, migration, and key rotation.
+- **[Service Validation Playbook](docs/SERVICE_VALIDATION_PLAYBOOK.md)**: Route observed services, run the disposable loopback acceptance lab, and interpret evidence-bound validation states.
+- **[Offline Research Execution](docs/OFFLINE_RESEARCH_EXECUTION.md)**: Provision and review the opt-in Linux profile for approved local corpora.
+- **[AI Export Privacy Boundary](docs/AI_EXPORT_PRIVACY.md)**: Versioned, field-aware policy boundary and caller-provided offline provider, telemetry, report, and diagnostic export adapters.
 - **[Adding a Plugin](docs/ADDING_A_PLUGIN.md)**: Step-by-step instructions for contributing a new security capability.
 - **[Troubleshooting Guide](docs/troubleshooting.md)**: Solutions for common setup and dependency issues.
 - **[Repository Contract (AGENTS.md)](AGENTS.md)**: Coding conventions, git workflow, and branch rules.
@@ -154,12 +221,22 @@ Before creating new plugins or modifying contracts, please review:
 
 ## Evidence & Safety Principles
 
+The opt-in [aggregate assessment budget fixture](docs/ASSESSMENT_BUDGETS.md)
+records admission and recovery for synthetic assessment calls. It also mediates
+the Foundry Agent Harness's bundled offline provider-shaped response fixtures.
+Those fixtures use strict post-gate provider envelopes, hashed report case
+references, and a nonzero exit when the reported ledger is over budget.
+It does not mediate or attest real provider requests, usage, billing,
+cancellation, or cleanup.
+
 In security engineering, confidence comes from verification:
 
 - **Offline Safety**: Demos and checks run against local synthetic test data. They never make unreviewed network calls or write to remote production services.
-- **Clear Status Separation**: We clearly separate what has been **validated locally** from what remains **unverified** in a live cloud environment. A passing offline test proves code correctness—it does not claim your production SIEM is currently receiving live alerts.
+- **Clear Status Separation**: We clearly separate what has been **validated locally** from what remains **unverified** in a live cloud environment. A passing offline test means its assertions passed for the tested cases. It does not prove all code correct, establish real attack coverage, or confirm that a production SIEM receives alerts.
 - **Data Privacy**: Tools treat all input code and logs as sensitive data. They do not store credentials or transmit telemetry to third parties.
-- **Truth-in-Advertising**: Capabilities are audited into four operational readiness modes (`planned`, `import`, `laboratory`, `live-validated`), with zero false live claims.
+- **Truth-in-Advertising**: Capabilities are audited into five operational readiness modes (`planned`, `guidance`, `import`, `laboratory`, `live-validated`). Each claim requires evidence for its stated mode.
+- **Authenticated Execution Authority**: High-consequence execution requires a signed full-plan snapshot, the expected worker identity, an active engagement, an independent verifier trust store, and an owner-provisioned worker capability inventory. See the [Authenticated Execution Guide](docs/AUTHENTICATED_EXECUTION.md).
+- **AI Component Verification**: Offline component identity, provenance and review-state reporting is documented in the [AI Component Verification Guide](docs/AI_COMPONENT_VERIFICATION.md); it never executes or fetches a component.
 
 ---
 
@@ -171,3 +248,67 @@ In security engineering, confidence comes from verification:
 ### Plugin execution cost analysis
 
 Contributors can use [plugin-run-cost](.agents/skills/plugin-run-cost/SKILL.md) to measure explicitly assigned COPS runs, estimate input scaling, and compare API, local-tool and employee costs. It runs locally with synthetic examples, preserves unknown charges, and distinguishes API-equivalent estimates from actual bills.
+
+## Local pre-push validation
+
+See [installation, prerequisites, security boundaries and recovery](docs/LOCAL_PUSH_GATE.md). CI remains required.
+
+### Offline EVTX import
+
+`cops telemetry import-evtx --input evidence.evtx --sha256 EXPECTED_SHA256`
+imports clean, non-wrapped EVTX exports through a pinned Linux parser. It supports
+Sysmon event IDs 1, 3, and 10 with content-free indicators and record evidence
+references. Missing or unsupported records remain partial. See the
+[import contract](specs/evtx-import.spec.md) and
+[laboratory setup](docs/SERVICE_LABORATORY.md#fixtures-and-provenance).
+
+### Raw forensic image integrity
+
+`cops forensic import --root evidence --manifest import.json` verifies bounded raw
+disk and memory copies against their supplied digest and ordered custody records.
+It leaves originals unchanged and reports integrity separately from analysis.
+See [formats, manifest fields, and limits](docs/ARTIFACT_ASSESSMENTS.md#raw-disk-and-memory-import).
+
+### Kubernetes containment playback
+
+The [isolated Kubernetes laboratory](docs/KUBERNETES_LABORATORY.md) applies a
+NetworkPolicy to disposable pods, correlates HTTP and API audit telemetry, and
+verifies restored connectivity after success, failure and cancellation. Its
+pinned, privileged node requires a dedicated Linux lab host. The required
+laboratory gate includes this case; offline policy assessment alone cannot pass it.
+
+### CVE evidence binding
+
+[CVE workflow playback](docs/INTEGRATED_WORKFLOWS.md) binds the pinned synthetic
+advisory to exact component versions and source digests. Its laboratory records
+actual vulnerable and corrected query calls. Missing or unrelated evidence remains
+insufficient; these fixtures do not establish production CVE coverage.
+
+### Consent remediation evidence
+
+[Consent workflow playback](docs/INTEGRATED_WORKFLOWS.md) joins tenant-bound
+grants through service-principal IDs to application IDs in sign-ins. Missing,
+stale or conflicting evidence cannot produce a revocation target. The isolated
+lab revokes the exact synthetic grant and verifies that unrelated access survives.
+
+### Exposure audit evidence
+
+[Exposure workflow playback](docs/INTEGRATED_WORKFLOWS.md) requires complete DNS,
+connection and authentication evidence for each scoped endpoint and collection
+window. Its isolated lab observes a fixed DNS answer and vulnerable/corrected HTTP
+responses. Missing or mismatched observations remain insufficient; external DNS
+discovery and production exposure validation require separate evidence.
+
+### Supply-chain installation evidence
+
+The [supply-chain laboratory](docs/SERVICE_LABORATORY.md#supply-chain-installation-correction-cases)
+installs hash-pinned synthetic wheels offline and exercises their vulnerable and
+corrected behavior through real HTTP requests. Tampered wheels must fail
+installation; missing dependency evidence stays unknown. Arbitrary package builds
+and production registries require separate adapters and validation.
+
+### Contributor Squad
+
+This repository uses automatic Squad routing for independent contributor work,
+with separate worktrees, frequent meaningful checkpoints and validated
+integration. See [the Squad workflow](docs/SQUAD.md) for setup and client support.

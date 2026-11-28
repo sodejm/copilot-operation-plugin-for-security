@@ -1,0 +1,198 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/sodejm/copilot-operation-plugin-for-security/main/plugins/detection-hunting/sentinel-hunt-workbench/schemas/release-report.schema.json",
+  "title": "Sentinel Hunt Workbench release report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "qualifier_version",
+    "status",
+    "qualification_state",
+    "offline_only",
+    "release_subject",
+    "gates",
+    "blockers",
+    "assurance",
+    "prohibited_claims",
+    "human_action_required"
+  ],
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "finding": {
+      "type": "string",
+      "minLength": 1
+    },
+    "gate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "findings"],
+      "properties": {
+        "status": {"enum": ["passed", "pending", "failed"]},
+        "findings": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/finding"}
+        },
+        "evidence": {"type": "object"}
+      }
+    }
+  },
+  "properties": {
+    "schema": {"const": "huntwb.release-report/v2"},
+    "qualifier_version": {"type": "string", "minLength": 1},
+    "status": {"enum": ["qualification_withheld", "offline_qualified"]},
+    "qualification_state": {
+      "enum": [
+        "draft",
+        "schema_checked",
+        "static_checked",
+        "fixture_executed",
+        "emulator_executed",
+        "human_reviewed",
+        "offline_qualified"
+      ]
+    },
+    "offline_only": {"const": true},
+    "release_subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "qualifier_version", "artifacts", "artifact_count", "sha256"],
+      "properties": {
+        "schema": {"const": "huntwb.release-subject/v1"},
+        "qualifier_version": {"type": "string", "minLength": 1},
+        "artifacts": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {"pattern": "^[^/].+$"},
+          "additionalProperties": {"$ref": "#/$defs/sha256"}
+        },
+        "artifact_count": {"type": "integer", "minimum": 1},
+        "sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "gates": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract_and_schema",
+        "static_validation",
+        "reference_fixture_execution",
+        "adapter_integrity",
+        "model_evaluation",
+        "human_approvals",
+        "license_review",
+        "release_integrity"
+      ],
+      "properties": {
+        "contract_and_schema": {"$ref": "#/$defs/gate"},
+        "static_validation": {"$ref": "#/$defs/gate"},
+        "reference_fixture_execution": {"$ref": "#/$defs/gate"},
+        "adapter_integrity": {"$ref": "#/$defs/gate"},
+        "model_evaluation": {"$ref": "#/$defs/gate"},
+        "human_approvals": {"$ref": "#/$defs/gate"},
+        "license_review": {"$ref": "#/$defs/gate"},
+        "release_integrity": {"$ref": "#/$defs/gate"}
+      }
+    },
+    "blockers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["gate", "status", "findings"],
+        "properties": {
+          "gate": {
+            "enum": [
+              "contract_and_schema",
+              "static_validation",
+              "reference_fixture_execution",
+              "adapter_integrity",
+              "model_evaluation",
+              "human_approvals",
+              "license_review",
+              "release_integrity"
+            ]
+          },
+          "status": {"enum": ["pending", "failed"]},
+          "findings": {
+            "type": "array",
+            "minItems": 1,
+            "items": {"$ref": "#/$defs/finding"}
+          }
+        }
+      }
+    },
+    "assurance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reference_fixture_execution",
+        "kusto_parser_execution",
+        "kusto_engine_execution",
+        "microsoft_service_execution",
+        "tenant_validation",
+        "external_evidence_integrity",
+        "external_evidence_authenticity",
+        "production_efficacy",
+        "production_cost",
+        "production_latency",
+        "production_false_positive_performance"
+      ],
+      "properties": {
+        "reference_fixture_execution": {"const": "performed"},
+        "kusto_parser_execution": {"enum": ["not_available", "performed"]},
+        "kusto_engine_execution": {"enum": ["not_available", "performed"]},
+        "microsoft_service_execution": {"const": "not_performed"},
+        "tenant_validation": {"const": "not_performed"},
+        "external_evidence_integrity": {
+          "enum": ["content_addressed_and_recomputed_where_applicable", "not_available"]
+        },
+        "external_evidence_authenticity": {
+          "enum": ["not_cryptographically_attested", "cryptographically_attested"]
+        },
+        "production_efficacy": {"const": "unverified"},
+        "production_cost": {"const": "unverified"},
+        "production_latency": {"const": "unverified"},
+        "production_false_positive_performance": {"const": "unverified"}
+      }
+    },
+    "prohibited_claims": {
+      "type": "array",
+      "minItems": 6,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "target_verified",
+          "tenant_validated",
+          "sentinel_validated",
+          "production_ready",
+          "production_proven",
+          "effective_detection"
+        ]
+      }
+    },
+    "human_action_required": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string", "minLength": 1}
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"status": {"const": "offline_qualified"}}},
+      "then": {
+        "properties": {
+          "qualification_state": {"const": "offline_qualified"},
+          "blockers": {"maxItems": 0}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"status": {"const": "qualification_withheld"}}},
+      "then": {"properties": {"blockers": {"minItems": 1}}}
+    }
+  ]
+}

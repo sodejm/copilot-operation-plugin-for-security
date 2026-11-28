@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import importlib.util
 from pathlib import Path
-import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT_PATH = ROOT / "scripts" / "agent" / "prepare_pages.py"
@@ -59,3 +58,12 @@ def test_prepare_pages_purges_md_and_creates_clean_indexes(tmp_path: Path):
 
     # 4. Verify 404.html did not create 404/index.html
     assert not (tmp_path / "404" / "index.html").exists()
+
+
+def test_pages_workflow_uploads_built_site_with_pages_artifact_action():
+    """Keep the Pages artifact upload action and generated-site path aligned."""
+    workflow = (ROOT / ".github" / "workflows" / "deploy-pages.yml").read_text(encoding="utf-8")
+    upload_step = workflow.split("      - name: Upload Pages artifact\n", 1)[1].split("\n      - ", 1)[0]
+
+    assert "uses: actions/upload-pages-artifact@v5" in upload_step
+    assert "path: ./_site" in upload_step

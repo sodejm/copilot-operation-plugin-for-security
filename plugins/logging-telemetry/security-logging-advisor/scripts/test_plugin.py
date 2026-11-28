@@ -4,12 +4,12 @@ test_plugin.py
 Automated test suite for Security Logging Advisor plugin validation and scanning capabilities.
 """
 
-import os
-import sys
 import json
+import os
 import shutil
-import tempfile
 import subprocess
+import sys
+import tempfile
 import unittest
 
 # Paths
@@ -105,7 +105,7 @@ class TestRepositoryScanning(unittest.TestCase):
 
     def test_prevent_credential_leakage(self):
         """Scenario: Prevent credential leakage in scanner output"""
-        secret_val = "SuperSecretPassword123!"
+        secret_val = "SuperSecretPassword123!"  # noqa: S105 - synthetic fixture for secret-detection regression
         env_content = f"db_password = '{secret_val}'\n"
         with open(os.path.join(self.temp_dir, "config.env"), "w") as f:
             f.write(env_content)

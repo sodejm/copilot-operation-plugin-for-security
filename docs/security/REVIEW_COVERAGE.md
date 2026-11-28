@@ -1,0 +1,40 @@
+# Existing-code human review coverage
+
+Baseline commit: `42cb017012934839702ce0b939a5cbc9193271ea`. Status: initial inventory; no completed human
+review is asserted. Scope includes all tracked first-party code, infrastructure,
+CI, agent instructions and build/release tooling, including paths outside the
+subsystem rows below. The maintainer must expand rows to exact file inventories;
+these subsystem entries are prioritization, not proof of exhaustive review.
+
+| ID | Scope | Status | Human owner | Deadline |
+| --- | --- | --- | --- | --- |
+| R1 | Plugin source → validators/generator → marketplace → installed agent and all implementing code/configuration/tests | Pending independent human review | Maintainer assignment pending | Before affected release; triage within 30 days, first pass within 90 days |
+| R2 | Operator decision → approval store → tool execution and all implementing code/configuration/tests | Pending independent human review | Maintainer assignment pending | Before affected release; triage within 30 days, first pass within 90 days |
+| R3 | Cloud integration → remote API / telemetry → agent and all implementing code/configuration/tests | Pending independent human review | Maintainer assignment pending | Before affected release; triage within 30 days, first pass within 90 days |
+| R4 | Canonical hunt skills → generated host adapters and all implementing code/configuration/tests | Pending independent human review | Maintainer assignment pending | Before affected release; triage within 30 days, first pass within 90 days |
+| R-CI | All CI, dependencies, packaging, release, scripts and agent/tool authority | Pending independent human review | Maintainer assignment pending | Before affected release; triage within 30 days, first pass within 90 days |
+| R-MODEL | Model catalog parser and advisor (`cops/routing/model_advisor.py`), both route CLIs, model-routing skills, issue preflight policy and associated tests | Pending independent human review | Maintainer assignment pending | Before affected release; triage within 30 days, first pass within 90 days |
+| R-LAB | `cops/laboratory/**`, laboratory CLI and schemas, scenario-laboratory skill, and focused tests for durable evidence, atomic authorization replay, post-dispatch recovery, and cleanup/result binding | Pending independent human review | Maintainer assignment pending | Before affected release; triage within 30 days, first pass within 90 days |
+| R-PLAYBACK | Catalog demo declarations, `cops/portable.py`, package playback entry points and documentation, declared-input staging, sanitized dispatch evidence, Git configuration isolation, temporary artifact cleanup, retry-count assertions, Attack Path Windows handle-based I/O, and source/export semantic acceptance tests | Pending independent human review | Maintainer assignment pending | Before affected release; triage within 30 days, first pass within 90 days |
+| R-VENDOR | SOC investigation workbench Sentinel snapshot, `vendor-lock.json`, synchronization and validation boundary, and focused tests | Pending independent human review | Maintainer assignment pending | Before affected release; triage within 30 days, first pass within 90 days |
+| R-DQ | Detection Quality request selection, Copilot tool and run ID handling, evaluator dispatch, checkpoint integrity and verified fixture report | Pending independent human review | Maintainer assignment pending | Before affected release |
+| R-REST | All remaining tracked first-party files; enumerate and reconcile against Git inventory | Pending independent human review | Maintainer assignment pending | First pass within 90 days |
+| R236 | Foundry Agent Harness signed MCP authorization batch, peer/target fixtures, bounded JSON, canary evidence, portable integration, contracts and tests for issue #236 | Pending independent human security review of the exact revision before delivery, as required by issue #236; batch merge authorization does not waive this gate | Maintainer assignment pending | Before affected release; triage within 30 days, first pass within 90 days |
+| R-EXPANSION | Routing features/classifier and context/preview, workflow contracts/runtime and purple-team rules, artifact assessors, raw forensic import/shared descriptor file boundaries, and API replay, report exporters, service laboratories, playbook generation and portable runtime vendoring, with associated schemas, catalog, fixtures and tests | Pending independent human security review of the exact integrated revision | Maintainer assignment pending | Before affected release; triage within 30 days, first pass within 90 days |
+| R-WEBSOCKET | `cops/web_api/websocket.py`, shared pinned TCP/TLS/deadline and approval integration in `replay.py`, budget/metrics models, vendored equivalents, offline/acceptance gate separation and WebSocket fixtures/regressions | Pending independent human security review of the exact integrated revision | Maintainer assignment pending | Before affected release; triage within 30 days, first pass within 90 days |
+
+For each reviewed row add exact paths, reviewed SHA, reviewer identity/date,
+checks/evidence, findings, disposition, residual risk acceptance/expiry and next
+review trigger. Record third-party provenance and review separately. Changed
+behavior invalidates prior scope approval. Follow the
+[engineering review policy](../ENGINEERING_REVIEW.md). No automated result or
+threat-model entry closes this human-review backlog.
+
+## Squad tooling inventory
+
+`.squad/**`, generated client agents/MCP configuration and automatic orchestration
+instructions introduce third-party Squad 2.0.0 contributor tooling. Provenance is
+`github/squad` / `@bradygaster/squad-cli@2.0.0`; local policy adaptations are described
+in `docs/SQUAD.md`. Independent human supply-chain and permission review is pending
+under R-CI, owned by the maintainer before enabling optional hosted workflows or
+expanding tooling permissions. No automated check closes this review obligation.

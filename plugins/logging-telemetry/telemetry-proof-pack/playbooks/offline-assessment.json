@@ -1,0 +1,123 @@
+{
+  "entrypoints": [
+    {
+      "argv": [
+        "python3",
+        "plugins/logging-telemetry/telemetry-proof-pack/scripts/run_demo.py"
+      ],
+      "effects": {
+        "authorization": "not applicable to this offline entrypoint",
+        "network": "none declared by the offline package contract",
+        "read_scope": "exact argv-declared repository paths; the script can also select package-local fixtures, so inspect its implementation before invocation",
+        "reads": [
+          "plugins/logging-telemetry/telemetry-proof-pack/scripts/run_demo.py"
+        ],
+        "subprocess": "the generator executes none; operator invocation may run subprocesses implemented by the declared repository script",
+        "temporary_storage": "implementation-controlled and not retained; location is not declared by argv",
+        "write_scope": "complete durable destinations explicitly declared in argv; an empty list means no durable destination is declared, not that the implementation performs no temporary writes",
+        "writes": []
+      },
+      "expectations": {
+        "evidence": [
+          "the declared command exits successfully",
+          "reported results are limited to the supplied offline fixtures and metadata"
+        ],
+        "inputs": {
+          "argv": [],
+          "implementation_selected": "package-local fixtures may be selected inside the declared script; review the script before invocation",
+          "review_sources": [
+            "plugins/logging-telemetry/telemetry-proof-pack/package.json",
+            "plugins/logging-telemetry/telemetry-proof-pack/docs/PLAYBOOK.md"
+          ]
+        },
+        "outputs": {
+          "durable_destinations": [],
+          "process": [
+            "exit status",
+            "standard output",
+            "standard error"
+          ],
+          "schemas": []
+        }
+      },
+      "id": "demo",
+      "purpose": "Trace synthetic markers across Cribl-to-Splunk and Cribl-to-Sentinel pipelines, demonstrating healthy, degraded, and broken pipeline classifications.",
+      "timeout_seconds": 60,
+      "working_directory": "."
+    },
+    {
+      "argv": [
+        "python3",
+        "plugins/logging-telemetry/telemetry-proof-pack/scripts/validate_package.py"
+      ],
+      "effects": {
+        "authorization": "not applicable to this offline entrypoint",
+        "network": "none declared by the offline package contract",
+        "read_scope": "exact argv-declared repository paths; the script can also select package-local fixtures, so inspect its implementation before invocation",
+        "reads": [
+          "plugins/logging-telemetry/telemetry-proof-pack/scripts/validate_package.py"
+        ],
+        "subprocess": "the generator executes none; operator invocation may run subprocesses implemented by the declared repository script",
+        "temporary_storage": "implementation-controlled and not retained; location is not declared by argv",
+        "write_scope": "complete durable destinations explicitly declared in argv; an empty list means no durable destination is declared, not that the implementation performs no temporary writes",
+        "writes": []
+      },
+      "expectations": {
+        "evidence": [
+          "the declared command exits successfully",
+          "reported results are limited to the supplied offline fixtures and metadata"
+        ],
+        "inputs": {
+          "argv": [],
+          "implementation_selected": "package-local fixtures may be selected inside the declared script; review the script before invocation",
+          "review_sources": [
+            "plugins/logging-telemetry/telemetry-proof-pack/package.json",
+            "plugins/logging-telemetry/telemetry-proof-pack/docs/PLAYBOOK.md"
+          ]
+        },
+        "outputs": {
+          "durable_destinations": [],
+          "process": [
+            "exit status",
+            "standard output",
+            "standard error"
+          ],
+          "schemas": []
+        }
+      },
+      "id": "validation-1",
+      "purpose": "offline-package-gate",
+      "timeout_seconds": 60,
+      "working_directory": "."
+    }
+  ],
+  "generation": {
+    "commands_executed": false,
+    "source": "catalog/plugins.json and package metadata"
+  },
+  "limitations": [
+    "Operates offline with recorded stage evidence; does not make live network calls to production Cribl Stream workers or SIEM APIs.",
+    "Pipeline health reflects recorded evidence logs for synthetic markers and should not be confused with broad infrastructure telemetry uptime.",
+    "Built-in redaction applies to Cribl metric details only; sanitize source exports and identifiers before use."
+  ],
+  "links": {
+    "operator_playbook": "../docs/PLAYBOOK.md",
+    "package_contract": "../package.json",
+    "walkthrough": "../walkthroughs/offline-assessment.md"
+  },
+  "package_path": "plugins/logging-telemetry/telemetry-proof-pack",
+  "plugin_id": "telemetry-proof-pack",
+  "purpose": "Correlate supplied synthetic marker records across emission, Cribl routing, destination indexing, and detection evaluation.",
+  "schema_version": "cops.plugin-playbook/v1",
+  "status": {
+    "isolated_laboratory": "unverified",
+    "maturity": "beta",
+    "offline_workflow": "validated",
+    "support": {
+      "host_installation": "unverified",
+      "live_integration": "unverified",
+      "offline_workflow": "validated",
+      "structural_validation": "validated"
+    }
+  }
+}

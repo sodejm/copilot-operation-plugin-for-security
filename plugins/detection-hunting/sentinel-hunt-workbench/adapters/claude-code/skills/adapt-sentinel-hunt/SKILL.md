@@ -1,6 +1,6 @@
 ---
 name: adapt-sentinel-hunt
-description: Adapt a defensive hunt between Microsoft hunting surfaces while preserving evidence semantics and reporting incompatibilities.
+description: "Use for requests such as \"move this hunt to Defender or Sentinel.\" Adapt a defensive hunt between Microsoft hunting surfaces while preserving evidence semantics and reporting incompatibilities."
 ---
 
 # Adapt Sentinel Hunt

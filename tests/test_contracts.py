@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+
 import pytest
 
 from cops.contracts import (
@@ -12,15 +13,61 @@ from cops.contracts import (
     Engagement,
     Finding,
     RunResult,
-    Scenario,
     build_action_plan_digest,
     evaluate_run_result,
     validate_contract,
     validate_identifier,
-    validate_transition,
 )
 
 FIXTURES_DIR = Path(__file__).resolve().parents[1] / "cops" / "contracts" / "fixtures"
+
+
+def _cleanup_receipt_payload(
+    schema_version: str = "cops.cleanup-receipt/v1",
+    *,
+    quarantine_target: str | None = None,
+) -> dict[str, object]:
+    unresolved_effect: dict[str, object] = {
+        "effect_id": "effect-contract-test",
+        "resource_type": "directory",
+        "target": "/tmp/contract-test",
+        "reason": "preserved for operator reconciliation",
+    }
+    if quarantine_target is not None:
+        unresolved_effect["quarantine_target"] = quarantine_target
+    return {
+        "schema_version": schema_version,
+        "receipt_id": "cln-contract-test",
+        "plan_id": "plan-contract-test",
+        "engagement_id": "eng-contract-test",
+        "worker_identity": "worker-contract-test",
+        "status": "failed",
+        "created_at": "2026-10-09T12:00:00Z",
+        "completed_at": "2026-10-09T12:00:01Z",
+        "cleaned_effects": [],
+        "unresolved_effects": [unresolved_effect],
+        "evidence_hash": "0" * 64,
+    }
+
+
+def test_cleanup_receipt_v1_remains_strict_and_backward_compatible():
+    validate_contract(_cleanup_receipt_payload(), "cleanup_receipt")
+
+    with pytest.raises(ContractError):
+        validate_contract(
+            _cleanup_receipt_payload(quarantine_target="/tmp/quarantine"),
+            "cleanup_receipt",
+        )
+
+
+def test_cleanup_receipt_v2_accepts_quarantine_location():
+    validate_contract(
+        _cleanup_receipt_payload(
+            "cops.cleanup-receipt/v2",
+            quarantine_target="/tmp/quarantine",
+        ),
+        "cleanup_receipt",
+    )
 
 
 def test_valid_fixtures_pass():
@@ -148,12 +195,35 @@ def test_finding_requires_evidence_when_verified():
 
 
 def test_action_plan_digest_computation():
-    target = "10.0.0.1"
-    specialist_id = "cops-network-specialist"
-    operations = [{"step_id": "s1", "tool": "ping", "action": "test", "arguments": {}, "timeout_seconds": 10}]
-    limits = {"max_duration_seconds": 60, "max_output_bytes": 1024, "egress_allowed": False}
-    digest1 = build_action_plan_digest(target=target, specialist_id=specialist_id, operations=operations, limits=limits)
-    digest2 = build_action_plan_digest(target=target, specialist_id=specialist_id, operations=operations, limits=limits)
+    snapshot = {
+        "schema_version": "cops.action-plan/v1",
+        "plan_id": "plan-digest-test",
+        "engagement_id": "eng-digest-test",
+        "scenario_id": "COPS-E03.01-S01",
+        "target": "10.0.0.1",
+        "specialist_id": "cops-network-specialist",
+        "operations": [
+            {
+                "step_id": "s1",
+                "tool": "python3",
+                "tool_version": "3.11.9",
+                "action": "test",
+                "arguments": {},
+                "timeout_seconds": 10,
+            }
+        ],
+        "limits": {
+            "max_duration_seconds": 60,
+            "max_output_bytes": 1024,
+            "egress_allowed": False,
+        },
+        "credential_references": [],
+        "created_at": "2026-10-02T10:00:00Z",
+        "platform_prerequisites": ["linux"],
+        "batch": {"mode": "sequential", "max_operations": 1, "fail_fast": True},
+    }
+    digest1 = build_action_plan_digest(snapshot=snapshot)
+    digest2 = build_action_plan_digest(snapshot=snapshot)
     assert digest1 == digest2
     assert len(digest1) == 64
 

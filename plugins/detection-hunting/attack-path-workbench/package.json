@@ -15,17 +15,10 @@
     "Business-impact ratings and MITRE mappings remain pending approved local reference material."
   ],
   "demo": {
-    "description": "Print a blocked Wiz query intent for illustrative selectors without making a network call.",
+    "description": "Run the complete illustrative intake, graph, path-analysis, report, rerun, and rejection playback.",
     "command": [
       "$PYTHON",
-      "plugins/detection-hunting/attack-path-workbench/scripts/attackpath.py",
-      "query-intent",
-      "--start",
-      "ILL-FINDING",
-      "--target",
-      "ILL-CROWN",
-      "--scope",
-      "ILL-SCOPE"
+      "plugins/detection-hunting/attack-path-workbench/scripts/run_demo.py"
     ],
     "timeout_seconds": 30
   },

@@ -2,26 +2,20 @@
 
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
 import hashlib
-import ipaddress
-import json
-from pathlib import Path
 import re
 import socket
-import time
+from abc import ABC, abstractmethod
 from typing import Any
 
-from cops.evidence.canonical import utc_now
-from .models import EvidenceProvenance
 from .remote_models import (
     CleanupReceipt,
     HostPrivilegeCandidate,
     LateralMovementImpact,
     RemoteAuthPrerequisite,
     RemoteExposureStatus,
-    RemoteServiceCategory,
     RemoteServiceAssessment,
+    RemoteServiceCategory,
     RemoteServicesReport,
     RemoteServiceType,
 )
@@ -72,63 +66,233 @@ class RemoteServicesCollector(ABC):
 
     def assess_ssh(self, target_host: str, vantage: str = "external", timeout: float = 2.0) -> RemoteServiceAssessment:
         ip = self.resolve_target(target_host)
-        return self.probe_service(target_host, ip, RemoteServiceType.SSH.value, 22, "tcp", RemoteServiceCategory.REMOTE_ADMIN.value, vantage, None, timeout)
+        return self.probe_service(
+            target_host,
+            ip,
+            RemoteServiceType.SSH.value,
+            22,
+            "tcp",
+            RemoteServiceCategory.REMOTE_ADMIN.value,
+            vantage,
+            None,
+            timeout,
+        )
 
-    def assess_telnet(self, target_host: str, vantage: str = "external", timeout: float = 2.0) -> RemoteServiceAssessment:
+    def assess_telnet(
+        self, target_host: str, vantage: str = "external", timeout: float = 2.0
+    ) -> RemoteServiceAssessment:
         ip = self.resolve_target(target_host)
-        return self.probe_service(target_host, ip, RemoteServiceType.TELNET.value, 23, "tcp", RemoteServiceCategory.REMOTE_ADMIN.value, vantage, None, timeout)
+        return self.probe_service(
+            target_host,
+            ip,
+            RemoteServiceType.TELNET.value,
+            23,
+            "tcp",
+            RemoteServiceCategory.REMOTE_ADMIN.value,
+            vantage,
+            None,
+            timeout,
+        )
 
     def assess_rdp(self, target_host: str, vantage: str = "external", timeout: float = 2.0) -> RemoteServiceAssessment:
         ip = self.resolve_target(target_host)
-        return self.probe_service(target_host, ip, RemoteServiceType.RDP.value, 3389, "tcp", RemoteServiceCategory.REMOTE_ADMIN.value, vantage, None, timeout)
+        return self.probe_service(
+            target_host,
+            ip,
+            RemoteServiceType.RDP.value,
+            3389,
+            "tcp",
+            RemoteServiceCategory.REMOTE_ADMIN.value,
+            vantage,
+            None,
+            timeout,
+        )
 
     def assess_vnc(self, target_host: str, vantage: str = "external", timeout: float = 2.0) -> RemoteServiceAssessment:
         ip = self.resolve_target(target_host)
-        return self.probe_service(target_host, ip, RemoteServiceType.VNC.value, 5900, "tcp", RemoteServiceCategory.REMOTE_ADMIN.value, vantage, None, timeout)
+        return self.probe_service(
+            target_host,
+            ip,
+            RemoteServiceType.VNC.value,
+            5900,
+            "tcp",
+            RemoteServiceCategory.REMOTE_ADMIN.value,
+            vantage,
+            None,
+            timeout,
+        )
 
-    def assess_winrm(self, target_host: str, vantage: str = "external", timeout: float = 2.0) -> RemoteServiceAssessment:
+    def assess_winrm(
+        self, target_host: str, vantage: str = "external", timeout: float = 2.0
+    ) -> RemoteServiceAssessment:
         ip = self.resolve_target(target_host)
-        return self.probe_service(target_host, ip, RemoteServiceType.WINRM.value, 5985, "tcp", RemoteServiceCategory.REMOTE_ADMIN.value, vantage, None, timeout)
+        return self.probe_service(
+            target_host,
+            ip,
+            RemoteServiceType.WINRM.value,
+            5985,
+            "tcp",
+            RemoteServiceCategory.REMOTE_ADMIN.value,
+            vantage,
+            None,
+            timeout,
+        )
 
     def assess_x11(self, target_host: str, vantage: str = "external", timeout: float = 2.0) -> RemoteServiceAssessment:
         ip = self.resolve_target(target_host)
-        return self.probe_service(target_host, ip, RemoteServiceType.X11.value, 6000, "tcp", RemoteServiceCategory.REMOTE_ADMIN.value, vantage, None, timeout)
+        return self.probe_service(
+            target_host,
+            ip,
+            RemoteServiceType.X11.value,
+            6000,
+            "tcp",
+            RemoteServiceCategory.REMOTE_ADMIN.value,
+            vantage,
+            None,
+            timeout,
+        )
 
-    def assess_smb(self, target_host: str, canary_artifact: str | None = "canary_share/audit.tmp", vantage: str = "external", timeout: float = 2.0) -> RemoteServiceAssessment:
+    def assess_smb(
+        self,
+        target_host: str,
+        canary_artifact: str | None = "canary_share/audit.tmp",
+        vantage: str = "external",
+        timeout: float = 2.0,
+    ) -> RemoteServiceAssessment:
         ip = self.resolve_target(target_host)
-        return self.probe_service(target_host, ip, RemoteServiceType.SMB.value, 445, "tcp", RemoteServiceCategory.FILE_SHARING.value, vantage, canary_artifact, timeout)
+        return self.probe_service(
+            target_host,
+            ip,
+            RemoteServiceType.SMB.value,
+            445,
+            "tcp",
+            RemoteServiceCategory.FILE_SHARING.value,
+            vantage,
+            canary_artifact,
+            timeout,
+        )
 
     def assess_nfs(self, target_host: str, vantage: str = "external", timeout: float = 2.0) -> RemoteServiceAssessment:
         ip = self.resolve_target(target_host)
-        return self.probe_service(target_host, ip, RemoteServiceType.NFS.value, 2049, "tcp", RemoteServiceCategory.FILE_SHARING.value, vantage, None, timeout)
+        return self.probe_service(
+            target_host,
+            ip,
+            RemoteServiceType.NFS.value,
+            2049,
+            "tcp",
+            RemoteServiceCategory.FILE_SHARING.value,
+            vantage,
+            None,
+            timeout,
+        )
 
     def assess_ftp(self, target_host: str, vantage: str = "external", timeout: float = 2.0) -> RemoteServiceAssessment:
         ip = self.resolve_target(target_host)
-        return self.probe_service(target_host, ip, RemoteServiceType.FTP.value, 21, "tcp", RemoteServiceCategory.FILE_SHARING.value, vantage, None, timeout)
+        return self.probe_service(
+            target_host,
+            ip,
+            RemoteServiceType.FTP.value,
+            21,
+            "tcp",
+            RemoteServiceCategory.FILE_SHARING.value,
+            vantage,
+            None,
+            timeout,
+        )
 
     def assess_tftp(self, target_host: str, vantage: str = "external", timeout: float = 2.0) -> RemoteServiceAssessment:
         ip = self.resolve_target(target_host)
-        return self.probe_service(target_host, ip, RemoteServiceType.TFTP.value, 69, "udp", RemoteServiceCategory.FILE_SHARING.value, vantage, None, timeout)
+        return self.probe_service(
+            target_host,
+            ip,
+            RemoteServiceType.TFTP.value,
+            69,
+            "udp",
+            RemoteServiceCategory.FILE_SHARING.value,
+            vantage,
+            None,
+            timeout,
+        )
 
-    def assess_rsync(self, target_host: str, vantage: str = "external", timeout: float = 2.0) -> RemoteServiceAssessment:
+    def assess_rsync(
+        self, target_host: str, vantage: str = "external", timeout: float = 2.0
+    ) -> RemoteServiceAssessment:
         ip = self.resolve_target(target_host)
-        return self.probe_service(target_host, ip, RemoteServiceType.RSYNC.value, 873, "tcp", RemoteServiceCategory.FILE_SHARING.value, vantage, None, timeout)
+        return self.probe_service(
+            target_host,
+            ip,
+            RemoteServiceType.RSYNC.value,
+            873,
+            "tcp",
+            RemoteServiceCategory.FILE_SHARING.value,
+            vantage,
+            None,
+            timeout,
+        )
 
     def assess_afp(self, target_host: str, vantage: str = "external", timeout: float = 2.0) -> RemoteServiceAssessment:
         ip = self.resolve_target(target_host)
-        return self.probe_service(target_host, ip, RemoteServiceType.AFP.value, 548, "tcp", RemoteServiceCategory.FILE_SHARING.value, vantage, None, timeout)
+        return self.probe_service(
+            target_host,
+            ip,
+            RemoteServiceType.AFP.value,
+            548,
+            "tcp",
+            RemoteServiceCategory.FILE_SHARING.value,
+            vantage,
+            None,
+            timeout,
+        )
 
     def assess_lpd(self, target_host: str, vantage: str = "external", timeout: float = 2.0) -> RemoteServiceAssessment:
         ip = self.resolve_target(target_host)
-        return self.probe_service(target_host, ip, RemoteServiceType.LPD.value, 515, "tcp", RemoteServiceCategory.PRINTING.value, vantage, None, timeout)
+        return self.probe_service(
+            target_host,
+            ip,
+            RemoteServiceType.LPD.value,
+            515,
+            "tcp",
+            RemoteServiceCategory.PRINTING.value,
+            vantage,
+            None,
+            timeout,
+        )
 
-    def assess_ipp(self, target_host: str, canary_artifact: str | None = "canary_print_job_probe", vantage: str = "external", timeout: float = 2.0) -> RemoteServiceAssessment:
+    def assess_ipp(
+        self,
+        target_host: str,
+        canary_artifact: str | None = "canary_print_job_probe",
+        vantage: str = "external",
+        timeout: float = 2.0,
+    ) -> RemoteServiceAssessment:
         ip = self.resolve_target(target_host)
-        return self.probe_service(target_host, ip, RemoteServiceType.IPP.value, 631, "tcp", RemoteServiceCategory.PRINTING.value, vantage, canary_artifact, timeout)
+        return self.probe_service(
+            target_host,
+            ip,
+            RemoteServiceType.IPP.value,
+            631,
+            "tcp",
+            RemoteServiceCategory.PRINTING.value,
+            vantage,
+            canary_artifact,
+            timeout,
+        )
 
-    def assess_raw_print(self, target_host: str, vantage: str = "external", timeout: float = 2.0) -> RemoteServiceAssessment:
+    def assess_raw_print(
+        self, target_host: str, vantage: str = "external", timeout: float = 2.0
+    ) -> RemoteServiceAssessment:
         ip = self.resolve_target(target_host)
-        return self.probe_service(target_host, ip, RemoteServiceType.RAW_PRINT.value, 9100, "tcp", RemoteServiceCategory.PRINTING.value, vantage, None, timeout)
+        return self.probe_service(
+            target_host,
+            ip,
+            RemoteServiceType.RAW_PRINT.value,
+            9100,
+            "tcp",
+            RemoteServiceCategory.PRINTING.value,
+            vantage,
+            None,
+            timeout,
+        )
 
 
 class OfflineSyntheticRemoteCollector(RemoteServicesCollector):
@@ -164,16 +328,18 @@ class OfflineSyntheticRemoteCollector(RemoteServicesCollector):
         canary_artifact: str | None = None,
         timeout: float = 2.0,
     ) -> RemoteServiceAssessment:
-        self.probes_dispatched.append({
-            "target_host": target_host,
-            "resolved_ip": resolved_ip,
-            "service_type": service_type,
-            "category": category,
-            "port": port,
-            "protocol": protocol,
-            "vantage": vantage,
-            "canary_artifact": canary_artifact,
-        })
+        self.probes_dispatched.append(
+            {
+                "target_host": target_host,
+                "resolved_ip": resolved_ip,
+                "service_type": service_type,
+                "category": category,
+                "port": port,
+                "protocol": protocol,
+                "vantage": vantage,
+                "canary_artifact": canary_artifact,
+            }
+        )
 
         t_data = self.targets.get(target_host) or self.targets.get(resolved_ip) or {}
         svc_data = t_data.get(service_type) or t_data.get(f"{service_type}:{port}")
@@ -207,8 +373,16 @@ class OfflineSyntheticRemoteCollector(RemoteServicesCollector):
         details = dict(svc_data.get("details", {}))
         for k, v in svc_data.items():
             if k not in (
-                "details", "vulnerabilities", "versions", "status", "protected",
-                "inaccessible", "remediated", "state", "auth_prerequisite", "authentication_required",
+                "details",
+                "vulnerabilities",
+                "versions",
+                "status",
+                "protected",
+                "inaccessible",
+                "remediated",
+                "state",
+                "auth_prerequisite",
+                "authentication_required",
             ):
                 details.setdefault(k, v)
 
@@ -236,17 +410,34 @@ class OfflineSyntheticRemoteCollector(RemoteServicesCollector):
 
         # 3. Protected Service Check (Properly configured authentication and hardened boundaries)
         is_protected = svc_data.get("protected", False)
-        if service_type == RemoteServiceType.SSH.value and details.get("password_auth") is False and details.get("publickey_auth") is True:
+        if (
+            service_type == RemoteServiceType.SSH.value
+            and details.get("password_auth") is False
+            and details.get("publickey_auth") is True
+        ):
             is_protected = True
         elif service_type == RemoteServiceType.RDP.value and details.get("nla_enabled") is True:
             is_protected = True
-        elif service_type == RemoteServiceType.SMB.value and details.get("smb_signing_required") is True and details.get("anonymous_access") is False and details.get("smbv1_enabled") is False:
+        elif (
+            service_type == RemoteServiceType.SMB.value
+            and details.get("smb_signing_required") is True
+            and details.get("anonymous_access") is False
+            and details.get("smbv1_enabled") is False
+        ):
             is_protected = True
         elif service_type == RemoteServiceType.VNC.value and details.get("auth_required") is True:
             is_protected = True
-        elif service_type == RemoteServiceType.WINRM.value and details.get("https_enforced") is True and details.get("basic_auth") is False:
+        elif (
+            service_type == RemoteServiceType.WINRM.value
+            and details.get("https_enforced") is True
+            and details.get("basic_auth") is False
+        ):
             is_protected = True
-        elif service_type == RemoteServiceType.NFS.value and details.get("no_root_squash") is False and details.get("world_accessible") is False:
+        elif (
+            service_type == RemoteServiceType.NFS.value
+            and details.get("no_root_squash") is False
+            and details.get("world_accessible") is False
+        ):
             is_protected = True
         elif service_type == RemoteServiceType.FTP.value and details.get("anonymous_enabled") is False:
             is_protected = True
@@ -254,7 +445,10 @@ class OfflineSyntheticRemoteCollector(RemoteServicesCollector):
             is_protected = True
         elif service_type == RemoteServiceType.AFP.value and details.get("guest_access") is False:
             is_protected = True
-        elif service_type in (RemoteServiceType.LPD.value, RemoteServiceType.IPP.value) and details.get("auth_required") is True:
+        elif (
+            service_type in (RemoteServiceType.LPD.value, RemoteServiceType.IPP.value)
+            and details.get("auth_required") is True
+        ):
             is_protected = True
 
         canary_active = bool(
@@ -266,13 +460,17 @@ class OfflineSyntheticRemoteCollector(RemoteServicesCollector):
 
         receipts: list[CleanupReceipt] = []
         if canary_active and canary_artifact:
-            receipt_id = hashlib.sha256(f"clean:{target_host}:{service_type}:{canary_artifact}".encode("utf-8")).hexdigest()[:16]
+            receipt_id = hashlib.sha256(f"clean:{target_host}:{service_type}:{canary_artifact}".encode()).hexdigest()[
+                :16
+            ]
             receipts.append(
                 CleanupReceipt(
                     receipt_id=f"rec-{receipt_id}",
                     target_host=target_host,
                     service_type=service_type,
-                    artifact_type="canary_file" if category == RemoteServiceCategory.FILE_SHARING.value else "canary_print_job",
+                    artifact_type="canary_file"
+                    if category == RemoteServiceCategory.FILE_SHARING.value
+                    else "canary_print_job",
                     artifact_identifier=canary_artifact,
                     action_taken="verified_removed",
                     verified_clean=True,
@@ -330,7 +528,7 @@ class OfflineSyntheticRemoteCollector(RemoteServicesCollector):
             if has_smbv1:
                 is_legacy = True
                 vulns.append("Obsolete SMBv1/CIFS protocol enabled")
-                c_id = hashlib.sha256(f"smbv1:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"smbv1:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     HostPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -349,7 +547,7 @@ class OfflineSyntheticRemoteCollector(RemoteServicesCollector):
 
             if signing_disabled:
                 vulns.append("SMB packet signing not required; vulnerable to NTLM relay attacks")
-                c_id = hashlib.sha256(f"smbsign:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"smbsign:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     HostPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -368,7 +566,7 @@ class OfflineSyntheticRemoteCollector(RemoteServicesCollector):
 
             if shares or not auth_req:
                 vulns.append(f"Unauthenticated null/guest session permitted with {len(shares)} accessible shares")
-                c_id = hashlib.sha256(f"smbshare:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"smbshare:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     HostPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -388,7 +586,7 @@ class OfflineSyntheticRemoteCollector(RemoteServicesCollector):
         elif service_type == RemoteServiceType.TELNET.value:
             is_legacy = True
             vulns.append("Unencrypted plaintext Telnet service accessible")
-            c_id = hashlib.sha256(f"telnet:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+            c_id = hashlib.sha256(f"telnet:{target_host}:{port}".encode()).hexdigest()[:16]
             candidates.append(
                 HostPrivilegeCandidate(
                     candidate_id=f"priv-{c_id}",
@@ -398,7 +596,9 @@ class OfflineSyntheticRemoteCollector(RemoteServicesCollector):
                     port=port,
                     vantage=vantage,
                     finding_type="telnet_plaintext_exposure",
-                    auth_prerequisites=RemoteAuthPrerequisite.USER_PASSWORD.value if auth_req else RemoteAuthPrerequisite.NONE.value,
+                    auth_prerequisites=RemoteAuthPrerequisite.USER_PASSWORD.value
+                    if auth_req
+                    else RemoteAuthPrerequisite.NONE.value,
                     lateral_movement_impact=LateralMovementImpact.CREDENTIAL_HARVESTING.value,
                     applicable_versions=applicable_versions,
                     supporting_evidence={"banner": details.get("banner", "Telnet Service")},
@@ -409,7 +609,7 @@ class OfflineSyntheticRemoteCollector(RemoteServicesCollector):
             nla_disabled = details.get("nla_enabled") is False or details.get("nla_disabled") is True
             if nla_disabled:
                 vulns.append("Remote Desktop exposes pre-authentication login screen without NLA enforcement")
-                c_id = hashlib.sha256(f"rdpnla:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"rdpnla:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     HostPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -429,7 +629,7 @@ class OfflineSyntheticRemoteCollector(RemoteServicesCollector):
         elif service_type == RemoteServiceType.VNC.value:
             if not auth_req or details.get("auth_type") in ("none", "None", 1):
                 vulns.append("VNC RFB service accessible without authentication")
-                c_id = hashlib.sha256(f"vnc:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"vnc:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     HostPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -449,7 +649,7 @@ class OfflineSyntheticRemoteCollector(RemoteServicesCollector):
         elif service_type == RemoteServiceType.WINRM.value:
             if port == 5985 or details.get("https_enforced") is False:
                 vulns.append("WinRM management endpoint exposed over unencrypted HTTP (5985)")
-                c_id = hashlib.sha256(f"winrm:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"winrm:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     HostPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -469,7 +669,7 @@ class OfflineSyntheticRemoteCollector(RemoteServicesCollector):
         elif service_type == RemoteServiceType.X11.value:
             if not auth_req or details.get("auth_required") is False:
                 vulns.append("X11 display server open to unauthenticated remote client connections")
-                c_id = hashlib.sha256(f"x11:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"x11:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     HostPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -492,7 +692,7 @@ class OfflineSyntheticRemoteCollector(RemoteServicesCollector):
             if has_no_root_squash or exports:
                 if has_no_root_squash:
                     vulns.append("NFS export configured with 'no_root_squash' permitting root privilege escalation")
-                c_id = hashlib.sha256(f"nfs:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"nfs:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     HostPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -503,7 +703,9 @@ class OfflineSyntheticRemoteCollector(RemoteServicesCollector):
                         vantage=vantage,
                         finding_type="nfs_no_root_squash" if has_no_root_squash else "nfs_world_export",
                         auth_prerequisites=RemoteAuthPrerequisite.NONE.value,
-                        lateral_movement_impact=LateralMovementImpact.PRIVILEGE_ESCALATION.value if has_no_root_squash else LateralMovementImpact.DATA_EXFILTRATION.value,
+                        lateral_movement_impact=LateralMovementImpact.PRIVILEGE_ESCALATION.value
+                        if has_no_root_squash
+                        else LateralMovementImpact.DATA_EXFILTRATION.value,
                         applicable_versions=applicable_versions,
                         supporting_evidence={"exports": exports, "no_root_squash": has_no_root_squash},
                     )
@@ -513,7 +715,7 @@ class OfflineSyntheticRemoteCollector(RemoteServicesCollector):
             if details.get("anonymous_login") or not auth_req:
                 is_legacy = True
                 vulns.append("Unauthenticated anonymous FTP access permitted")
-                c_id = hashlib.sha256(f"ftp:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"ftp:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     HostPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -534,7 +736,7 @@ class OfflineSyntheticRemoteCollector(RemoteServicesCollector):
             modules = details.get("modules", [])
             if not auth_req or modules:
                 vulns.append(f"Rsync daemon exposes {len(modules)} modules without mandatory authentication")
-                c_id = hashlib.sha256(f"rsync:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"rsync:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     HostPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -551,10 +753,14 @@ class OfflineSyntheticRemoteCollector(RemoteServicesCollector):
                     )
                 )
 
-        elif service_type in (RemoteServiceType.LPD.value, RemoteServiceType.IPP.value, RemoteServiceType.RAW_PRINT.value):
+        elif service_type in (
+            RemoteServiceType.LPD.value,
+            RemoteServiceType.IPP.value,
+            RemoteServiceType.RAW_PRINT.value,
+        ):
             if not auth_req:
                 vulns.append(f"Print service ({service_type.upper()}) accepts unauthenticated print job submissions")
-                c_id = hashlib.sha256(f"print:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"print:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     HostPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -596,7 +802,12 @@ class OfflineSyntheticRemoteCollector(RemoteServicesCollector):
 class StandardSocketRemoteCollector(RemoteServicesCollector):
     """Standard-library socket probe collector for remote, file, and print services."""
 
+    live_network_io = True
+
     def resolve_target(self, target_host: str) -> str:
+        from .live_execution import reject_unauthorized_live_discovery
+
+        reject_unauthorized_live_discovery(mode="live")
         return socket.gethostbyname(target_host)
 
     def probe_service(
@@ -611,6 +822,9 @@ class StandardSocketRemoteCollector(RemoteServicesCollector):
         canary_artifact: str | None = None,
         timeout: float = 2.0,
     ) -> RemoteServiceAssessment:
+        from .live_execution import reject_unauthorized_live_discovery
+
+        reject_unauthorized_live_discovery(mode="live")
         try:
             with socket.create_connection((resolved_ip, port), timeout=timeout):
                 return RemoteServiceAssessment(
@@ -629,7 +843,7 @@ class StandardSocketRemoteCollector(RemoteServicesCollector):
                     configuration_details={"socket_connected": True},
                     uncertainty_notes=["TCP connect succeeded; protocol credentials required to verify authentication"],
                 )
-        except (socket.timeout, ConnectionRefusedError, OSError) as err:
+        except (TimeoutError, ConnectionRefusedError, OSError) as err:
             return RemoteServiceAssessment(
                 target_host=target_host,
                 resolved_ip=resolved_ip,
@@ -662,6 +876,9 @@ def assess_remote_services(
     effective_canary = canary_artifact or canary_id
     if collector is None:
         collector = OfflineSyntheticRemoteCollector()
+    from .live_execution import reject_unauthorized_live_discovery
+
+    reject_unauthorized_live_discovery(collector=collector, offline_collector_type=OfflineSyntheticRemoteCollector)
 
     selected_services = service_types or list(DEFAULT_REMOTE_PORTS.keys())
     assessments: list[RemoteServiceAssessment] = []
@@ -680,7 +897,7 @@ def assess_remote_services(
     }
 
     report_id = hashlib.sha256(
-        f"{scope_ref}:{sorted(targets)}:{sorted(selected_services)}:{vantage}".encode("utf-8")
+        f"{scope_ref}:{sorted(targets)}:{sorted(selected_services)}:{vantage}".encode()
     ).hexdigest()[:16]
 
     for target in targets:

@@ -1,6 +1,6 @@
 ---
 name: repository-context
-description: Scan and analyze repository structure to identify languages, frameworks, IaC, CI/CD pipelines, and credentials.
+description: "Use for requests to inspect this repository before recommending security logging. Scan and analyze repository structure to identify languages, frameworks, IaC, CI/CD pipelines, and credentials."
 ---
 
 # Repository Context Collector Skill

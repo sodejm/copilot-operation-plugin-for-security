@@ -1,6 +1,6 @@
 ---
 name: network-data-services
-description: Assess databases (MySQL, Postgres, MSSQL, Oracle), NoSQL/document stores (MongoDB, CouchDB, Cassandra), caches (Redis, Memcached), and search/analytics engines (Elasticsearch, InfluxDB, Kibana, Splunk) with bounded query budgets, synthetic canary verification, cleanup receipts, and data privilege candidate routing.
+description: "Use for requests to review database services for security weaknesses. Assess databases (MySQL, Postgres, MSSQL, Oracle), NoSQL/document stores (MongoDB, CouchDB, Cassandra), caches (Redis, Memcached), and search/analytics engines (Elasticsearch, InfluxDB, Kibana, Splunk) with bounded query budgets, synthetic canary verification, cleanup receipts, and data privilege candidate routing."
 ---
 
 # Databases, Caches, and Search Services

@@ -96,7 +96,7 @@ npm link -w packages/squad-cli
 Verify: `squad version` output includes the `-preview` suffix (e.g., `x.y.z-preview`),
 confirming the local dev build is active. If the output shows a plain semver without
 `-preview`, the globally-installed npm package is still in use — re-check the link step.
-See `CONTRIBUTING.md` in the Squad source checkout, under "Making the `squad` Command Use Your Local Build",
+See [CONTRIBUTING.md — Making the `squad` Command Use Your Local Build](https://github.com/github/squad/blob/main/CONTRIBUTING.md)
 for the full guidance on local dev versioning.
 
 ### Step 2 — Create a disposable test repo
@@ -485,7 +485,7 @@ user explicitly requests it.
 When posting evidence to PR comments, issues, or any shared document:
 
 - **Never include absolute paths** that contain a local username (e.g.,
-  `<drive>:\<users-directory>\<username>\...` or `/<home-directory>/<username>/...`).
+  `$HOME/project/...`).
 - **Use `~` notation** for home-relative paths: `~/AppData/Local/Temp/...`
   or `~/tmp/sq-test-1`.
 - **Repo-internal paths use `<repo-root>` as the prefix.** If evidence files live
@@ -496,7 +496,7 @@ When posting evidence to PR comments, issues, or any shared document:
 - **Scrub before posting.** Replace any occurrence of the local machine path
   prefix (everything up to and including the username segment) with `~`.
 
-Example — ❌ wrong: `<drive>:\<users-directory>\<username>\AppData\Local\Temp\sq-e2e-pr1035\evidence`
+Example — ❌ wrong: `<absolute-home>/temp/sq-e2e-pr1035/evidence`
 Example — ✅ right: `~/AppData/Local/Temp/sq-e2e-pr1035/evidence`
 Example — ❌ wrong: `~\..\..\repos\squad\.e2e\pr-1035\evidence`
 Example — ✅ right: `<repo-root>\.e2e\pr-1035\evidence`

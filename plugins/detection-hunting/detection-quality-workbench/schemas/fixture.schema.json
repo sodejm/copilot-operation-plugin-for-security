@@ -41,6 +41,20 @@
             "enum": ["positive", "negative", "boundary"]
           },
           "expected_match": { "type": "boolean" },
+          "evaluation_time": { "type": "string", "format": "date-time" },
+          "prior_alerts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["timestamp", "identity"],
+              "properties": {
+                "timestamp": { "type": "string", "format": "date-time" },
+                "identity": { "type": "string" },
+                "tenant_id": { "type": "string" }
+              }
+            }
+          },
           "tags": {
             "type": "array",
             "items": { "type": "string" }

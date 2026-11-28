@@ -2,6 +2,11 @@
 
 A deterministic testing and validation workbench for Microsoft Sentinel KQL and Splunk SPL detection rules.
 
+Follow the [end-to-end verification playbook](docs/VERIFICATION.md) to qualify this
+package's documented workflow and prepare evidence for a maturity review.
+Use the [Detection Engineer Playbook](docs/PLAYBOOK.md) for the complete offline
+playback, artifact contract, failure recovery, and evidence limits.
+
 ## Why This Workbench Exists
 
 In modern enterprise Security Operations Centers (SOCs), detection rules are the frontline defense against sophisticated attacks. However, detection engineering often suffers from critical quality challenges:
@@ -44,6 +49,18 @@ flowchart LR
     P --> Q
 ```
 
+## Design and data flow
+
+Rule contracts declare detection intent and telemetry dependencies. The reference evaluator applies those contracts to labeled fixtures and renders metrics and schema failures as offline regression evidence.
+
+| Contract or artifact | Purpose | Key fields | Producer | Consumer | Validation | Example |
+| --- | --- | --- | --- | --- | --- | --- |
+| Rule contract | Describe detection intent and required telemetry | Rule ID, platform, query, required fields, expected signals | Detection engineer | Static analyzer and evaluator | Rule schema and platform constraints | Sentinel anomalous sign-in rule |
+| Labeled fixture suite | Supply positive, negative, and boundary cases | Rule ID, case ID, label, telemetry, expected result | Detection engineer or playback fixture | Evaluator | Fixture schema, unique cases, and rule binding | Benign PowerShell administration case |
+| Case evaluation | Record match and schema status per fixture | Case ID, expected, actual, missing fields | Reference evaluator | Metrics and report renderer | Deterministic predicate and required-field checks | Positive sign-in case matched |
+| Quality report | Summarize fixture precision, recall, and drift | TP, FP, TN, FN, schema errors, readiness | Reporter | Detection reviewer | Report schema and metric consistency | Recall unavailable when schema errors exist |
+| Playback summary | Qualify all bundled rules and failure paths | Rule results, artifact paths, mutation rejection, rerun digest | `scripts/run_demo.py` | Maintainer | Semantic result assertions and repeatability | Both bundled rules meet fixture expectations |
+
 ## Key Capabilities
 
 1. **Dual-Platform Support**: Supports both **Microsoft Sentinel KQL** (Log Analytics, Advanced Hunting) and **Splunk SPL** (Search Processing Language) contracts.
@@ -52,6 +69,7 @@ flowchart LR
    - **False Positives (FP)**: Benign administrative activity incorrectly flagged.
    - **True Negatives (TN)**: Expected baseline operations correctly ignored.
    - **False Negatives (FN)**: Target attacks missed by strict query conditions.
+   - **Schema Error Cases**: Cases with missing or null required telemetry are counted separately. Precision and recall are `N/A` while any such case is present.
 3. **Telemetry Dependency & Schema Drift Analysis**: Scans telemetry records to verify all required fields are present. Flags missing fields and schema changes before rules are pushed to production SIEMs.
 4. **Automated Regression Baselines**: Enables automated test-suite runs in CI/CD pipelines to ensure rule revisions never degrade existing detection coverage.
 
@@ -94,18 +112,34 @@ detection-quality-workbench/
 │   └── detection-quality-review/          # Contributor and agent skill definition
 │       └── SKILL.md
 └── tests/
-    └── test_workbench.py                  # Automated unit test suite
+    ├── test_workbench.py                  # Automated unit test suite
+    └── test_edge_cases.py                 # Edge-case acceptance checks
 ```
 
 ## Quick Start
 
 ### 1. Run the Demonstration
 
-Run the automated evaluation across all bundled Sentinel KQL and Splunk SPL rules:
+Run the automated evaluation across all bundled Sentinel KQL and Splunk SPL rules
+from the repository root:
 
 ```bash
-python3 plugins/detection-hunting/detection-quality-workbench/scripts/run_demo.py
+python3 -m cops demo detection-quality-workbench
 ```
+
+The demo uses a private temporary directory by default. Retain the JSON and
+Markdown reports in a controlled directory with:
+
+```bash
+python3 plugins/detection-hunting/detection-quality-workbench/scripts/run_demo.py \
+  --out-dir /path/to/private-review-directory
+```
+
+A successful run proves every bundled rule has a matching nonempty fixture
+suite, both positive and benign paths were evaluated, the intentional
+missing-field path was reported, no false positive or false negative occurred,
+and a second evaluation produced the same result. A nonzero exit means one of
+those assertions failed.
 
 ### 2. Validate Rule Contracts via CLI
 
@@ -146,7 +180,23 @@ python3 plugins/detection-hunting/detection-quality-workbench/detectionquality/c
   --fixtures-dir plugins/detection-hunting/detection-quality-workbench/fixtures
 ```
 
+The bundled suites include deliberate missing-field cases. `test-suite` displays their count and returns success when they are expected negative outcomes and no false positive or false negative occurs. A missing required field in an expected positive case requires review. Precision and recall remain `N/A` until the schema-error cases are resolved or evaluated in a separate complete-telemetry suite.
+
 ## Boundaries & Operational Integrity
 
 - **Offline Analysis**: The workbench operates completely offline with standard-library Python. It requires no live cloud credentials or search cluster connections.
-- **Reference Evaluation vs. Production Firing**: Syntactic validity and fixture matching do not guarantee that a scheduled query fired in production. Ingestion delays and query timeouts must be monitored separately.
+- **Reference Evaluation vs. Production Firing**: Contract validation and fixture matching do not establish native query validity or prove that a scheduled query fired in production. Ingestion delays and query timeouts must be monitored separately.
+
+### Fixture edge-case semantics
+
+The reference evaluator applies these rules to each labeled fixture case:
+
+- A `source` marker identifies a primary or secondary row. When a rule declares `join_keys`, every primary row matches only if a declared secondary source has equal, non-null values for every key. An unmarked row is treated as primary and must satisfy the same join. The synthetic join fixture under `tests/fixtures` uses both `TenantId` and `CorrelationId`, so a matching correlation ID in another tenant cannot join. The bundled Sentinel rule is single-source; its query and firing behavior are unchanged. The metadata check does not execute KQL.
+- A missing or `null` required field is reported as `missing_field_error` and cannot satisfy the predicate. Dependency checks inspect primary rows, not secondary rows.
+- An optional `evaluation_time` anchors the rule's `time_window`. Both endpoints of `[evaluation_time - time_window, evaluation_time]` are included; later and older events cannot match. Times must be ISO 8601 with a timezone offset. Without an anchor, the evaluator retains the existing fixture behavior and does not filter by time.
+- A `prior_alerts` entry suppresses a matching event when both have the same non-empty tenant ID and its timestamp lies within the inclusive `suppression_window` ending at the event time. For `identity_scope: user` or `host`, the identity must also match. `identity_scope: global` is tenant-wide; other scope values are rejected. This models fixture outcomes; it does not query alert history.
+- The bundled Splunk PowerShell source has no `TenantId`, so its rule sets `suppression_window: none`. A prior alert for the same host does not suppress that rule. Enable suppression only after the source and alert history provide a tenant-scoped contract.
+- Repeated event rows count once because metrics are computed per labeled case. A case matches if any eligible, unsuppressed primary event satisfies the reference predicate.
+- `total_cases = evaluated_cases + schema_error_cases`. The confusion-matrix counts sum to `evaluated_cases`; schema-error cases are excluded. Precision and recall are `null` in JSON and `N/A` in Markdown and CLI output if any schema-error case is present. This report change uses `cops.detection-quality-report/v2`; consumers of v1 must handle the new counts and nullable metrics.
+
+These checks are minimum reference semantics for the bundled rules and a synthetic join contract. Validate query execution, real joins, alert suppression, and source data in the target SIEM separately.

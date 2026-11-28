@@ -30,6 +30,7 @@ class TestEngagementSpecialistHandoffsSkill(unittest.TestCase):
             scenario="COPS-E03.01-S01",
             target="10.0.0.10",
             specialist_id="cops-pentest-specialist",
+            tool_versions={"python3": "3.11.9"},
             root=ROOT,
         )
 
@@ -41,6 +42,8 @@ class TestEngagementSpecialistHandoffsSkill(unittest.TestCase):
             task_description="Execute network perimeter assessment on authorized host",
             sender_id="secops-lead",
             specialist_id="cops-pentest-specialist",
+            workflow_skill_id="network-active-discovery",
+            capability_id="cops-pentest-specialist",
         )
         self.assertEqual(handoff.status, "proposed")
         self.assertEqual(handoff.recipient["specialist_id"], "cops-pentest-specialist")
@@ -74,6 +77,8 @@ class TestEngagementSpecialistHandoffsSkill(unittest.TestCase):
             task_description="Network port and service discovery review",
             planner_id="secops-lead",
             specialist_id="cops-pentest-specialist",
+            workflow_skill_id="network-active-discovery",
+            capability_id="cops-pentest-specialist",
         )
         self.assertEqual(completed.status, "completed")
         self.assertEqual(completed.approval_status, "approved")

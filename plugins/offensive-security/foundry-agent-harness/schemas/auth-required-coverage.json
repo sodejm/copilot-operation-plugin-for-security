@@ -1,0 +1,253 @@
+{
+  "schema_version": "cops.agent-mcp-auth-coverage/v1",
+  "required_cases": {
+    "autonomous-control": {
+      "grant": "autonomous-write",
+      "flow": "autonomous",
+      "expected_decisions": [
+        "allowed"
+      ],
+      "expected_reasons": [
+        "allowed"
+      ],
+      "expected_effect_count": 1
+    },
+    "confused-deputy": {
+      "grant": "delegated-write",
+      "flow": "delegated",
+      "expected_decisions": [
+        "denied"
+      ],
+      "expected_reasons": [
+        "principal_or_agent_binding"
+      ],
+      "expected_effect_count": 0
+    },
+    "cross-tenant": {
+      "grant": "delegated-write",
+      "flow": "delegated",
+      "expected_decisions": [
+        "denied"
+      ],
+      "expected_reasons": [
+        "tenant_mismatch"
+      ],
+      "expected_effect_count": 0
+    },
+    "cross-tenant-reverse": {
+      "grant": "delegated-write-fabrikam",
+      "flow": "delegated",
+      "expected_decisions": [
+        "denied"
+      ],
+      "expected_reasons": [
+        "tenant_mismatch"
+      ],
+      "expected_effect_count": 0
+    },
+    "delegated-control": {
+      "grant": "delegated-write",
+      "flow": "delegated",
+      "expected_decisions": [
+        "allowed"
+      ],
+      "expected_reasons": [
+        "allowed"
+      ],
+      "expected_effect_count": 1
+    },
+    "delegated-control-fabrikam": {
+      "grant": "delegated-write-fabrikam",
+      "flow": "delegated",
+      "expected_decisions": [
+        "allowed"
+      ],
+      "expected_reasons": [
+        "allowed"
+      ],
+      "expected_effect_count": 1
+    },
+    "excess-depth": {
+      "grant": "delegated-write",
+      "flow": "delegated",
+      "expected_decisions": [
+        "denied"
+      ],
+      "expected_reasons": [
+        "delegation_depth_exceeded"
+      ],
+      "expected_effect_count": 0
+    },
+    "expired-grant": {
+      "grant": "expired-write",
+      "flow": "delegated",
+      "expected_decisions": [
+        "denied"
+      ],
+      "expected_reasons": [
+        "expired_grant"
+      ],
+      "expected_effect_count": 0
+    },
+    "one-time-replay": {
+      "grant": "one-time-write",
+      "flow": "delegated",
+      "expected_decisions": [
+        "allowed",
+        "denied"
+      ],
+      "expected_reasons": [
+        "allowed",
+        "one_time_replay"
+      ],
+      "expected_effect_count": 1
+    },
+    "peer-mutate-operation": {
+      "grant": "delegated-write",
+      "flow": "delegated",
+      "expected_decisions": [
+        "denied"
+      ],
+      "expected_reasons": [
+        "operation_mismatch"
+      ],
+      "expected_effect_count": 0
+    },
+    "peer-mutate-tenant": {
+      "grant": "delegated-write",
+      "flow": "delegated",
+      "expected_decisions": [
+        "denied"
+      ],
+      "expected_reasons": [
+        "tenant_mismatch"
+      ],
+      "expected_effect_count": 0
+    },
+    "peer-omit-tenant": {
+      "grant": "delegated-write",
+      "flow": "delegated",
+      "expected_decisions": [
+        "denied"
+      ],
+      "expected_reasons": [
+        "missing_tenant"
+      ],
+      "expected_effect_count": 0
+    },
+    "peer-substitute-receipt": {
+      "grant": "delegated-write",
+      "flow": "delegated",
+      "expected_decisions": [
+        "denied"
+      ],
+      "expected_reasons": [
+        "unrecognized_grant_or_actor"
+      ],
+      "expected_effect_count": 0
+    },
+    "read-control": {
+      "grant": "read-only",
+      "flow": "delegated",
+      "expected_decisions": [
+        "allowed"
+      ],
+      "expected_reasons": [
+        "allowed"
+      ],
+      "expected_effect_count": 1
+    },
+    "reusable-grant": {
+      "grant": "reusable-write",
+      "flow": "delegated",
+      "expected_decisions": [
+        "allowed",
+        "allowed"
+      ],
+      "expected_reasons": [
+        "allowed",
+        "allowed"
+      ],
+      "expected_effect_count": 2
+    },
+    "revoked-grant": {
+      "grant": "revoked-write",
+      "flow": "delegated",
+      "expected_decisions": [
+        "allowed",
+        "denied"
+      ],
+      "expected_reasons": [
+        "allowed",
+        "revoked_grant"
+      ],
+      "expected_effect_count": 1
+    },
+    "wrong-agent": {
+      "grant": "delegated-write",
+      "flow": "delegated",
+      "expected_decisions": [
+        "denied"
+      ],
+      "expected_reasons": [
+        "principal_or_agent_binding"
+      ],
+      "expected_effect_count": 0
+    },
+    "wrong-audience": {
+      "grant": "delegated-write",
+      "flow": "delegated",
+      "expected_decisions": [
+        "denied"
+      ],
+      "expected_reasons": [
+        "audience_mismatch"
+      ],
+      "expected_effect_count": 0
+    },
+    "wrong-downstream": {
+      "grant": "delegated-write",
+      "flow": "delegated",
+      "expected_decisions": [
+        "denied"
+      ],
+      "expected_reasons": [
+        "downstream_service_mismatch"
+      ],
+      "expected_effect_count": 0
+    },
+    "wrong-resource": {
+      "grant": "delegated-write",
+      "flow": "delegated",
+      "expected_decisions": [
+        "denied"
+      ],
+      "expected_reasons": [
+        "resource_mismatch"
+      ],
+      "expected_effect_count": 0
+    },
+    "wrong-scope": {
+      "grant": "delegated-write",
+      "flow": "delegated",
+      "expected_decisions": [
+        "denied"
+      ],
+      "expected_reasons": [
+        "scope_mismatch"
+      ],
+      "expected_effect_count": 0
+    },
+    "wrong-tool": {
+      "grant": "delegated-write",
+      "flow": "delegated",
+      "expected_decisions": [
+        "denied"
+      ],
+      "expected_reasons": [
+        "tool_not_permitted"
+      ],
+      "expected_effect_count": 0
+    }
+  }
+}

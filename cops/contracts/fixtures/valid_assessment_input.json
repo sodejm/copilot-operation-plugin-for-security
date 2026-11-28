@@ -1,0 +1,209 @@
+{
+  "action_plans": [
+    {
+      "batch": {
+        "fail_fast": true,
+        "max_operations": 1,
+        "mode": "sequential"
+      },
+      "created_at": "2026-10-02T10:00:00Z",
+      "credential_references": [
+        "corp_service_account_token_ref"
+      ],
+      "engagement_id": "eng-secops-20261002",
+      "limits": {
+        "egress_allowed": false,
+        "max_duration_seconds": 300,
+        "max_output_bytes": 65536
+      },
+      "operations": [
+        {
+          "action": "port_scan",
+          "arguments": {
+            "ports": "80,443",
+            "timing": 3
+          },
+          "step_id": "step-1",
+          "timeout_seconds": 60,
+          "tool": "nmap",
+          "tool_version": "0.7.0"
+        }
+      ],
+      "plan_digest": "b9f513c36e52bcaf3aa679a546eae17efe745398ecc8768b1d66990548cc8ab8",
+      "plan_id": "plan-scan-10-0-0-5",
+      "platform_prerequisites": [
+        "linux"
+      ],
+      "scenario_id": "COPS-E01.03-S01",
+      "schema_version": "cops.action-plan/v1",
+      "specialist_id": "cops-network-specialist",
+      "status": "draft",
+      "target": "10.0.0.5"
+    }
+  ],
+  "coverage": [
+    {
+      "access": "available",
+      "mode": "laboratory",
+      "result_id": "res-scan-10-0-0-5-001",
+      "scenario_id": "COPS-E01.03-S01",
+      "target": "10.0.0.5"
+    }
+  ],
+  "engagement": {
+    "created_at": "2026-10-02T00:00:00Z",
+    "engagement_id": "eng-secops-20261002",
+    "metadata": {
+      "project": "Q4-Security-Review"
+    },
+    "mode": "laboratory",
+    "name": "Internal Network Vulnerability Assessment",
+    "operator": "secops-lead",
+    "rules_of_engagement": {
+      "allowed_actions": [
+        "port_scan",
+        "service_detection",
+        "banner_grab"
+      ],
+      "emergency_contact": "soc-emergency@internal.net",
+      "max_intensity": "medium",
+      "safe_mode": true
+    },
+    "schema_version": "cops.engagement/v1",
+    "scope": {
+      "excluded_targets": [
+        "10.0.0.1",
+        "prod-db.internal"
+      ],
+      "included_targets": [
+        "10.0.0.0/24",
+        "corp.internal"
+      ]
+    },
+    "status": "planned",
+    "window": {
+      "authorized_until_utc": "2026-10-02T23:59:59Z",
+      "started_at": "2026-10-02T00:00:00Z"
+    }
+  },
+  "evidence_envelopes": [
+    {
+      "acquired_at": "2026-10-02T10:05:00Z",
+      "acquisition_id": "collection-1",
+      "content_hash": "70efbbbb738755d7af03c07bb2158ab3a49cd63e096c8b46694ddaf363d8bc46",
+      "emitted": {
+        "at": null,
+        "unknown_reason": "not_available"
+      },
+      "normalization": [
+        "projection/v1"
+      ],
+      "observed": {
+        "at": null,
+        "unknown_reason": "not_available"
+      },
+      "page": 1,
+      "parents": [],
+      "payload": {
+        "observation": "HTTP service",
+        "secret": "DO_NOT_EXPORT"
+      },
+      "raw_reference": {
+        "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "store_id": "PRIVATE_STORE_ID"
+      },
+      "record_id": "d05639aeda1a86175b080c8a0f70a9e611f747f198d1d47cde8f399b9253575b",
+      "redaction": [
+        "omit-unselected-fields/v1"
+      ],
+      "request_fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "schema_version": "cops.evidence/v1",
+      "sensitivity": "restricted",
+      "source": {
+        "api": "records/v1",
+        "identity": "host-5",
+        "locator": "private-locator",
+        "product": "offline-import",
+        "region": {
+          "unknown_reason": "not_available",
+          "value": null
+        },
+        "scope": [
+          "10.0.0.5"
+        ],
+        "tenant": "tenant-1",
+        "version": null
+      },
+      "transformed_at": "2026-10-02T10:05:00Z"
+    }
+  ],
+  "finding_contexts": [
+    {
+      "affected_assets": [
+        "10.0.0.5"
+      ],
+      "attack_path_dependencies": [],
+      "finding_id": "find-open-port-http-80",
+      "kind": "observed_behavior",
+      "limitations": [],
+      "reproducibility": "repeatable"
+    }
+  ],
+  "findings": [
+    {
+      "claim": "Target host 10.0.0.5 is exposing an unencrypted plaintext HTTP service on TCP port 80.",
+      "classification": "observation",
+      "confidence": "high",
+      "created_at": "2026-10-02T10:06:00Z",
+      "engagement_id": "eng-secops-20261002",
+      "evidence_references": [
+        "d05639aeda1a86175b080c8a0f70a9e611f747f198d1d47cde8f399b9253575b"
+      ],
+      "finding_id": "find-open-port-http-80",
+      "mitre_attack": [
+        "T1046"
+      ],
+      "remediation": "Enforce TLS redirection or disable unencrypted HTTP on port 80.",
+      "result_id": "res-scan-10-0-0-5-001",
+      "scenario_id": "COPS-E01.03-S01",
+      "schema_version": "cops.finding/v1",
+      "severity": "medium",
+      "title": "Unencrypted HTTP Port 80 Open on Boundary Host",
+      "uncertainty": "none",
+      "verification": "verified"
+    }
+  ],
+  "generated_at": "2026-10-02T12:00:00Z",
+  "limitations": [
+    "Only the selected service was reviewed."
+  ],
+  "report_id": "report-internal-001",
+  "run_results": [
+    {
+      "artifacts": [
+        {
+          "name": "scan_output.xml",
+          "path": "reports/scan_output.xml",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      ],
+      "cleanup_status": "not_required",
+      "engagement_id": "eng-secops-20261002",
+      "evidence_records": [
+        "d05639aeda1a86175b080c8a0f70a9e611f747f198d1d47cde8f399b9253575b"
+      ],
+      "exit_code": 0,
+      "finished_at": "2026-10-02T10:05:30Z",
+      "plan_id": "plan-scan-10-0-0-5",
+      "result_id": "res-scan-10-0-0-5-001",
+      "schema_version": "cops.run-result/v1",
+      "started_at": "2026-10-02T10:05:00Z",
+      "status": "success",
+      "status_details": {
+        "summary": "Port scan completed successfully. Open ports: 80, 443."
+      },
+      "worker_identity": "worker-linux-sandbox-01"
+    }
+  ],
+  "schema_version": "cops.assessment-input/v1"
+}

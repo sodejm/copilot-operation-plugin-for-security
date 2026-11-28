@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/sodejm/copilot-operation-plugin-for-security/catalog/schemas/attack-reference.schema.json",
+  "title": "COPS MITRE ATT&CK Reference Catalog Schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "attck_version",
+    "source",
+    "license",
+    "copyright",
+    "attribution",
+    "techniques"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "cops.attack-reference/v1"
+    },
+    "attck_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+$"
+    },
+    "source": {
+      "type": "string",
+      "minLength": 1
+    },
+    "license": {
+      "type": "string",
+      "minLength": 1
+    },
+    "copyright": {
+      "type": "string",
+      "minLength": 1
+    },
+    "attribution": {
+      "type": "string",
+      "minLength": 1
+    },
+    "techniques": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/technique"
+      }
+    }
+  },
+  "$defs": {
+    "technique": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "tactics",
+        "platforms",
+        "data_components",
+        "revoked",
+        "deprecated",
+        "version",
+        "url"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^T\\d{4}(\\.\\d{3})?$"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tactics": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          }
+        },
+        "platforms": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          }
+        },
+        "data_components": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "revoked": {
+          "type": "boolean"
+        },
+        "revoked_by": {
+          "type": "string",
+          "pattern": "^T\\d{4}(\\.\\d{3})?$"
+        },
+        "deprecated": {
+          "type": "boolean"
+        },
+        "version": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string",
+          "format": "uri"
+        }
+      }
+    }
+  }
+}

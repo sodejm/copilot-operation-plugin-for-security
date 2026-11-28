@@ -1,6 +1,6 @@
 ---
 name: author-sentinel-kql
-description: Author typed, bounded KQL for one declared Microsoft hunting surface from an approved defensive hunt contract.
+description: "Use for requests such as \"write a Sentinel query from my hunt plan.\" Author typed, bounded KQL for one declared Microsoft hunting surface from an approved defensive hunt contract."
 ---
 
 # Author Sentinel KQL

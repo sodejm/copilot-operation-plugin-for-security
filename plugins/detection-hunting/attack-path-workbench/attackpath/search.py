@@ -16,7 +16,7 @@ class SearchLimits:
     report_bytes: int = 64 * 1024 * 1024
 
     @classmethod
-    def from_values(cls, values: dict[str, int] | None = None) -> "SearchLimits":
+    def from_values(cls, values: dict[str, int] | None = None) -> SearchLimits:
         defaults = asdict(cls())
         if values is None:
             values = {}

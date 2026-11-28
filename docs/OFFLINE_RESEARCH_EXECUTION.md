@@ -1,0 +1,115 @@
+---
+layout: documentation
+title: "Offline Research Execution"
+description: "Provision and review the opt-in Linux profile for approved local research corpora."
+---
+
+# Offline Research Execution
+
+`offline-research/v1` is an opt-in Action Plan profile for bounded, locally
+provisioned research files. It uses the normal engagement, signed full-plan
+authorization, one-use approval, verified worker inventory, and cleanup journal.
+The profile is available through the Python execution API; it does not add a
+general-purpose research command or network fetcher.
+
+The SSH supervisor can construct an offline-only worker when its owner-only v2
+configuration explicitly selects `execution_profile: "offline-research/v1"`.
+The default standard supervisor retains its network scope guard and is not an
+offline-profile worker. Follow the [supervisor profile selection and restart
+procedure](WORKER_SUPERVISOR.md#select-an-offline-only-supervisor); a configured
+profile does not establish installed-host or independent-observer readiness.
+
+## Prepare the worker and plan
+
+1. Provision a dedicated, unprivileged Linux worker with the production
+   `LinuxBubblewrapSandbox`, its normal approval control, and a verified,
+   owner-provisioned worker capability inventory. Keep the approval authority
+   and its signing material outside the worker account. Do not configure a
+   scope guard, credential resolver, or egress trust domain for this profile.
+2. Provision each corpus as a regular file under real, non-symlink directories.
+   Each file is limited to 1 MiB. Review its contents and SHA-256 separately
+   from the worker, then include its unique name, absolute source path, and
+   SHA-256 in `offline_research.corpora`. Keep private source content out of
+   plans, logs, and committed fixtures. The worker copies each approved file
+   into a private temporary workspace using held, non-following descriptors.
+   Source opens are nonblocking so a substituted FIFO is rejected as a
+   non-regular file without holding the worker indefinitely.
+3. Bind `offline_research.profile` to `offline-research`, `version` to `v1`,
+   `worker_identity` to the verified inventory identity, and
+   `worker_inventory_sha256` to the canonical digest of that inventory. Use a
+   `local:<identifier>` target that exactly matches an included target in the
+   provisioned engagement and is absent from its exclusions. Use no credential
+   references and set `limits.egress_allowed: false`. Operations may only use the
+   credential-free `inert/print_status` fixture or `cat/read_local_corpus` with a filename of
+   `corpus-<approved-name>`. The `cat` adapter requires the approved GNU
+   coreutils 9.4 version and its executable SHA-256 in
+   `cat_executable_sha256`. It accepts no URL, destination, proxy, side effect,
+   cleanup request, or egress policy.
+4. On the same Linux worker configuration, collect an independent, recent
+   `LinuxBubblewrapSandbox.observe_offline_isolation` observation in a private
+   workspace and put its digest and UTC observation time in the signed plan's
+   `isolation_attestation`. The observation must be no more than five minutes
+   old when the worker validates the request. Review and sign the complete
+   plan through the normal authorization workflow; profile fields are part of
+   the signed snapshot.
+
+The worker asks the protected authority to verify the signed plan, unconsumed
+authorization, and provisioned engagement scope before creating the workspace
+or cleanup journal or opening a corpus. The authority compares local identifiers
+without resolving them. The worker then validates corpus digests, the adapter
+pin, and a fresh sandbox observation. The authority rechecks the authorization
+at one-time consumption and verifies the configured live observer evidence. The
+observation checks a separate network namespace, only the loopback interface, no non-loopback
+routes, and no inherited socket descriptors. The worker repeats that boundary
+measurement while each external adapter version probe and operation is held
+before its executable starts. Bubblewrap PID metadata can arrive during network
+setup; it is not readiness evidence. Before measuring, the worker verifies through
+Linux procfs that the child is blocked reading one byte from the exact execution
+gate pipe held by the worker. This check supports Linux x86_64 and aarch64 syscall
+ABIs and requires access to the child's procfs syscall and descriptor records.
+Setup must finish within the invocation deadline. The worker measures the
+network boundary once, then rejects any remaining socket or digest mismatch;
+it does not retry rejected boundary measurements. Missing controls, stale or mismatched
+observations, changed files, and unsupported operations fail closed.
+
+## Review the result and deployment boundary
+
+The `cops.run-result/v1` offline research record includes the approved
+isolation digest, the fresh preflight observation, per-invocation observations
+with an explicit `matches_approved` value (including rejected observations),
+the inventory and executable digests, and the staged corpus digests. Compare
+those records with the signed plan and the worker's protected inventory before
+accepting a result. Treat tool output and corpus content as untrusted data.
+
+The authenticated SSH execution API returns finalized redacted output and
+evidence envelopes in `RemoteAuthorizedRun.redacted_artifacts`, a mapping from
+result artifact paths to verified bytes. Retrieve the artifacts from this
+response after ephemeral workspace cleanup. If the bundle exceeds the response
+limit, the result carries the artifact manifest and an explicit unavailability
+reason, and cannot report success.
+
+Repository unit and executable feature tests exercise preflight with synthetic
+files and observations. They do not establish that a particular host actually denied
+network access or protected the corpus mount, approval store, worker UID, or
+cleanup journal. Before using real data, independently verify the deployed
+Linux namespace and network policy, account separation, corpus provisioning,
+and journal recovery. A worker process or host administrator sharing the
+worker's authority can interfere with its local evidence. See the
+[Authenticated Execution Guide](AUTHENTICATED_EXECUTION.md) and
+[Security Model](SECURITY_MODEL.md) for the common approval and host controls.
+
+The repository's Linux bubblewrap gate also attempts TCP, UDP, and DNS-protocol
+access from a released, attested sandbox. Host-side TCP, UDP, DNS-protocol, and
+inherited-socket canaries detect boundary escape; a separate resolver call is
+checked for failure but does not establish DNS egress denial by itself. The gate
+checks that proxy variables do not cross the boundary and that a mismatched
+attestation prevents the child from starting. A passing hosted runner check
+establishes these behaviors on that runner; it is not an attestation of a
+separately deployed worker or its ongoing host policy.
+
+Approval fixture provisioning belongs to a separate authority role. Keep the
+worker's `RestrictSUIDSGID=yes` and other restrictions when validating it; the
+positive SGID listener test runs under the authority account. The
+[fixture ownership guide](../tests/authority/README.md) gives the role-specific
+commands and a disposable Linux cross-account probe for protected state,
+request binding, one-time consumption and cleanup.

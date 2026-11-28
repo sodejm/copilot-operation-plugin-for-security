@@ -1,0 +1,28 @@
+{
+  "tool": "cat",
+  "version": "coreutils-9.4",
+  "binary": "cat",
+  "provenance": {
+    "source": "https://www.gnu.org/software/coreutils/",
+    "license": "GPL-3.0",
+    "pinned_revision": "9.4"
+  },
+  "execution": {
+    "version_args": ["--version"],
+    "version_pattern": "cat \\(GNU coreutils\\) (?P<version>[0-9.]+)"
+  },
+  "supported_environments": ["linux"],
+  "actions": {
+    "read_local_corpus": {
+      "description": "Read one staged, digest-pinned local corpus",
+      "base_args": ["--"],
+      "parameters": {
+        "filename": {
+          "type": "string",
+          "required": true,
+          "regex_pattern": "^corpus-[a-z0-9_-]{1,48}$"
+        }
+      }
+    }
+  }
+}

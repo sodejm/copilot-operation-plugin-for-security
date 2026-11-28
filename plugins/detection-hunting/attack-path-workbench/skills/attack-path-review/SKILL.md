@@ -1,6 +1,6 @@
 ---
 name: attack-path-review
-description: Apply bounded specialist review to ambiguous path, impact, technique, action, and claim judgments without overriding deterministic gates.
+description: "Use for requests to review this attack path analysis. Apply bounded specialist review to ambiguous path, impact, technique, action, and claim judgments without overriding deterministic gates."
 ---
 
 # Specialist review

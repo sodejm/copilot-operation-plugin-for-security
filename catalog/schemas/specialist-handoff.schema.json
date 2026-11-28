@@ -18,6 +18,30 @@
     "created_at",
     "transition_log"
   ],
+  "if": {
+    "properties": {
+      "status": {"enum": ["accepted", "in_review", "completed"]}
+    }
+  },
+  "then": {
+    "properties": {
+      "task": {
+        "required": ["workflow_target"],
+        "properties": {
+          "workflow_target": {"required": ["implementation", "implementation_digest"]}
+        }
+      },
+      "transition_log": {
+        "contains": {
+          "type": "object",
+          "required": ["to_status", "workflow_target_checksum"],
+          "properties": {"to_status": {"const": "accepted"}}
+        },
+        "minContains": 1,
+        "maxContains": 1
+      }
+    }
+  },
   "properties": {
     "schema_version": {"const": "cops.specialist-handoff/v1"},
     "handoff_id": {
@@ -64,6 +88,17 @@
           "type": "array",
           "items": {"type": "string", "minLength": 1}
         },
+        "workflow_target": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["skill_id", "capability_id"],
+          "properties": {
+            "skill_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+            "capability_id": {"type": "string", "minLength": 1},
+            "implementation": {"type": "string", "pattern": "^\\.agents/skills/[a-z0-9][a-z0-9-]*/SKILL\\.md$"},
+            "implementation_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
+          }
+        },
         "operations": {
           "type": "array",
           "items": {"type": "object"}
@@ -108,7 +143,8 @@
           "to_status": {"type": "string"},
           "actor": {"type": "string"},
           "timestamp": {"type": "string", "format": "date-time"},
-          "notes": {"type": "string"}
+          "notes": {"type": "string"},
+          "workflow_target_checksum": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
         }
       }
     }

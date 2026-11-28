@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 from pathlib import Path
+
 import pytest
 from pytest_bdd import given, parsers, scenarios, then, when
 
 from cops.discovery import (
     DiscoveredAsset,
-    DiscoveryInventory,
     EvidenceProvenance,
     merge_inventories,
     normalize_certificate_record,

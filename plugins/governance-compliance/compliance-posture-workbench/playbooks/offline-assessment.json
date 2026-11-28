@@ -1,0 +1,335 @@
+{
+  "authored_offline_assessment": {
+    "capability": "compliance_evidence",
+    "entrypoints": {
+      "assessment": "scripts/assess.py",
+      "correction_playback": "scripts/demo.py",
+      "native_report": "scripts/report.py",
+      "package_check": "scripts/validate_package.py"
+    },
+    "inputs": [
+      "examples/input.json",
+      "examples/correction-cases.json"
+    ],
+    "outputs": [
+      "cops.artifact-assessment/v1",
+      "cops.assessment-report/v1"
+    ],
+    "permissions": {
+      "filesystem": "read supplied package files",
+      "network": "none",
+      "subprocess": "none"
+    },
+    "readiness": "experimental",
+    "source_schema_version": "cops.offline-artifact-playbook/v1"
+  },
+  "entrypoints": [
+    {
+      "argv": [
+        "python3",
+        "plugins/governance-compliance/compliance-posture-workbench/scripts/demo.py"
+      ],
+      "effects": {
+        "authorization": "not applicable to this offline entrypoint",
+        "network": "none declared by the offline package contract",
+        "read_scope": "exact argv-declared repository paths; the script can also select package-local fixtures, so inspect its implementation before invocation",
+        "reads": [
+          "plugins/governance-compliance/compliance-posture-workbench/scripts/demo.py"
+        ],
+        "subprocess": "the generator executes none; operator invocation may run subprocesses implemented by the declared repository script",
+        "temporary_storage": "implementation-controlled and not retained; location is not declared by argv",
+        "write_scope": "complete durable destinations explicitly declared in argv; an empty list means no durable destination is declared, not that the implementation performs no temporary writes",
+        "writes": []
+      },
+      "expectations": {
+        "evidence": [
+          "the declared command exits successfully",
+          "reported results are limited to the supplied offline fixtures and metadata"
+        ],
+        "inputs": {
+          "argv": [],
+          "implementation_selected": "package-local fixtures may be selected inside the declared script; review the script before invocation",
+          "review_sources": [
+            "plugins/governance-compliance/compliance-posture-workbench/package.json",
+            "plugins/governance-compliance/compliance-posture-workbench/docs/PLAYBOOK.md"
+          ]
+        },
+        "outputs": {
+          "durable_destinations": [],
+          "process": [
+            "exit status",
+            "standard output",
+            "standard error"
+          ],
+          "schemas": []
+        }
+      },
+      "id": "demo",
+      "purpose": "Compare vulnerable, corrected, insufficient and benign synthetic evidence.",
+      "timeout_seconds": 60,
+      "working_directory": "."
+    },
+    {
+      "argv": [
+        "python3",
+        "plugins/governance-compliance/compliance-posture-workbench/scripts/validate_package.py"
+      ],
+      "effects": {
+        "authorization": "not applicable to this offline entrypoint",
+        "network": "none declared by the offline package contract",
+        "read_scope": "exact argv-declared repository paths; the script can also select package-local fixtures, so inspect its implementation before invocation",
+        "reads": [
+          "plugins/governance-compliance/compliance-posture-workbench/scripts/validate_package.py"
+        ],
+        "subprocess": "the generator executes none; operator invocation may run subprocesses implemented by the declared repository script",
+        "temporary_storage": "implementation-controlled and not retained; location is not declared by argv",
+        "write_scope": "complete durable destinations explicitly declared in argv; an empty list means no durable destination is declared, not that the implementation performs no temporary writes",
+        "writes": []
+      },
+      "expectations": {
+        "evidence": [
+          "the declared command exits successfully",
+          "reported results are limited to the supplied offline fixtures and metadata"
+        ],
+        "inputs": {
+          "argv": [],
+          "implementation_selected": "package-local fixtures may be selected inside the declared script; review the script before invocation",
+          "review_sources": [
+            "plugins/governance-compliance/compliance-posture-workbench/package.json",
+            "plugins/governance-compliance/compliance-posture-workbench/docs/PLAYBOOK.md"
+          ]
+        },
+        "outputs": {
+          "durable_destinations": [],
+          "process": [
+            "exit status",
+            "standard output",
+            "standard error"
+          ],
+          "schemas": []
+        }
+      },
+      "id": "validation-1",
+      "purpose": "artifact-correction-playback",
+      "timeout_seconds": 60,
+      "working_directory": "."
+    },
+    {
+      "argv": [
+        "python3",
+        "scripts/demo.py"
+      ],
+      "effects": {
+        "authorization": "explicit authorization required for any live follow-on; this entrypoint is offline only",
+        "network": "none declared by the offline package contract",
+        "read_scope": "exact argv-declared repository paths; the script can also select package-local fixtures, so inspect its implementation before invocation",
+        "reads": [
+          "plugins/governance-compliance/compliance-posture-workbench/scripts/demo.py"
+        ],
+        "subprocess": "the generator executes none; operator invocation may run subprocesses implemented by the declared repository script",
+        "temporary_storage": "implementation-controlled and not retained; location is not declared by argv",
+        "write_scope": "complete durable destinations explicitly declared in argv; an empty list means no durable destination is declared, not that the implementation performs no temporary writes",
+        "writes": []
+      },
+      "expectations": {
+        "evidence": [
+          "the declared command exits successfully",
+          "reported results are limited to the supplied offline fixtures and metadata"
+        ],
+        "inputs": {
+          "argv": [],
+          "implementation_selected": "package-local fixtures may be selected inside the declared script; review the script before invocation",
+          "review_sources": [
+            "plugins/governance-compliance/compliance-posture-workbench/examples/input.json",
+            "plugins/governance-compliance/compliance-posture-workbench/examples/correction-cases.json"
+          ]
+        },
+        "outputs": {
+          "durable_destinations": [],
+          "process": [
+            "exit status",
+            "standard output",
+            "standard error"
+          ],
+          "schemas": [
+            "cops.artifact-assessment/v1",
+            "cops.assessment-report/v1"
+          ]
+        }
+      },
+      "id": "authored-offline-1",
+      "purpose": "Run a preserved command from docs/offline-assessment.md.",
+      "timeout_seconds": 120,
+      "working_directory": "plugins/governance-compliance/compliance-posture-workbench"
+    },
+    {
+      "argv": [
+        "python3",
+        "scripts/assess.py",
+        "--input",
+        "examples/input.json",
+        "--as-of",
+        "2026-10-15T12:00:00Z"
+      ],
+      "effects": {
+        "authorization": "explicit authorization required for any live follow-on; this entrypoint is offline only",
+        "network": "none declared by the offline package contract",
+        "read_scope": "exact argv-declared repository paths; the script can also select package-local fixtures, so inspect its implementation before invocation",
+        "reads": [
+          "plugins/governance-compliance/compliance-posture-workbench/scripts/assess.py",
+          "plugins/governance-compliance/compliance-posture-workbench/examples/input.json"
+        ],
+        "subprocess": "the generator executes none; operator invocation may run subprocesses implemented by the declared repository script",
+        "temporary_storage": "implementation-controlled and not retained; location is not declared by argv",
+        "write_scope": "complete durable destinations explicitly declared in argv; an empty list means no durable destination is declared, not that the implementation performs no temporary writes",
+        "writes": []
+      },
+      "expectations": {
+        "evidence": [
+          "the declared command exits successfully",
+          "reported results are limited to the supplied offline fixtures and metadata"
+        ],
+        "inputs": {
+          "argv": [
+            "--input",
+            "examples/input.json",
+            "--as-of",
+            "2026-10-15T12:00:00Z"
+          ],
+          "implementation_selected": "package-local fixtures may be selected inside the declared script; review the script before invocation",
+          "review_sources": [
+            "plugins/governance-compliance/compliance-posture-workbench/examples/input.json",
+            "plugins/governance-compliance/compliance-posture-workbench/examples/correction-cases.json"
+          ]
+        },
+        "outputs": {
+          "durable_destinations": [],
+          "process": [
+            "exit status",
+            "standard output",
+            "standard error"
+          ],
+          "schemas": [
+            "cops.artifact-assessment/v1",
+            "cops.assessment-report/v1"
+          ]
+        }
+      },
+      "id": "authored-offline-2",
+      "purpose": "Run a preserved command from docs/offline-assessment.md.",
+      "timeout_seconds": 120,
+      "working_directory": "plugins/governance-compliance/compliance-posture-workbench"
+    },
+    {
+      "argv": [
+        "python3",
+        "scripts/report.py",
+        "--input",
+        "examples/input.json",
+        "--as-of",
+        "2026-10-15T12:00:00Z",
+        "--report-id",
+        "report-demo",
+        "--engagement-id",
+        "eng-demo",
+        "--scenario-id",
+        "COPS-DEMO",
+        "--result-id",
+        "res-demo",
+        "--target",
+        "fixture:compliance-demo"
+      ],
+      "effects": {
+        "authorization": "explicit authorization required for any live follow-on; this entrypoint is offline only",
+        "network": "none declared by the offline package contract",
+        "read_scope": "exact argv-declared repository paths; the script can also select package-local fixtures, so inspect its implementation before invocation",
+        "reads": [
+          "plugins/governance-compliance/compliance-posture-workbench/scripts/report.py",
+          "plugins/governance-compliance/compliance-posture-workbench/examples/input.json"
+        ],
+        "subprocess": "the generator executes none; operator invocation may run subprocesses implemented by the declared repository script",
+        "temporary_storage": "implementation-controlled and not retained; location is not declared by argv",
+        "write_scope": "complete durable destinations explicitly declared in argv; an empty list means no durable destination is declared, not that the implementation performs no temporary writes",
+        "writes": []
+      },
+      "expectations": {
+        "evidence": [
+          "the declared command exits successfully",
+          "reported results are limited to the supplied offline fixtures and metadata"
+        ],
+        "inputs": {
+          "argv": [
+            "--input",
+            "examples/input.json",
+            "--as-of",
+            "2026-10-15T12:00:00Z",
+            "--report-id",
+            "report-demo",
+            "--engagement-id",
+            "eng-demo",
+            "--scenario-id",
+            "COPS-DEMO",
+            "--result-id",
+            "res-demo",
+            "--target",
+            "fixture:compliance-demo"
+          ],
+          "implementation_selected": "package-local fixtures may be selected inside the declared script; review the script before invocation",
+          "review_sources": [
+            "plugins/governance-compliance/compliance-posture-workbench/examples/input.json",
+            "plugins/governance-compliance/compliance-posture-workbench/examples/correction-cases.json"
+          ]
+        },
+        "outputs": {
+          "durable_destinations": [],
+          "process": [
+            "exit status",
+            "standard output",
+            "standard error"
+          ],
+          "schemas": [
+            "cops.artifact-assessment/v1",
+            "cops.assessment-report/v1"
+          ]
+        }
+      },
+      "id": "authored-offline-3",
+      "purpose": "Run a preserved command from docs/offline-assessment.md.",
+      "timeout_seconds": 120,
+      "working_directory": "plugins/governance-compliance/compliance-posture-workbench"
+    }
+  ],
+  "generation": {
+    "commands_executed": false,
+    "source": "catalog/plugins.json and package metadata"
+  },
+  "limitations": [
+    "The built-in rules inspect bounded supplied artifacts; absence of findings does not establish safety.",
+    "Isolated laboratory acceptance and production integrations require separate execution evidence.",
+    "Unsupported formats require a registered acquisition or parsing adapter with pinned prerequisites.",
+    "Offline inspection cannot establish live provider or production readiness.",
+    "Content hashes establish internal integrity only, not source authenticity or authorization."
+  ],
+  "links": {
+    "authored_assessment_contract": "../docs/offline-assessment.json",
+    "authored_assessment_walkthrough": "../docs/offline-assessment.md",
+    "operator_playbook": "../docs/PLAYBOOK.md",
+    "package_contract": "../package.json",
+    "walkthrough": "../walkthroughs/offline-assessment.md"
+  },
+  "package_path": "plugins/governance-compliance/compliance-posture-workbench",
+  "plugin_id": "compliance-posture-workbench",
+  "purpose": "Map versioned SOC 2, CIS and NIST controls to dated evidence; identify unsupported and unknown control claims.",
+  "schema_version": "cops.plugin-playbook/v1",
+  "status": {
+    "isolated_laboratory": "unverified",
+    "maturity": "experimental",
+    "offline_workflow": "unverified",
+    "support": {
+      "host_installation": "unverified",
+      "live_integration": "unverified",
+      "offline_workflow": "unverified",
+      "structural_validation": "unverified"
+    }
+  }
+}

@@ -7,17 +7,26 @@ name = "cops"
 version = "0.1.0"
 description = "Copilot Operations Plugins for Security"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.14"
 license = { text = "Apache-2.0" }
+dependencies = []
+
+[project.optional-dependencies]
+laboratory = ["cryptography==50.0.2"]
+crypto = ["cryptography==50.0.2"]
+evtx = ["python-evtx==0.8.1", "hexdump==3.3"]
 
 [tool.pytest.ini_options]
 minversion = "8.0"
 addopts = "-q"
 testpaths = ["tests"]
 python_files = ["test_*.py"]
+markers = [
+    "linux_bubblewrap: requires Linux, bubblewrap, and usable unprivileged user namespaces",
+]
 
 [tool.ruff]
-target-version = "py311"
+target-version = "py314"
 line-length = 120
 exclude = [
     ".git",
@@ -40,6 +49,7 @@ select = [
     "S",    # flake8-bandit (security checks)
 ]
 ignore = [
+    "UP042", # Preserve public str/Enum formatting semantics.
     "S101", # Use of assert (standard in tests and internal checks)
     "S603", # subprocess call - check for execution of untrusted input
     "S607", # start process with partial executable path
@@ -50,3 +60,8 @@ ignore = [
 "tests/**" = ["S", "B"]
 "specs/**" = ["S", "B"]
 "scripts/**" = ["S108"]
+
+".agents/skills/*/tests/**" = ["S", "B"]
+".claude/skills/*/tests/**" = ["S", "B"]
+"plugins/**/tests/**" = ["S", "B"]
+"**/test_plugin.py" = ["S", "B"]

@@ -1,0 +1,31 @@
+{
+  "schema_version": "cops.agent-mcp-auth-case/v1",
+  "case_id": "wrong-resource",
+  "title": "Grant cannot write a different resource",
+  "grant": "delegated-write",
+  "flow": "delegated",
+  "attempts": [
+    {
+      "principal": "principal-alice",
+      "agent": "agent-worker",
+      "downstream_service": "service-canary",
+      "audience": "mcp://auth-fixture",
+      "tenant": "tenant-contoso-01",
+      "resource": "res-other",
+      "operation": "write",
+      "scopes": [
+        "canary:write"
+      ],
+      "depth": 1,
+      "tick": 1,
+      "tool": "canary/write"
+    }
+  ],
+  "expected_decisions": [
+    "denied"
+  ],
+  "expected_effect_count": 0,
+  "expected_reasons": [
+    "resource_mismatch"
+  ]
+}

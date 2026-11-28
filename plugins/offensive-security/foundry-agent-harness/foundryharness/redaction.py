@@ -7,6 +7,7 @@ from typing import Any
 
 PATTERNS = [
     (re.compile(r"(Bearer\s+)[A-Za-z0-9\-._~+/]+=*", re.IGNORECASE), r"\1[REDACTED_TOKEN]"),
+    (re.compile(r"(Basic\s+)[A-Za-z0-9\-._~+/]+=*", re.IGNORECASE), r"\1[REDACTED_CREDENTIAL]"),
     (re.compile(r"(api[-_]?key\s*[:=]\s*)[A-Za-z0-9\-._~+/]+", re.IGNORECASE), r"\1[REDACTED_API_KEY]"),
     (re.compile(r"(password\s*[:=]\s*)[^\s,;]+", re.IGNORECASE), r"\1[REDACTED_PASSWORD]"),
     (re.compile(r"(secret\s*[:=]\s*)[^\s,;]+", re.IGNORECASE), r"\1[REDACTED_SECRET]"),

@@ -19,12 +19,13 @@ def test_generated_evidence_subset_and_drift(tmp_path):
 def test_exported_azure_cli_runs_without_repository_imports(tmp_path):
     import json
     import sys
+
     from cops.portable import export_portable_package
     plugin = ROOT / "plugins/detection-hunting/attack-path-workbench"
     sys.path.insert(0, str(plugin))
     sys.path.insert(0, str(plugin / "tests"))
     from azure_fixtures import write_bundle
-    from test_azure_paths import execution, NOW
+    from test_azure_paths import NOW, execution
     from test_azure_sdk_cli import run_cli
     exported = tmp_path / "export"
     export_portable_package(plugin, exported)

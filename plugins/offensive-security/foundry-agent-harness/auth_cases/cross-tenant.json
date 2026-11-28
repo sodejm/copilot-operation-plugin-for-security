@@ -1,0 +1,31 @@
+{
+  "schema_version": "cops.agent-mcp-auth-case/v1",
+  "case_id": "cross-tenant",
+  "title": "Grant presented for another tenant",
+  "grant": "delegated-write",
+  "flow": "delegated",
+  "attempts": [
+    {
+      "principal": "principal-alice",
+      "agent": "agent-worker",
+      "downstream_service": "service-canary",
+      "audience": "mcp://auth-fixture",
+      "tenant": "tenant-fabrikam-02",
+      "resource": "res-canary",
+      "operation": "write",
+      "scopes": [
+        "canary:write"
+      ],
+      "depth": 1,
+      "tick": 1,
+      "tool": "canary/write"
+    }
+  ],
+  "expected_decisions": [
+    "denied"
+  ],
+  "expected_effect_count": 0,
+  "expected_reasons": [
+    "tenant_mismatch"
+  ]
+}

@@ -1,0 +1,68 @@
+{
+  "name": "COPS full PR validation",
+  "target": "branch",
+  "enforcement": "active",
+  "bypass_actors": [],
+  "conditions": {
+    "ref_name": {
+      "include": [
+        "~DEFAULT_BRANCH"
+      ],
+      "exclude": []
+    }
+  },
+  "rules": [
+    {
+      "type": "required_status_checks",
+      "parameters": {
+        "strict_required_status_checks_policy": true,
+        "required_status_checks": [
+          {
+            "context": "validate",
+            "integration_id": 15368
+          },
+          {
+            "context": "Isolated service laboratory",
+            "integration_id": 15368
+          },
+          {
+            "context": "Operator smoke (ubuntu-latest)",
+            "integration_id": 15368
+          },
+          {
+            "context": "Operator smoke (macos-latest)",
+            "integration_id": 15368
+          },
+          {
+            "context": "Operator smoke (windows-latest)",
+            "integration_id": 15368
+          },
+          {
+            "context": "Verify Docs & Tests for Issue",
+            "integration_id": 15368
+          },
+          {
+            "context": "Vulnerability & Dependency Scan",
+            "integration_id": 15368
+          },
+          {
+            "context": "Linting & Static Sanity Checks",
+            "integration_id": 15368
+          },
+          {
+            "context": "Secret Inclusion Scan",
+            "integration_id": 15368
+          },
+          {
+            "context": "CodeQL Actions Analysis",
+            "integration_id": 15368
+          },
+          {
+            "context": "CodeQL Python Analysis",
+            "integration_id": 15368
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,11 +1,13 @@
 """Bounded descriptor-based bundle ingestion with validated SDK provenance."""
 import hashlib
-from pathlib import Path
 import re
+from pathlib import Path
+
 from .._runtime.cops.evidence import assess, validate_receipt
-from .._runtime.cops.evidence.canonical import digest, EvidenceError
-from ..ingestion import (DEFAULTS as INGEST_DEFAULTS, IngestError, Limits, RunBudget,
-                         iter_jsonl, parse_json, read_regular as bounded_read)
+from .._runtime.cops.evidence.canonical import EvidenceError, digest
+from ..ingestion import DEFAULTS as INGEST_DEFAULTS
+from ..ingestion import IngestError, Limits, RunBudget, iter_jsonl, parse_json
+from ..ingestion import read_regular as bounded_read
 from .model import AzureError, Budget, Graph, arm, object_id
 from .normalize import FAMILIES, normalize
 

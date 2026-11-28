@@ -16,6 +16,7 @@ from .active_models import (
     ScanVantage,
     ServiceReachability,
     TargetShiftQuarantine,
+    expand_target_specs,
 )
 from .active_scanner import (
     ActiveScanError,
@@ -27,6 +28,46 @@ from .active_scanner import (
     compare_active_scans,
 )
 from .cli import build_discovery_parser, command_discovery
+from .data_collector import (
+    DEFAULT_DATA_PORTS,
+    DataServicesCollector,
+    OfflineSyntheticDataCollector,
+    StandardSocketDataCollector,
+    assess_data_services,
+)
+from .data_models import (
+    DataAuthPrerequisite,
+    DataExposureStatus,
+    DataPrivilegeCandidate,
+    DataPrivilegeImpact,
+    DataServiceAssessment,
+    DataServiceCategory,
+    DataServicesReport,
+    DataServiceType,
+)
+from .developer_collector import (
+    DEFAULT_DEVELOPER_PORTS,
+    DeveloperServicesCollector,
+    OfflineSyntheticDeveloperCollector,
+    StandardSocketDeveloperCollector,
+    assess_developer_services,
+)
+from .developer_destinations import (
+    DestinationScopeError,
+    DeveloperDestinationPolicy,
+    prepare_developer_handoff,
+)
+from .developer_models import (
+    DeveloperAuthPrerequisite,
+    DeveloperCategory,
+    DeveloperExposureStatus,
+    DeveloperPrivilegeCandidate,
+    DeveloperPrivilegeImpact,
+    DeveloperServiceAssessment,
+    DeveloperServicesReport,
+    DeveloperServiceType,
+    ExecutionEffect,
+)
 from .fingerprinter import infer_service_fingerprint
 from .importer import import_masscan_json, import_nmap_xml
 from .infra_collector import (
@@ -45,7 +86,42 @@ from .infra_models import (
     InfraServiceType,
     ServiceExposureStatus,
 )
+from .legacy_collector import (
+    DEFAULT_LEGACY_PORTS,
+    LegacyServicesCollector,
+    OfflineSyntheticLegacyCollector,
+    StandardSocketLegacyCollector,
+    assess_legacy_services,
+)
+from .legacy_models import (
+    LegacyAuthPrerequisite,
+    LegacyCategory,
+    LegacyExposureStatus,
+    LegacyPrivilegeCandidate,
+    LegacyPrivilegeImpact,
+    LegacyServiceAssessment,
+    LegacyServicesReport,
+    LegacyServiceType,
+)
 from .merger import merge_inventories, merge_two_assets
+from .messaging_collector import (
+    DEFAULT_MESSAGING_PORTS,
+    MessagingServicesCollector,
+    OfflineSyntheticMessagingCollector,
+    StandardSocketMessagingCollector,
+    assess_messaging_services,
+)
+from .messaging_models import (
+    CanaryDeliveryPolicy,
+    MessagingAuthPrerequisite,
+    MessagingCategory,
+    MessagingExposureStatus,
+    MessagingPrivilegeCandidate,
+    MessagingPrivilegeImpact,
+    MessagingServiceAssessment,
+    MessagingServicesReport,
+    MessagingServiceType,
+)
 from .models import (
     AssetType,
     DiscoveredAsset,
@@ -62,23 +138,6 @@ from .normalizers import (
     normalize_ip_record,
 )
 from .reconciler import reconcile_asset, reconcile_inventory
-from .data_collector import (
-    DEFAULT_DATA_PORTS,
-    DataServicesCollector,
-    OfflineSyntheticDataCollector,
-    StandardSocketDataCollector,
-    assess_data_services,
-)
-from .data_models import (
-    DataAuthPrerequisite,
-    DataExposureStatus,
-    DataPrivilegeCandidate,
-    DataPrivilegeImpact,
-    DataServiceAssessment,
-    DataServiceCategory,
-    DataServicesReport,
-    DataServiceType,
-)
 from .remote_collector import (
     DEFAULT_REMOTE_PORTS,
     OfflineSyntheticRemoteCollector,
@@ -97,68 +156,43 @@ from .remote_models import (
     RemoteServicesReport,
     RemoteServiceType,
 )
-
-from .messaging_collector import (
-    DEFAULT_MESSAGING_PORTS,
-    MessagingServicesCollector,
-    OfflineSyntheticMessagingCollector,
-    StandardSocketMessagingCollector,
-    assess_messaging_services,
+from .service_entry_validation import (
+    ApprovedEndpoint,
+    ServiceEntryHandoff,
+    ServiceValidationPlan,
+    prepare_session_service_handoffs,
+    service_validation_plan_digest,
+    service_validation_plan_is_intact,
 )
-from .messaging_models import (
-    MessagingAuthPrerequisite,
-    MessagingCategory,
-    MessagingExposureStatus,
-    MessagingPrivilegeCandidate,
-    MessagingPrivilegeImpact,
-    MessagingServiceAssessment,
-    MessagingServicesReport,
-    MessagingServiceType,
+from .service_validation_execution import (
+    AttackMapping,
+    AuthorizationReceipt,
+    TrustedValidationReproduction,
+    ValidationActionResult,
+    ValidationEvidenceVerification,
+    ValidationFinding,
+    ValidationPrerequisiteReceipt,
+    ValidationProbeOutput,
+    ValidationSelection,
+    VersionedReproduction,
+    execute_service_validation_action,
+    load_trusted_issue_143_reproduction,
 )
-
-from .developer_collector import (
-    DEFAULT_DEVELOPER_PORTS,
-    DeveloperServicesCollector,
-    OfflineSyntheticDeveloperCollector,
-    StandardSocketDeveloperCollector,
-    assess_developer_services,
+from .service_validation_lab import (
+    LabServiceAdapter,
+    lab_service_provider_registry,
+    run_loopback_service_validation_journey,
 )
-from .developer_models import (
-    DeveloperAuthPrerequisite,
-    DeveloperCategory,
-    DeveloperExposureStatus,
-    DeveloperPrivilegeCandidate,
-    DeveloperPrivilegeImpact,
-    DeveloperServiceAssessment,
-    DeveloperServicesReport,
-    DeveloperServiceType,
-    ExecutionEffect,
-)
-
-from .legacy_collector import (
-    DEFAULT_LEGACY_PORTS,
-    LegacyServicesCollector,
-    OfflineSyntheticLegacyCollector,
-    StandardSocketLegacyCollector,
-    assess_legacy_services,
-)
-from .legacy_models import (
-    LegacyAuthPrerequisite,
-    LegacyCategory,
-    LegacyExposureStatus,
-    LegacyPrivilegeCandidate,
-    LegacyPrivilegeImpact,
-    LegacyServiceAssessment,
-    LegacyServicesReport,
-    LegacyServiceType,
-)
-
 
 __all__ = [
     "ActiveScanError",
     "ActiveScanSession",
     "ActiveScanner",
     "ActiveServiceAssessment",
+    "ApprovedEndpoint",
+    "AttackMapping",
+    "AuthorizationReceipt",
+    "TrustedValidationReproduction",
     "AssetType",
     "AuthPrerequisite",
     "ConfidenceLevel",
@@ -187,7 +221,16 @@ __all__ = [
     "ScanVantage",
     "ScopeViolationError",
     "ServiceExposureStatus",
+    "ServiceEntryHandoff",
     "ServiceReachability",
+    "ServiceValidationPlan",
+    "ValidationActionResult",
+    "ValidationEvidenceVerification",
+    "ValidationFinding",
+    "ValidationProbeOutput",
+    "ValidationPrerequisiteReceipt",
+    "ValidationSelection",
+    "VersionedReproduction",
     "StandardSocketDispatcher",
     "StandardSocketInfraCollector",
     "TargetShiftQuarantine",
@@ -195,6 +238,9 @@ __all__ = [
     "build_discovery_parser",
     "command_discovery",
     "compare_active_scans",
+    "execute_service_validation_action",
+    "expand_target_specs",
+    "load_trusted_issue_143_reproduction",
     "import_masscan_json",
     "import_nmap_xml",
     "infer_service_fingerprint",
@@ -209,6 +255,7 @@ __all__ = [
     "reconcile_inventory",
     "DEFAULT_REMOTE_PORTS",
     "CleanupReceipt",
+    "CanaryDeliveryPolicy",
     "HostPrivilegeCandidate",
     "LateralMovementImpact",
     "OfflineSyntheticRemoteCollector",
@@ -257,10 +304,16 @@ __all__ = [
     "DeveloperServicesReport",
     "DeveloperServiceType",
     "DeveloperServicesCollector",
+    "DeveloperDestinationPolicy",
+    "DestinationScopeError",
     "ExecutionEffect",
     "OfflineSyntheticDeveloperCollector",
     "StandardSocketDeveloperCollector",
     "assess_developer_services",
+    "prepare_developer_handoff",
+    "prepare_session_service_handoffs",
+    "service_validation_plan_digest",
+    "service_validation_plan_is_intact",
     "DEFAULT_LEGACY_PORTS",
     "LegacyAuthPrerequisite",
     "LegacyCategory",
@@ -274,4 +327,7 @@ __all__ = [
     "OfflineSyntheticLegacyCollector",
     "StandardSocketLegacyCollector",
     "assess_legacy_services",
+    "LabServiceAdapter",
+    "lab_service_provider_registry",
+    "run_loopback_service_validation_journey",
 ]

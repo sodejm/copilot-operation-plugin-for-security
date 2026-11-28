@@ -8,7 +8,7 @@ from typing import Any
 from cops.capabilities.auditor import audit_capabilities
 from cops.evidence.canonical import utc_now
 
-from .models import DiagnosticReport, PackageDiagnostic, SystemDiagnostic, ToolDiagnostic
+from .models import DiagnosticReport, PackageDiagnostic
 from .packages import diagnose_packages, diagnose_plugin_package
 from .system import detect_system_platform, diagnose_host_tools
 

@@ -6,12 +6,11 @@ import argparse
 import copy
 import io
 import json
-from pathlib import Path
 import sys
 import unittest
 
 from cops.catalog import ROOT
-from cops.contracts.models import ActionPlan, Engagement
+from cops.contracts.models import Engagement
 from cops.contracts.validation import validate_contract
 from cops.engagement import (
     EngagementIntakeError,
@@ -223,6 +222,7 @@ class TestEngagementIntakeAndPlanning(unittest.TestCase):
             scenario="COPS-E03.01-S01",
             target="10.200.0.5",
             specialist_id="cops-pentest-specialist",
+            tool_versions={"python3": "3.11.9"},
             root=ROOT,
         )
 
@@ -243,12 +243,39 @@ class TestEngagementIntakeAndPlanning(unittest.TestCase):
         self.assertIn("expected_evidence", op)
         self.assertIn("side_effects", op)
         self.assertIn("cleanup", op)
+        self.assertEqual(op["tool_version"], "3.11.9")
         self.assertEqual(op["cleanup"]["action"], "cleanup_temporary_artifacts")
         self.assertTrue(op["idempotent"])
 
         # Verify plan contract schema validation
         validated_plan_dict = validate_contract(plan.to_dict(), "action_plan")
         self.assertEqual(validated_plan_dict["plan_digest"], plan.plan_digest)
+
+    def test_generated_plan_id_tracks_immutable_planning_inputs(self) -> None:
+        """Different executable plans must not share a resumable plan identity."""
+        arguments = {
+            "engagement": self.valid_engagement_data,
+            "scenario": "COPS-E03.01-S01",
+            "target": "10.200.0.5",
+            "tool_versions": {"python3": "3.11.9"},
+            "root": ROOT,
+        }
+        baseline = build_action_plan(**arguments)
+        self.assertEqual(build_action_plan(**arguments).plan_id, baseline.plan_id)
+
+        new_version = build_action_plan(**{**arguments, "tool_versions": {"python3": "3.12.0"}})
+        self.assertNotEqual(new_version.plan_id, baseline.plan_id)
+
+        narrower_budget = copy.deepcopy(self.valid_engagement_data)
+        narrower_budget["budget"]["max_duration_seconds"] = 1800
+        changed_budget = build_action_plan(**{**arguments, "engagement": narrower_budget})
+        self.assertNotEqual(changed_budget.plan_id, baseline.plan_id)
+
+        changed_mode = build_action_plan(**{**arguments, "mode": "import"})
+        self.assertNotEqual(changed_mode.plan_id, baseline.plan_id)
+
+        explicit = build_action_plan(**{**arguments, "plan_id": "plan-cops-explicit"})
+        self.assertEqual(explicit.plan_id, "plan-cops-explicit")
 
     def test_cli_create_validate_plan_cycle(self) -> None:
         """Verify end-to-end cycle using CLI handlers."""
@@ -298,6 +325,7 @@ class TestEngagementIntakeAndPlanning(unittest.TestCase):
                 scenario="COPS-E03.01-S01",
                 target="10.50.0.2",
                 specialist="cops-pentest-specialist",
+                tool_versions=["python3=3.11.9"],
                 mode="planning",
                 output=None,
                 json=True,

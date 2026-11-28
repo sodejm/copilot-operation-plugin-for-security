@@ -26,3 +26,16 @@ Git ignores and excludes symlinks, environment diagnostics, and CI test setup.
 These modifications are documented here and in the root changelog. No upstream
 NOTICE file was present at the recorded revision. The existing project LICENSE
 is preserved separately and does not replace the imported Apache license.
+
+## OASIS SARIF 2.1.0 schema
+
+- Source: <https://docs.oasis-open.org/sarif/sarif/v2.1.0/os/schemas/sarif-schema-2.1.0.json>
+- Standard: SARIF Version 2.1.0, OASIS Standard, 27 March 2020
+- Notices: [OASIS copyright and permissions](licenses/OASIS-SARIF-2.1.0-NOTICE.txt)
+- Retrieval date: 2026-10-15
+- SHA-256: `ad6db49878699b091f3eeb765b6e29e92a34bad4da88664d000c923b549c3a25`
+
+The unmodified schema at `cops/reports/schemas/sarif-schema-2.1.0.json` is used
+for mandatory offline report conformance tests. The accompanying notice retains
+the standard's full Notices section. COPS's project license does not replace
+these terms.

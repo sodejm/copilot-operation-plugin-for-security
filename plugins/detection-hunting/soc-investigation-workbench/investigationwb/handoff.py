@@ -9,7 +9,6 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-from typing import Any
 
 from .engine import Document, digest, hypothesis_status, next_steps, validate
 

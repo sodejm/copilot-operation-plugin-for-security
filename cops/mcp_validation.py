@@ -8,7 +8,6 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
-
 MCP_SCHEMA = "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json"
 EXECUTABLE = re.compile(r"^[A-Za-z0-9_.+-]+$")
 HEADER = re.compile(r"^[!#$%&'*+.^_`|~0-9A-Za-z-]+$")

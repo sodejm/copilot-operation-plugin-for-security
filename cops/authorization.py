@@ -12,12 +12,13 @@ import hashlib
 import json
 import os
 import sys
-from dataclasses import asdict, dataclass
-from datetime import datetime, timedelta, timezone
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, Callable, Sequence
+from typing import Any
 
-from cops.evidence.canonical import canonical, digest, utc_now
+from cops.evidence.canonical import digest
 
 
 class AuthorizationError(ValueError):
@@ -88,7 +89,7 @@ def create_authorization_receipt(
     if approval_mode not in {"interactive_confirmation", "pre_signed_envelope"}:
         raise AuthorizationError(f"invalid approval_mode: {approval_mode}")
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     timestamp_str = now.isoformat(timespec="seconds").replace("+00:00", "Z")
     expiry_str = (now + timedelta(hours=valid_hours)).isoformat(timespec="seconds").replace("+00:00", "Z")
 
@@ -104,7 +105,7 @@ def create_authorization_receipt(
         "approval_mode": approval_mode,
     }
     verification_hash = _compute_receipt_hash(payload)
-    receipt_id = hashlib.sha256(f"{verification_hash}:{timestamp_str}".encode("utf-8")).hexdigest()[:24]
+    receipt_id = hashlib.sha256(f"{verification_hash}:{timestamp_str}".encode()).hexdigest()[:24]
 
     return AuthorizationReceipt(
         schema_version="1.0",
@@ -164,7 +165,7 @@ def validate_receipt_document(document: dict[str, Any]) -> AuthorizationReceipt:
 
     try:
         expiry = datetime.fromisoformat(document["authorized_until_utc"].replace("Z", "+00:00"))
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         if now > expiry:
             raise AuthorizationError(f"authorization receipt expired at {document['authorized_until_utc']}")
     except ValueError as err:

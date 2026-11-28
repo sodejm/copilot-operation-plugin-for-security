@@ -2,12 +2,12 @@
 
 Welcome to the centralized catalog of **Specialist Cybersecurity Agent Profiles** for COPS (Copilot Operations Plugins for Security).
 
-In high-maturity cybersecurity organizations, no single analyst or engineer handles every task. Instead, specialized practitioners collaborate through well-defined roles, explicit handoffs, and strict Rules of Engagement (RoE). COPS structures this expertise into **18 callable agent profiles** across five operational domains:
+In high-maturity cybersecurity organizations, no single analyst or engineer handles every task. Instead, specialized practitioners collaborate through well-defined roles, explicit handoffs, and strict Rules of Engagement (RoE). COPS structures this expertise into **21 callable agent profiles** across five operational domains:
 
 1. **Offensive Security & Adversarial Emulation**: Ethical penetration testing, red team kill-chain modeling, perimeter attack surface planning, and AI prompt injection assessments.
 2. **Defensive Operations & Detection Engineering**: Microsoft Sentinel KQL query engineering, hypothesis-driven threat hunting, SOC alert triage, and detection-as-code regression testing.
 3. **Incident Response & Digital Forensics**: Blast-radius modeling and sandboxed containment rehearsal, tamper-evident forensic evidence acquisition, and static malware/script triage.
-4. **Identity, Exposure & Threat Intelligence**: Cloud IAM/Entra ID entitlement analysis, CVE/SBOM reachability triage, application security code review, and CTI feed correlation.
+4. **Identity, Exposure & Threat Intelligence**: Cloud IAM/Entra ID entitlement analysis, offline Active Directory relationship assessment, CVE/SBOM reachability triage, application security code review, and CTI feed correlation.
 5. **Governance, Quality & Architecture**: Purple team efficacy measurement, audit telemetry architecture, and GRC compliance control verification.
 
 ---
@@ -59,13 +59,15 @@ In interactive environments, the operator is prompted with exact scope, target p
 
 ---
 
-## Inventory of 18 Specialist Profiles
+## Inventory of 21 Specialist Profiles
 
 | Profile ID | Domain | Criticality | Interactive Auth | Primary Plugin |
 | :--- | :--- | :--- | :--- | :--- |
 | [`cops-pentest-specialist`](profiles/cops-pentest-specialist.agent.md) | Offensive | Critical | Required | `attack-surface-planner` |
+| [`cops-host-specialist`](profiles/cops-host-specialist.agent.md) | Offensive | Critical | Required | `host-assessment-workbench` |
 | [`cops-redteam-operator`](profiles/cops-redteam-operator.agent.md) | Offensive | Critical | Required | `attack-path-workbench` |
 | [`cops-attack-surface-planner`](profiles/cops-attack-surface-planner.agent.md) | Offensive | Normal | No | `attack-surface-planner` |
+| [`cops-kubernetes-specialist`](profiles/cops-kubernetes-specialist.agent.md) | Offensive | Normal | No | `kubernetes-assessment-workbench` |
 | [`cops-ai-adversary-specialist`](profiles/cops-ai-adversary-specialist.agent.md) | Offensive | Normal | No | `foundry-agent-harness` |
 | [`cops-sentinel-kql-engineer`](profiles/cops-sentinel-kql-engineer.agent.md) | Defensive | Normal | No | `sentinel-hunt-workbench` |
 | [`cops-threat-hunter`](profiles/cops-threat-hunter.agent.md) | Defensive | Normal | No | `sentinel-hunt-workbench` |
@@ -75,6 +77,7 @@ In interactive environments, the operator is prompted with exact scope, target p
 | [`cops-forensic-collector`](profiles/cops-forensic-collector.agent.md) | Incident/DFIR | Normal | No | `telemetry-proof-pack` |
 | [`cops-malware-analyst`](profiles/cops-malware-analyst.agent.md) | Incident/DFIR | Normal | No | `soc-investigation-workbench` |
 | [`cops-identity-specialist`](profiles/cops-identity-specialist.agent.md) | Identity | Critical | Required | `entra-identity-workbench` |
+| [`cops-ad-specialist`](profiles/cops-ad-specialist.agent.md) | Identity | Critical | Required | `ad-assessment-workbench` |
 | [`cops-exposure-analyst`](profiles/cops-exposure-analyst.agent.md) | Identity | Normal | No | `exposure-triage-workbench` |
 | [`cops-appsec-engineer`](profiles/cops-appsec-engineer.agent.md) | Identity | Normal | No | `patch-security-review` |
 | [`cops-threat-intel-analyst`](profiles/cops-threat-intel-analyst.agent.md) | Identity | Normal | No | `threat-intelligence-enrichment` |

@@ -1,0 +1,84 @@
+{
+  "expected_outcome": "no_exposure_observed",
+  "inputs": {
+    "auth_evidence": {
+      "checks": [
+        {
+          "address": "192.0.2.20",
+          "anonymous_status": 401,
+          "authorized_status": 200,
+          "evidence_ref": "fixture:exposure:synthetic",
+          "host": "preview.example.test",
+          "observed_at": "2026-10-15T12:30:00Z",
+          "port": 443,
+          "route": "/admin",
+          "scheme": "https"
+        }
+      ],
+      "complete": true
+    },
+    "dns_service_inventory": {
+      "complete": true,
+      "records": [
+        {
+          "addresses": [
+            "192.0.2.20"
+          ],
+          "evidence_ref": "fixture:exposure:synthetic",
+          "host": "preview.example.test",
+          "observed_at": "2026-10-15T12:30:00Z"
+        },
+        {
+          "addresses": [
+            "192.0.2.21"
+          ],
+          "evidence_ref": "fixture:exposure:synthetic",
+          "host": "outside.example.test",
+          "observed_at": "2026-10-15T12:30:00Z"
+        }
+      ]
+    },
+    "port_route_evidence": {
+      "checks": [
+        {
+          "address": "192.0.2.20",
+          "connected": true,
+          "evidence_ref": "fixture:exposure:synthetic",
+          "host": "preview.example.test",
+          "observed_at": "2026-10-15T12:30:00Z",
+          "port": 443,
+          "route": "/admin",
+          "scheme": "https"
+        },
+        {
+          "address": "192.0.2.21",
+          "connected": true,
+          "evidence_ref": "fixture:exposure:synthetic",
+          "host": "outside.example.test",
+          "observed_at": "2026-10-15T12:30:00Z",
+          "port": 443,
+          "route": "/admin",
+          "scheme": "https"
+        }
+      ],
+      "complete": true
+    },
+    "scope": {
+      "endpoints": [
+        {
+          "host": "preview.example.test",
+          "port": 443,
+          "route": "/admin",
+          "scheme": "https"
+        }
+      ],
+      "window": {
+        "end": "2026-10-15T13:00:00Z",
+        "start": "2026-10-15T12:00:00Z"
+      }
+    }
+  },
+  "profile_id": "corrected",
+  "schema_version": "cops.integrated-workflow-fixture/v1",
+  "workflow_id": "pre-release-exposure-audit"
+}

@@ -1,6 +1,6 @@
 # Accounting and operation
 
-Run commands from the skill directory with Python 3.11 or newer. Runtime uses only
+Run commands from the skill directory with Python 3.14 or newer. Runtime uses only
 the standard library. The sibling session audit parser supplies normalized request
 records; its default reports remain unchanged. Both skills must travel together.
 

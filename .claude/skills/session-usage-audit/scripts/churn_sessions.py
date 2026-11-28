@@ -1,12 +1,11 @@
 """Static transcript extraction. Nothing read from a transcript is executed."""
 from __future__ import annotations
 
-from collections import Counter, defaultdict
-from datetime import datetime
 import json
-from pathlib import Path
 import re
 import shlex
+from collections import Counter, defaultdict
+from pathlib import Path
 
 import codex_token_usage as tokens
 from churn_git import metadata_repos, resolve_path
@@ -490,7 +489,7 @@ def scan(paths, start, end, repos):
         for (rid, path, tree), edits in sorted(hotspots.items(), key=lambda kv: str(kv[0])):
             outcomes = Counter(e["outcome"] for e in edits)
             candidate_pairs = []
-            for a, b in zip(edits, edits[1:]):
+            for a, b in zip(edits, edits[1:], strict=False):
                 if a["operation"] == b["operation"] == "update" and a["_reverse"] == b["_forward"] and a["_forward"] != b["_forward"]:
                     candidate_pairs.append({"kind": "inverse_patch_candidate", "confirmed": False,
                                            "evidence": [a["evidence"][0], b["evidence"][0]]})

@@ -1,6 +1,6 @@
 ---
 name: engagement-specialist-handoffs
-description: Pass structured tasks and evidence between planner, specialist, skeptic, and auditor with capability checks and authorization invariance.
+description: "Use for requests to hand this assessment evidence to the next specialist. Pass structured tasks and evidence between planner, specialist, skeptic, and auditor with capability checks and authorization invariance."
 ---
 
 # Engagement specialist handoffs

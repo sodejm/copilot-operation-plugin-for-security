@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cops.example/schemas/purple-team-handoff.schema.json",
+  "title": "COPS purple-team handoff v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "source", "expected_telemetry", "correlation_ids", "time_window", "evidence_refs", "detection_result"],
+  "properties": {
+    "schema_version": {"const": "cops.purple-team-handoff/v1"},
+    "source": {
+      "type": "object", "additionalProperties": false, "required": ["kind", "ref"],
+      "properties": {"kind": {"enum": ["finding", "simulation"]}, "ref": {"type": "string", "minLength": 1}}
+    },
+    "expected_telemetry": {
+      "type": "array", "minItems": 1,
+      "items": {"type": "object", "additionalProperties": false, "required": ["field", "value"], "properties": {"field": {"type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)*$"}, "value": {"type": "string"}}}
+    },
+    "correlation_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "time_window": {
+      "type": "object", "additionalProperties": false, "required": ["start", "end"],
+      "properties": {"start": {"type": "string", "format": "date-time"}, "end": {"type": "string", "format": "date-time"}}
+    },
+    "evidence_refs": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "detection_result": {
+      "type": "object", "additionalProperties": false,
+      "required": ["status", "reason", "matched_telemetry", "matched_alerts"],
+      "properties": {
+        "status": {"enum": ["instrumentation_gap", "detection_gap", "verified_detection", "indeterminate"]},
+        "reason": {"type": "string"},
+        "matched_telemetry": {"type": "integer", "minimum": 0},
+        "matched_alerts": {"type": "integer", "minimum": 0}
+      }
+    }
+  }
+}

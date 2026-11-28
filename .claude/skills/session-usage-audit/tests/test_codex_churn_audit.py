@@ -1,26 +1,26 @@
 """Integration fixtures exercise evidence boundaries, not implementation mirrors."""
-from contextlib import redirect_stderr, redirect_stdout
-from datetime import datetime, timezone
 import hashlib
 import io
 import json
 import os
-from pathlib import Path
 import subprocess
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stderr, redirect_stdout
+from datetime import UTC, datetime
+from pathlib import Path
 from unittest.mock import patch as mock_patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-import codex_churn_audit as audit
-import codex_token_usage as tokens
 import churn_git as cg
 import churn_sessions as cs
+import codex_churn_audit as audit
+import codex_token_usage as tokens
 
-START = datetime(2026, 9, 1, tzinfo=timezone.utc)
-END = datetime(2026, 9, 29, tzinfo=timezone.utc)
-SECRET = "private source sentinel never exported"
+START = datetime(2026, 9, 1, tzinfo=UTC)
+END = datetime(2026, 9, 29, tzinfo=UTC)
+SECRET = "private source sentinel never exported"  # noqa: S105 - schema label or operation identifier, not a credential
 CONFIG = {"config_version": 1, "repositories": [], "classification": [
     {"category": "tests", "patterns": ["tests/*"]},
     {"category": "documentation", "patterns": ["*.md"]},
@@ -70,7 +70,7 @@ class Fixture(unittest.TestCase):
         if date:
             env.update(GIT_AUTHOR_DATE=date, GIT_COMMITTER_DATE=date)
         result = subprocess.run(["git", "-C", str(cwd or self.repo), *args], env=env,
-                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
+                                capture_output=True, check=True)
         return result.stdout.decode().strip()
 
     def commit(self, files, date="2026-09-02T00:00:00Z", cwd=None):
@@ -207,7 +207,7 @@ class GitEvidence(Fixture):
         self.assertEqual(classifier.classify("code.py")[0], "tests")
         self.assertEqual(classifier.classify("code.py", self.initial)[0], "production")
         self.assertEqual(classifier.classify("asset.bin")[0], "generated_dependency")
-        r = cg.history(repo, datetime(2026, 8, 1, tzinfo=timezone.utc), END, CONFIG)
+        r = cg.history(repo, datetime(2026, 8, 1, tzinfo=UTC), END, CONFIG)
         self.assertTrue(r["primary"]["verified_contiguous_range"])
         self.assertEqual(r["primary"]["change_volume"]["generated_dependency"]["binary_or_unknown_files"], 1)
         self.assertEqual(r["primary"]["change_volume"]["unclassified"]["added_lines"], 3)

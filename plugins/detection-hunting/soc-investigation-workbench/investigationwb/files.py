@@ -1,9 +1,9 @@
 """Bounded reads from regular files, checked on the opened descriptor."""
 
-from contextlib import contextmanager
 import os
-from pathlib import Path
 import stat
+from contextlib import contextmanager
+from pathlib import Path
 
 from .engine import ContractError, require
 
@@ -14,8 +14,8 @@ def _open_windows(path: Path, nofollow: bool) -> int:
     # Windows has no O_NOFOLLOW. Inspect the opened handle itself before adopting
     # it as a Python descriptor, so a final reparse point cannot redirect a read.
     import ctypes
-    from ctypes import wintypes
     import msvcrt
+    from ctypes import wintypes
 
     class AttributeTagInfo(ctypes.Structure):
         _fields_ = [("attributes", wintypes.DWORD), ("tag", wintypes.DWORD)]

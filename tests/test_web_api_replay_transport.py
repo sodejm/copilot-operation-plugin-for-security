@@ -1,0 +1,865 @@
+"""Transport and approval regressions using real loopback HTTP exchanges."""
+
+from __future__ import annotations
+
+import ipaddress
+import socket
+import ssl
+import threading
+import time
+import traceback
+from dataclasses import replace
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+import pytest
+
+from cops.execution.scope_guard import ScopeDefinition, ScopeGuard, ScopeViolationError
+from cops.execution.store import ApprovalStore
+from cops.laboratory.service_tls import _certificate_material
+from cops.web_api.models import AuthenticationMechanism, ReplayBudget, ReplayRequest, ReplayResponse, SessionContext
+from cops.web_api.replay import (
+    DestinationGuard,
+    DestinationViolationError,
+    ReplayAuthorizationError,
+    ReplayBudgetExceededError,
+    StandardHttpReplayer,
+    build_replay_action_plan,
+    execute_authorized_replay_session,
+    preview_replay_session,
+)
+from tests.auth_testkit import TestApprovalControl, authorize_test_plan
+from tests.web_api_worker_testkit import loopback_worker
+
+_OVERSIZED_DECIMAL_PORT = "9" * 5_000
+
+
+@pytest.fixture
+def http_lab():
+    seen = []
+
+    class Handler(BaseHTTPRequestHandler):
+        def log_message(self, *_args):
+            pass
+
+        def _handle(self):
+            body_length = int(self.headers.get("Content-Length", "0"))
+            self.server.received_bodies.append(self.rfile.read(body_length))
+            seen.append((self.path, dict(self.headers)))
+            if self.path == "/drop":
+                self.close_connection = True
+                return
+            if self.path.startswith("/redirect"):
+                self.send_response(self.server.redirect_status)
+                self.send_header("Location", self.server.redirect_target)
+                self.end_headers()
+                return
+            status = int(self.path[1:]) if self.path[1:].isdigit() else 200
+            self.send_response(status)
+            self.send_header("Retry-After", "1")
+            self.send_header("Content-Length", "2")
+            self.end_headers()
+            if self.path == "/slow":
+                time.sleep(0.3)
+            try:
+                self.wfile.write(b"ok")
+            except (BrokenPipeError, ConnectionResetError):
+                pass
+
+        def do_GET(self):
+            self._handle()
+
+        def do_POST(self):
+            self._handle()
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    server.received_bodies = []
+    server.redirect_target = "/200"
+    server.redirect_status = 302
+    thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True)
+    thread.start()
+    try:
+        yield f"http://127.0.0.1:{server.server_port}", seen, server
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=1)
+
+
+@pytest.fixture
+def https_lab(tmp_path):
+    material_dir = tmp_path / "tls"
+    material_dir.mkdir()
+    material = _certificate_material(material_dir)
+    seen = []
+
+    class Handler(BaseHTTPRequestHandler):
+        def log_message(self, *_args):
+            pass
+
+        def do_GET(self):
+            seen.append((self.path, dict(self.headers)))
+            self.send_response(200)
+            self.send_header("Content-Length", "2")
+            self.end_headers()
+            self.wfile.write(b"ok")
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    server_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    server_context.minimum_version = ssl.TLSVersion.TLSv1_2
+    server_context.load_cert_chain(material["server_cert"], material["server_key"])
+    server.socket = server_context.wrap_socket(server.socket, server_side=True)
+    thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True)
+    thread.start()
+    try:
+        yield f"https://127.0.0.1:{server.server_port}", seen, material
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=1)
+
+
+def _scope(resolver=None):
+    scope = ScopeDefinition(
+        included_ips=[ipaddress.ip_address("127.0.0.1")],
+        included_domains=["replay.test"],
+        egress_allowed=True,
+    )
+    return ScopeGuard(scope, resolver=resolver) if resolver else ScopeGuard(scope)
+
+
+def _request(url, method="GET", **kwargs):
+    return ReplayRequest(request_id="request-one", endpoint_id="endpoint-one", method=method, url=url, **kwargs)
+
+
+def _plan(
+    requests,
+    destinations,
+    budget,
+    sessions=None,
+    *,
+    session_credential_bindings=None,
+    transport="production",
+    redirect_targets=None,
+):
+    return build_replay_action_plan(
+        plan_id="plan-api-transport",
+        engagement_id="eng-api-transport",
+        scenario_id="scen-api-transport",
+        specialist_id="web-api-assessment-workbench",
+        requests=requests,
+        allowed_destinations=destinations,
+        budget=budget,
+        sessions=sessions,
+        session_credential_bindings=session_credential_bindings,
+        transport=transport,
+        redirect_targets=redirect_targets,
+        created_at="2026-10-18T00:00:00Z",
+    )
+
+
+def _authority(tmp_path, plan):
+    auth, trust, engagement = authorize_test_plan(plan, worker_identity="worker-api-transport")
+    store = ApprovalStore(tmp_path / "authority" / "approvals.sqlite3")
+    store.store_authorization(auth)
+    return auth.authorization_id, TestApprovalControl(store, trust, engagement)
+
+
+def _execute(
+    plan,
+    auth_id,
+    approval,
+    requests,
+    destinations,
+    budget,
+    sessions=None,
+    scope=None,
+    *,
+    worker=None,
+    session_credential_bindings=None,
+    transport="production",
+    redirect_targets=None,
+):
+    return execute_authorized_replay_session(
+        requests=requests,
+        sessions=sessions or [],
+        allowed_destinations=destinations,
+        scope_guard=scope or _scope(),
+        budget=budget,
+        action_plan=plan,
+        authorization_id=auth_id,
+        approval_control=approval,
+        worker_identity="test-worker-01" if worker is not None else "worker-api-transport",
+        worker=worker,
+        session_credential_bindings=session_credential_bindings,
+        transport=transport,
+        redirect_targets=redirect_targets,
+    )
+
+
+@pytest.mark.parametrize("status", [200, 401, 403, 404, 429, 500])
+def test_completed_http_responses_are_evidence(http_lab, status):
+    base, seen, _ = http_lab
+    response = StandardHttpReplayer(DestinationGuard([base.removeprefix("http://")]), _scope()).send(
+        _request(f"{base}/{status}"), ReplayBudget(timeout_seconds=1)
+    )
+    assert response.status_code == status
+    assert response.replay_success and response.error_message is None
+    assert response.body_excerpt == "ok" and len(seen) == 1
+
+
+def test_checked_numeric_address_is_used_without_second_dns_or_proxy(http_lab, monkeypatch):
+    base, seen, _ = http_lab
+    port = base.rsplit(":", 1)[1]
+    resolved = []
+
+    def resolve(host):
+        resolved.append(host)
+        return ["127.0.0.1"]
+
+    def forbidden_dns(*_args, **_kwargs):
+        raise AssertionError("transport performed a second DNS resolution")
+
+    monkeypatch.setattr(socket, "getaddrinfo", forbidden_dns)
+    monkeypatch.setenv("http_proxy", "http://unapproved-proxy.test:9999")
+    monkeypatch.setenv("HTTP_PROXY", "http://unapproved-proxy.test:9999")
+    monkeypatch.setenv("no_proxy", "")
+    response = StandardHttpReplayer(DestinationGuard([f"replay.test:{port}"]), _scope(resolve)).send(
+        _request(f"http://replay.test:{port}/200"), ReplayBudget(timeout_seconds=1)
+    )
+    assert response.replay_success
+    assert resolved == ["replay.test"]
+    assert seen[0][1]["Host"] == f"replay.test:{port}"
+
+
+def test_redirect_revalidates_changed_dns_before_dispatch(http_lab):
+    base, seen, _ = http_lab
+    port = base.rsplit(":", 1)[1]
+    answers = iter([["127.0.0.1"], ["192.0.2.1"]])
+    replayer = StandardHttpReplayer(DestinationGuard([f"replay.test:{port}"]), _scope(lambda _: next(answers)))
+    with pytest.raises(ScopeViolationError):
+        replayer.send(_request(f"http://replay.test:{port}/redirect"), ReplayBudget(timeout_seconds=1))
+    assert len(seen) == 1
+
+
+@pytest.mark.parametrize("target", ["http://192.0.2.1/200", "http://user:password@127.0.0.1/200"])
+def test_redirect_rejects_disallowed_or_userinfo_destination(http_lab, target):
+    base, seen, server = http_lab
+    server.redirect_target = target
+    replayer = StandardHttpReplayer(DestinationGuard([base.removeprefix("http://")]), _scope())
+    with pytest.raises(DestinationViolationError):
+        replayer.send(_request(f"{base}/redirect"), ReplayBudget(timeout_seconds=1))
+    assert len(seen) == 1
+
+
+def test_redirect_credentials_cannot_cross_origins(http_lab):
+    base, seen, server = http_lab
+    port = server.server_port
+    server.redirect_target = f"http://replay.test:{port}/200"
+    replayer = StandardHttpReplayer(
+        DestinationGuard([base.removeprefix("http://"), f"replay.test:{port}"]), _scope(lambda _: ["127.0.0.1"])
+    )
+    with pytest.raises(DestinationViolationError, match="cross-origin"):
+        replayer.send(_request(f"{base}/redirect", headers={"Authorization": "Bearer synthetic"}), ReplayBudget())
+    assert len(seen) == 1
+
+
+def test_scoped_session_credential_is_removed_on_exact_cross_origin_redirect(http_lab, tmp_path, monkeypatch):
+    base, seen, server = http_lab
+    redirected = []
+
+    class TargetHandler(BaseHTTPRequestHandler):
+        def log_message(self, *_args):
+            pass
+
+        def do_GET(self):
+            redirected.append((self.path, dict(self.headers)))
+            self.send_response(200)
+            self.send_header("Content-Length", "2")
+            self.end_headers()
+            self.wfile.write(b"ok")
+
+    target = ThreadingHTTPServer(("127.0.0.1", 0), TargetHandler)
+    target_thread = threading.Thread(target=target.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True)
+    target_thread.start()
+    target_url = f"http://127.0.0.1:{target.server_port}/200"
+    server.redirect_target = target_url
+    requests = [_request(f"{base}/redirect", session_id="owner", role_id="owner")]
+    sessions = [
+        SessionContext(
+            session_id="owner",
+            role_id="owner",
+            auth_mechanism=AuthenticationMechanism(
+                auth_type="custom",
+                token_name="X-Identity-Proof",
+                location="header",
+            ),
+        )
+    ]
+    bindings = {"owner": [{"reference": "credential-owner", "header": "X-Identity-Proof"}]}
+    credentials = {"credential-owner": "synthetic-proof"}
+    destinations = [base.removeprefix("http://"), target_url.removeprefix("http://").removesuffix("/200")]
+    budget = ReplayBudget(max_requests=1, timeout_seconds=1, rate_limit_rps=0, max_redirect_hops=1)
+    redirects = {"request-one": [target_url]}
+    scope_guard = _scope()
+    plan = _plan(
+        requests,
+        destinations,
+        budget,
+        sessions,
+        session_credential_bindings=bindings,
+        transport="laboratory",
+        redirect_targets=redirects,
+    )
+    worker, auth_id, approval = loopback_worker(tmp_path, monkeypatch, plan, scope_guard, credentials)
+
+    try:
+        report = _execute(
+            plan,
+            auth_id,
+            approval,
+            requests,
+            destinations,
+            budget,
+            sessions,
+            scope_guard,
+            worker=worker,
+            session_credential_bindings=bindings,
+            transport="laboratory",
+            redirect_targets=redirects,
+        )
+    finally:
+        target.shutdown()
+        target.server_close()
+        target_thread.join(timeout=1)
+
+    assert report.responses[0].replay_success
+    assert len(seen) == len(redirected) == 1
+    assert seen[0][0] == "/redirect"
+    assert seen[0][1]["X-Identity-Proof"] == "synthetic-proof"
+    assert redirected[0][0] == "/200"
+    assert "X-Identity-Proof" not in redirected[0][1]
+    assert report.redirect_decisions[0]["cross_origin"] is True
+    assert report.redirect_decisions[0]["credentials_removed"] is True
+
+
+def test_cross_origin_redirect_cannot_retain_request_body(http_lab):
+    base, seen, server = http_lab
+    port = server.server_port
+    server.redirect_status = 307
+    server.redirect_target = f"http://replay.test:{port}/200"
+    replayer = StandardHttpReplayer(
+        DestinationGuard([base.removeprefix("http://"), f"replay.test:{port}"]), _scope(lambda _: ["127.0.0.1"])
+    )
+    request = _request(
+        f"{base}/redirect",
+        method="POST",
+        headers={"Content-Type": "application/json"},
+        body='{"password":"synthetic"}',
+    )
+    with pytest.raises(DestinationViolationError, match="cross-origin"):
+        replayer.send(request, ReplayBudget())
+    assert len(seen) == 1
+
+
+def test_cross_origin_redirect_allows_body_dropping_method_rewrite(http_lab):
+    base, seen, server = http_lab
+    port = server.server_port
+    server.redirect_status = 303
+    server.redirect_target = f"http://replay.test:{port}/200"
+    replayer = StandardHttpReplayer(
+        DestinationGuard([base.removeprefix("http://"), f"replay.test:{port}"]), _scope(lambda _: ["127.0.0.1"])
+    )
+    response = replayer.send(
+        _request(
+            f"{base}/redirect",
+            method="POST",
+            headers={
+                "Content-Type": "application/json",
+                "Signature": "synthetic-signature",
+            },
+            body='{"value":"synthetic"}',
+        ),
+        ReplayBudget(),
+    )
+    assert response.replay_success
+    assert [path for path, _headers in seen] == ["/redirect", "/200"]
+    assert "Content-Type" not in seen[1][1]
+    assert "Signature" not in seen[1][1]
+
+
+def test_tls_verifies_trusted_certificate_for_original_host(https_lab):
+    base, seen, material = https_lab
+    client_context = ssl.create_default_context(cafile=material["ca"])
+    client_context.minimum_version = ssl.TLSVersion.TLSv1_2
+    response = StandardHttpReplayer(
+        DestinationGuard([base.removeprefix("https://")]), _scope(), tls_context=client_context
+    ).send(_request(f"{base}/200"), ReplayBudget(timeout_seconds=1))
+    assert response.replay_success and response.status_code == 200
+    assert len(seen) == 1
+
+
+@pytest.mark.parametrize("failure", ["hostname", "trust"])
+def test_tls_rejects_hostname_mismatch_and_untrusted_certificate(https_lab, failure):
+    base, seen, material = https_lab
+    port = base.rsplit(":", 1)[1]
+    if failure == "hostname":
+        url = f"https://replay.test:{port}/200"
+        client_context = ssl.create_default_context(cafile=material["ca"])
+    else:
+        url = f"{base}/200"
+        client_context = ssl.create_default_context(cafile=material["untrusted_ca"])
+    client_context.minimum_version = ssl.TLSVersion.TLSv1_2
+    response = StandardHttpReplayer(
+        DestinationGuard([url.removeprefix("https://").split("/", 1)[0]]),
+        _scope(lambda _: ["127.0.0.1"]),
+        tls_context=client_context,
+    ).send(_request(url), ReplayBudget(timeout_seconds=1))
+    assert not response.replay_success and response.status_code == 0
+    assert response.error_message == "SSLCertVerificationError"
+    assert seen == []
+
+
+def test_tls_context_cannot_disable_certificate_verification():
+    insecure_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    insecure_context.check_hostname = False
+    insecure_context.verify_mode = ssl.CERT_NONE
+    with pytest.raises(ReplayAuthorizationError, match="certificate and hostname verification"):
+        StandardHttpReplayer(DestinationGuard(["replay.test"]), _scope(), tls_context=insecure_context)
+
+
+def test_default_tls_context_has_explicit_tls_1_2_minimum():
+    replayer = StandardHttpReplayer(DestinationGuard(["replay.test"]), _scope())
+
+    assert replayer.tls_context.minimum_version == ssl.TLSVersion.TLSv1_2
+
+
+@pytest.mark.parametrize(
+    "minimum_version",
+    [ssl.TLSVersion.MINIMUM_SUPPORTED, ssl.TLSVersion.TLSv1_1],
+)
+def test_tls_context_rejects_unsafe_minimum_versions(minimum_version):
+    unsafe_context = ssl.create_default_context()
+    unsafe_context.minimum_version = minimum_version
+
+    with pytest.raises(ReplayAuthorizationError, match="TLS 1.2 or newer"):
+        StandardHttpReplayer(DestinationGuard(["replay.test"]), _scope(), tls_context=unsafe_context)
+
+    assert unsafe_context.minimum_version == minimum_version
+
+
+def test_tls_context_accepts_stronger_minimum_without_mutation():
+    stronger_context = ssl.create_default_context()
+    stronger_context.minimum_version = ssl.TLSVersion.TLSv1_3
+
+    replayer = StandardHttpReplayer(DestinationGuard(["replay.test"]), _scope(), tls_context=stronger_context)
+
+    assert replayer.tls_context is stronger_context
+    assert stronger_context.minimum_version == ssl.TLSVersion.TLSv1_3
+
+
+def test_tls_context_mutation_is_rejected_before_network_use():
+    resolved = []
+    supplied_context = ssl.create_default_context()
+    supplied_context.minimum_version = ssl.TLSVersion.TLSv1_2
+    replayer = StandardHttpReplayer(
+        DestinationGuard(["replay.test"]),
+        _scope(lambda host: resolved.append(host) or ["127.0.0.1"]),
+        tls_context=supplied_context,
+    )
+    supplied_context.minimum_version = ssl.TLSVersion.MINIMUM_SUPPORTED
+
+    with pytest.raises(ReplayAuthorizationError, match="TLS 1.2 or newer"):
+        replayer.send(_request("https://replay.test/"), ReplayBudget(timeout_seconds=1))
+
+    assert resolved == []
+
+
+def test_body_deadline_is_aggregate_and_returns_no_false_success(http_lab):
+    base, seen, _ = http_lab
+    started = time.monotonic()
+    response = StandardHttpReplayer(DestinationGuard([base.removeprefix("http://")]), _scope()).send(
+        _request(f"{base}/slow"), ReplayBudget(timeout_seconds=0.05)
+    )
+    assert time.monotonic() - started < 0.25
+    assert not response.replay_success and response.status_code == 0
+    assert response.error_message == "TimeoutError" and len(seen) == 1
+
+
+def test_resolver_deadline_cannot_dispatch_late_credentials(http_lab):
+    base, seen, _ = http_lab
+    port = base.rsplit(":", 1)[1]
+    finished = threading.Event()
+
+    def resolve(_):
+        time.sleep(0.2)
+        finished.set()
+        return ["127.0.0.1"]
+
+    started = time.monotonic()
+    response = StandardHttpReplayer(DestinationGuard([f"replay.test:{port}"]), _scope(resolve)).send(
+        _request(f"http://replay.test:{port}/200", headers={"Authorization": "Bearer synthetic"}),
+        ReplayBudget(timeout_seconds=0.04),
+    )
+    assert time.monotonic() - started < 0.15
+    assert not response.replay_success and response.error_message == "TimeoutError"
+    assert finished.wait(1)
+    time.sleep(0.02)
+    assert seen == []
+
+
+@pytest.mark.parametrize(
+    "headers",
+    [
+        {"Host": "other.test"},
+        {"Transfer-Encoding": "chunked"},
+        {"Content-Length": "8"},
+        {"X-One": "a", "x-one": "b"},
+        {"X-Test": "bad\r\nInjected: value"},
+    ],
+)
+def test_unsafe_headers_rejected_before_dispatch(http_lab, headers):
+    base, seen, _ = http_lab
+    with pytest.raises(ReplayAuthorizationError):
+        StandardHttpReplayer(DestinationGuard([base.removeprefix("http://")]), _scope()).send(
+            _request(f"{base}/200", headers=headers), ReplayBudget(timeout_seconds=1)
+        )
+    assert seen == []
+
+
+@pytest.mark.parametrize(
+    "url,allowed,expected",
+    [
+        ("http://[::1]:8123/", ["[::1]:8123"], True),
+        ("http://[::1]:8124/", ["[::1]:8123"], False),
+        ("http://name.test:bad/", ["name.test"], False),
+        ("http://user:password@name.test/", ["name.test"], False),
+        ("http://name.test\n/", ["name.test"], False),
+        ("http://name.test:0/", ["name.test"], False),
+    ],
+)
+def test_destination_authorities_are_unambiguous(url, allowed, expected):
+    assert DestinationGuard(allowed).is_destination_allowed(url) is expected
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("max_requests", True),
+        ("max_requests", 1.5),
+        ("timeout_seconds", float("nan")),
+        ("timeout_seconds", float("inf")),
+        ("timeout_seconds", True),
+        ("rate_limit_rps", float("nan")),
+        ("rate_limit_rps", 1e-300),
+        ("max_redirect_hops", -1),
+        ("max_redirect_hops", 1.2),
+        ("max_websocket_frames", True),
+    ],
+)
+def test_invalid_budgets_rejected_before_preview(field, value):
+    with pytest.raises(ReplayBudgetExceededError):
+        preview_replay_session(
+            [_request("http://example.test/")], ["example.test"], replace(ReplayBudget(), **{field: value})
+        )
+
+
+def test_budget_deserialization_does_not_coerce_invalid_types():
+    budget = ReplayBudget.from_dict({"max_requests": True})
+    with pytest.raises(ReplayBudgetExceededError):
+        preview_replay_session([], ["example.test"], budget)
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        "request",
+        "credentials",
+        "cookies",
+        "session_metadata",
+        "isolation",
+        "destinations",
+        "requests",
+        "hops",
+        "timeout",
+        "rate",
+        "frames",
+    ],
+)
+def test_approved_wire_session_and_every_budget_are_bound(tmp_path, change):
+    requests = [_request("https://replay.test/200", session_id="owner", role_id="owner")]
+    sessions = [
+        SessionContext(
+            session_id="owner",
+            role_id="owner",
+            auth_mechanism=AuthenticationMechanism(auth_type="bearer", token_name="Authorization", location="header"),
+        )
+    ]
+    bindings = {"owner": [{"reference": "credential-one", "header": "Authorization"}]}
+    destinations = ["replay.test", "second.test"]
+    budget = ReplayBudget(max_requests=1, timeout_seconds=0.6, rate_limit_rps=100)
+    plan = _plan(requests, destinations, budget, sessions, session_credential_bindings=bindings)
+    auth_id, approval = _authority(tmp_path, plan)
+    if change == "request":
+        requests = [replace(requests[0], query_parameters={"changed": "true"})]
+    elif change == "credentials":
+        bindings = {"owner": [{"reference": "credential-two", "header": "Authorization"}]}
+    elif change == "cookies":
+        sessions = [replace(sessions[0], cookies={"session": "synthetic-cookie"})]
+    elif change == "session_metadata":
+        sessions = [
+            replace(
+                sessions[0],
+                auth_mechanism=replace(sessions[0].auth_mechanism, token_name="X-Authorization"),
+            )
+        ]
+    elif change == "isolation":
+        sessions = [replace(sessions[0], is_isolated="false")]
+    elif change == "destinations":
+        destinations = ["replay.test", "third.test"]
+    else:
+        field, value = {
+            "requests": ("max_requests", 2),
+            "hops": ("max_redirect_hops", 4),
+            "timeout": ("timeout_seconds", 0.7),
+            "rate": ("rate_limit_rps", 101),
+            "frames": ("max_websocket_frames", 11),
+        }[change]
+        budget = replace(budget, **{field: value})
+    resolved = []
+    with pytest.raises(ReplayAuthorizationError):
+        _execute(
+            plan,
+            auth_id,
+            approval,
+            requests,
+            destinations,
+            budget,
+            sessions,
+            _scope(lambda h: resolved.append(h) or ["127.0.0.1"]),
+            session_credential_bindings=bindings,
+        )
+    assert resolved == [] and approval.consume_calls == []
+
+
+@pytest.mark.parametrize(
+    ("request_url", "destinations", "malformed_destinations"),
+    [
+        ("https://other.test/200", ["other.test"], ["alice:password@other.test"]),
+        (
+            "https://replay.test/200",
+            ["replay.test"],
+            ["replay.test", "alice:password@other.test"],
+        ),
+        ("https://other.test/200", ["other.test"], ["[private-token]"]),
+        ("https://replay.test/200", ["replay.test"], ["replay.test", "[private-token]"]),
+        ("https://other.test/200", ["other.test"], ["2130706433"]),
+        ("https://replay.test/200", ["replay.test"], ["replay.test", "2130706433"]),
+        ("https://replay.test/200", ["replay.test"], ["replay.test", "0x7f000001"]),
+        ("https://replay.test/200", ["replay.test"], ["replay.test", "0x7f.0.0.1"]),
+        (
+            "https://replay.test/200",
+            ["replay.test"],
+            ["replay.test", f"api.example.test:{_OVERSIZED_DECIMAL_PORT}"],
+        ),
+        (
+            "https://replay.test/200",
+            ["replay.test"],
+            ["replay.test", f"127.0.0.1:{_OVERSIZED_DECIMAL_PORT}"],
+        ),
+        (
+            "https://replay.test/200",
+            ["replay.test"],
+            ["replay.test", f"[::1]:{_OVERSIZED_DECIMAL_PORT}"],
+        ),
+    ],
+)
+def test_malformed_allowlist_item_fails_before_io_or_approval_consumption(
+    tmp_path, request_url, destinations, malformed_destinations
+):
+    requests = [_request(request_url)]
+    budget = ReplayBudget(max_requests=1, timeout_seconds=1, rate_limit_rps=0)
+    plan = _plan(requests, destinations, budget)
+    auth_id, approval = _authority(tmp_path, plan)
+    resolved = []
+    original_destinations = list(malformed_destinations)
+
+    with pytest.raises(DestinationViolationError) as raised:
+        _execute(
+            plan,
+            auth_id,
+            approval,
+            requests,
+            malformed_destinations,
+            budget,
+            scope=_scope(lambda host: resolved.append(host) or ["127.0.0.1"]),
+        )
+
+    formatted = "".join(traceback.format_exception(type(raised.value), raised.value, raised.value.__traceback__))
+    assert str(raised.value) == "destination allowlist contains an invalid entry"
+    assert malformed_destinations[-1] not in formatted
+    assert malformed_destinations == original_destinations
+    assert resolved == []
+    assert approval.consume_calls == []
+
+
+def test_caller_mutation_during_approval_consumption_cannot_change_wire_behavior(http_lab, tmp_path, monkeypatch):
+    base, seen, _ = http_lab
+    request = _request(
+        f"{base}/200",
+        session_id="owner",
+        role_id="owner",
+        headers={"X-Snapshot": "before"},
+        query_parameters={"ordinary": "before"},
+    )
+    session = SessionContext(
+        session_id="owner",
+        role_id="owner",
+        headers={"X-Context": "before"},
+        auth_mechanism=AuthenticationMechanism(
+            auth_type="bearer",
+            token_name="Authorization",
+            location="header",
+        ),
+    )
+    requests = [request]
+    sessions = [session]
+    destinations = [base.removeprefix("http://")]
+    budget = ReplayBudget(max_requests=1, timeout_seconds=1, rate_limit_rps=0)
+    bindings = {
+        "owner": [
+            {
+                "reference": "credential-owner",
+                "header": "Authorization",
+            }
+        ]
+    }
+    plan = _plan(
+        requests,
+        destinations,
+        budget,
+        sessions,
+        session_credential_bindings=bindings,
+        transport="laboratory",
+    )
+    scope_guard = _scope()
+    worker, auth_id, approval = loopback_worker(
+        tmp_path,
+        monkeypatch,
+        plan,
+        scope_guard,
+        {"credential-owner": "Bearer synthetic-before"},
+    )
+    consume_authorization = approval.consume_authorization
+
+    def mutate_then_consume(authorization_id, action_plan, worker_identity):
+        request.headers["X-Snapshot"] = "after"
+        request.query_parameters["ordinary"] = "after"
+        session.headers["X-Context"] = "after"
+        session.auth_mechanism = AuthenticationMechanism(
+            auth_type="custom",
+            token_name="X-Changed-Token",
+            location="header",
+        )
+        bindings["owner"][0]["reference"] = "credential-after"
+        destinations[:] = ["unapproved.test"]
+        budget.timeout_seconds = float("nan")
+        return consume_authorization(authorization_id, action_plan, worker_identity)
+
+    approval.consume_authorization = mutate_then_consume
+    report = _execute(
+        plan,
+        auth_id,
+        approval,
+        requests,
+        destinations,
+        budget,
+        sessions,
+        scope=scope_guard,
+        worker=worker,
+        session_credential_bindings=bindings,
+        transport="laboratory",
+    )
+    assert report.responses[0].replay_success
+    assert report.allowed_destinations == [base.removeprefix("http://")]
+    assert report.budget.timeout_seconds == 1
+    assert seen[0][0] == "/200?ordinary=before"
+    assert seen[0][1]["X-Snapshot"] == "before"
+    assert seen[0][1]["X-Context"] == "before"
+    assert seen[0][1]["Authorization"] == "Bearer synthetic-before"
+
+
+def test_signed_approval_consumed_once_and_fail_fast_releases_receipt(http_lab, tmp_path, monkeypatch):
+    base, seen, _ = http_lab
+    requests = [_request(f"{base}/drop"), replace(_request(f"{base}/200"), request_id="request-two")]
+    destinations = [base.removeprefix("http://")]
+    budget = ReplayBudget(max_requests=2, timeout_seconds=1, rate_limit_rps=0)
+    plan = _plan(requests, destinations, budget, transport="laboratory")
+    scope_guard = _scope()
+    worker, auth_id, approval = loopback_worker(tmp_path, monkeypatch, plan, scope_guard)
+    report = _execute(
+        plan,
+        auth_id,
+        approval,
+        requests,
+        destinations,
+        budget,
+        scope=scope_guard,
+        worker=worker,
+        transport="laboratory",
+    )
+    # A peer drop proves the laboratory received the request. Without an
+    # authenticated result, the worker records an uncertain, non-repeatable
+    # dispatch instead of incorrectly claiming that nothing was sent.
+    assert len(seen) == 1 and report.total_dispatched == 1 and report.total_failed == 1
+    assert report.application_context["execution_status"] == "uncertain"
+    assert report.execution_evidence["attempted_operation_ids"] == ["request-one"]
+    assert report.cleanup_receipt and report.cleanup_receipt["status"] == "completed"
+    assert not approval._issued_receipts
+    assert len(approval.consume_calls) == 1
+    with pytest.raises(Exception, match="consum|already contains execution run"):
+        _execute(
+            plan,
+            auth_id,
+            approval,
+            requests,
+            destinations,
+            budget,
+            scope=scope_guard,
+            worker=worker,
+            transport="laboratory",
+        )
+    assert len(seen) == 1
+    assert len(approval.consume_calls) == 1
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        "opaque-private-value",
+        '{"custom_field":"opaque-private-value"}',
+        "[123456789]",
+        "[REDACTED:0123456789ab]opaque-private-value",
+    ],
+)
+def test_serialized_payloads_are_digest_only_without_mutating_wire_payload(http_lab, payload):
+    base, _, server = http_lab
+    request = _request(f"{base}/200", method="POST", body=payload)
+    report_request = request.to_dict()
+    assert report_request["body"].startswith("[REDACTED:")
+    assert report_request["body"] != payload
+    assert request.body == payload
+    response = StandardHttpReplayer(DestinationGuard([base.removeprefix("http://")]), _scope()).send(
+        request, ReplayBudget(timeout_seconds=1)
+    )
+    assert response.replay_success
+    assert server.received_bodies == [payload.encode()]
+    observed = ReplayResponse(
+        request_id=request.request_id, status_code=200, body_excerpt=payload, websocket_replies=[payload]
+    )
+    assert observed.to_dict()["body_excerpt"] == report_request["body"]
+    assert observed.to_dict()["websocket_replies"] == [report_request["body"]]
+    request.graphql_query = payload
+    request.websocket_messages = [payload]
+    assert request.to_dict()["graphql_query"] == report_request["body"]
+    assert request.to_dict()["websocket_messages"] == [report_request["body"]]
+    assert observed.body_excerpt == payload

@@ -54,6 +54,11 @@
         "joins": {
           "type": "array",
           "items": { "type": "string" }
+        },
+        "join_keys": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" }
         }
       }
     },
@@ -72,7 +77,8 @@
       "type": "string"
     },
     "identity_scope": {
-      "type": "string"
+      "type": "string",
+      "enum": ["global", "user", "host"]
     },
     "expected_signal": {
       "type": "string"

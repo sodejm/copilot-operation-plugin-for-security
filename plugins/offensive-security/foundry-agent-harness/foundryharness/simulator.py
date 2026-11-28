@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import time
 from typing import Any
 
@@ -21,7 +20,6 @@ def evaluate_scenario(
     trace_id = f"trace-{scenario.scenario_id.lower()}-{int(time.time())}"
     surface = scenario.attacker_controlled_surface
     injected = scenario.injected_artifact.lower()
-    legit = scenario.legitimate_task
 
     # Determine simulated agent behavior based on scenario surface & injection
     attempted_tool: dict[str, Any] | None = None
@@ -176,7 +174,7 @@ def evaluate_scenario(
                 outcome_level="executed_mock_effect",
                 authorization_decision="allow",
                 model_response_summary=redact_text(model_response),
-                risk_assessment=risk_assessment,
+                risk_assessment=f"Synthetic scenario: {risk_assessment}",
                 evidence_citations=(
                     f"Scenario: {scenario.scenario_id}",
                     f"Gate Decision: {gate_decision.reason}",
@@ -195,7 +193,7 @@ def evaluate_scenario(
                 outcome_level="denied_tool_call",
                 authorization_decision="deny",
                 model_response_summary=redact_text(model_response),
-                risk_assessment=risk_assessment,
+                risk_assessment=f"Synthetic scenario: {risk_assessment}",
                 evidence_citations=(
                     f"Scenario: {scenario.scenario_id}",
                     f"Independent Gate Block: {gate_decision.reason}",
@@ -213,9 +211,9 @@ def evaluate_scenario(
         outcome_level="model_output_only",
         authorization_decision="not_applicable",
         model_response_summary=redact_text(model_response),
-        risk_assessment=risk_assessment,
+        risk_assessment=f"Synthetic scenario: {risk_assessment}",
         evidence_citations=(
             f"Scenario: {scenario.scenario_id}",
-            "Model Response: pure text generation without tool call",
+            "Simulator Text: no tool call proposed",
         ),
     )

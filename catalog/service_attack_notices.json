@@ -1,0 +1,275 @@
+{
+  "schema_version": "cops.service-attack-notices/v1",
+  "catalog_version": "2026.10.3",
+  "notices": [
+    {
+      "id": "COPS-SAN-2026-001",
+      "title": "Storm-2570 post-compromise remote access and service discovery behavior",
+      "status": "active",
+      "publication_date": "2026-09-24",
+      "observation_date": null,
+      "observation_context": "Microsoft reports tracking this actor since April 2025, but the cited research does not establish a first calendar date for each behavior.",
+      "review_date": "2026-10-14",
+      "review_due": "2026-11-14",
+      "lifecycle": {
+        "state": "active",
+        "superseded_by": null,
+        "withdrawn_reason": null
+      },
+      "sources": [
+        {
+          "type": "vendor_security_research",
+          "url": "https://www.microsoft.com/en-us/security/blog/2026/09/24/beyond-ransomware-tracking-storm-2570-consistent-tradecraft-across-deployments/",
+          "published_on": "2026-09-24"
+        }
+      ],
+      "scope": {
+        "operating_systems": [
+          "Microsoft Windows"
+        ],
+        "products": [
+          {
+            "name": "Microsoft Windows",
+            "affected_versions": [],
+            "fixed_versions": []
+          }
+        ]
+      },
+      "services": [
+        {
+          "name": "Remote Desktop",
+          "transports": [
+            "tcp"
+          ]
+        },
+        {
+          "name": "SMB",
+          "transports": [
+            "tcp"
+          ]
+        },
+        {
+          "name": "Remote monitoring and management",
+          "transports": [
+            "tcp"
+          ]
+        }
+      ],
+      "prerequisites": [
+        {
+          "key": "post_compromise_remote_access_or_lateral_movement_observed",
+          "description": "Corroborated post-compromise RDP, SMB, or remote-management behavior is observed in the asset context."
+        }
+      ],
+      "attack_mappings": [
+        {
+          "technique_id": "T1046",
+          "rationale": "The source reports NetScan or Nmap service discovery; apply this mapping only when that specific behavior is observed.",
+          "required_evidence": [
+            "netscan_or_nmap_service_discovery_observed"
+          ]
+        }
+      ],
+      "defensive": {
+        "detection": [
+          "Correlate authenticated RDP, SMB, remote-management, process, and endpoint telemetry after a confirmed compromise.",
+          "Look for observed NetScan or Nmap activity before applying the T1046 mapping."
+        ],
+        "remediation": [
+          "Contain the confirmed compromise under the incident-response plan and review remote-access credentials and tooling."
+        ],
+        "safe_applicability": "This is a behavior notice, not a vulnerability notice. Microsoft reported post-compromise behavior and explicitly left initial access unconfirmed.",
+        "safe_next_action": "Validate the observed post-compromise behavior and its timeline with endpoint and authentication evidence; do not infer initial access from an exposed RDP or SMB service."
+      },
+      "limitations": [
+        "The source does not establish RDP, SMB, or remote-management software as an initial access point or vulnerability.",
+        "The source does not provide an affected-version allowlist, so this record remains unknown in automated asset assessment and cannot become a candidate.",
+        "An open port or enabled service alone is not campaign attribution or evidence of compromise."
+      ]
+    },
+    {
+      "id": "COPS-SAN-2026-002",
+      "title": "Dell RecoverPoint for VMs CVE-2026-22769",
+      "status": "active",
+      "publication_date": "2026-02-17",
+      "observation_date": null,
+      "observation_context": "Google reports observed exploitation since at least mid-2024; the cited sources do not establish an exact first exploitation date or the initial access vector.",
+      "review_date": "2026-10-14",
+      "review_due": "2026-11-14",
+      "lifecycle": {
+        "state": "active",
+        "superseded_by": null,
+        "withdrawn_reason": null
+      },
+      "sources": [
+        {
+          "type": "vendor_advisory",
+          "url": "https://www.dell.com/support/kbdoc/en-us/000426773/dsa-2026-079",
+          "published_on": "2026-02-17"
+        },
+        {
+          "type": "vendor_advisory",
+          "url": "https://www.dell.com/support/kbdoc/en-us/000501664/dsa-2026-096-security-update-for-dell-recoverpoint-for-virtual-machines-multiple-vulnerabilities",
+          "published_on": "2026-08-19"
+        },
+        {
+          "type": "incident_research",
+          "url": "https://cloud.google.com/blog/topics/threat-intelligence/unc6201-exploiting-dell-recoverpoint-zero-day",
+          "published_on": "2026-02-17"
+        }
+      ],
+      "scope": {
+        "operating_systems": [
+          "Dell RecoverPoint for VMs appliance"
+        ],
+        "products": [
+          {
+            "name": "Dell RecoverPoint for VMs",
+            "affected_versions": [
+              "5.3 SP2",
+              "5.3 SP3",
+              "5.3 SP4",
+              "5.3 SP4 P1",
+              "6.0",
+              "6.0 SP1",
+              "6.0 SP1 P1",
+              "6.0 SP1 P2",
+              "6.0 SP2",
+              "6.0 SP2 P1",
+              "6.0 SP3",
+              "6.0 SP3 P1",
+              "6.0.3",
+              "6.0.3.1"
+            ],
+            "fixed_versions": [
+              "6.0.3.1 HF1",
+              "6.1"
+            ]
+          }
+        ]
+      },
+      "services": [
+        {
+          "name": "Tomcat Manager",
+          "transports": [
+            "tcp"
+          ]
+        }
+      ],
+      "prerequisites": [
+        {
+          "key": "tomcat_manager_hard_coded_credential_risk_context",
+          "description": "The asset context establishes the RecoverPoint appliance Tomcat Manager configuration and the advisory's hard-coded credential risk context."
+        }
+      ],
+      "attack_mappings": [
+        {
+          "technique_id": "T1210",
+          "rationale": "The incident research reports lateral movement by exploiting a RecoverPoint for VMs appliance; apply this mapping only when lateral exploitation of the scoped appliance is independently observed.",
+          "required_evidence": [
+            "recoverpoint_lateral_exploitation_observed"
+          ]
+        }
+      ],
+      "defensive": {
+        "detection": [
+          "Identify the exact RecoverPoint for VMs product and version, then review Tomcat Manager access and appliance authentication telemetry."
+        ],
+        "remediation": [
+          "Follow Dell DSA-2026-079's version-specific path to 6.0.3.1 HF1 or its remediation script, or the DSA-2026-096 path to 6.1; verify applied remediation and restrict management reachability while pending."
+        ],
+        "safe_applicability": "Applicability is limited to the explicitly allowlisted Dell RecoverPoint for VMs releases with reachable and configured Tomcat Manager context.",
+        "safe_next_action": "Confirm the appliance inventory and configuration, then open a targeted investigation against the Dell advisory using authorized product-specific procedures."
+      },
+      "limitations": [
+        "A candidate is not a vulnerability or exploitability finding.",
+        "This notice does not apply to arbitrary Linux systems or unrelated Apache Tomcat installations.",
+        "Tomcat Manager reachability without exact product, version, and configuration evidence is insufficient.",
+        "The exact-version allowlist covers Dell's named releases; other legacy and patch levels remain unknown even where Dell describes a broader affected range.",
+        "A remediation script may address the issue without changing the version string; this matcher cannot verify that script or a patch's installation."
+      ]
+    },
+    {
+      "id": "COPS-SAN-2026-003",
+      "title": "Apple Screen Sharing CVE-2026-65400",
+      "status": "active",
+      "publication_date": "2026-08-06",
+      "observation_date": null,
+      "observation_context": "The cited Apple advisory and original research do not establish exploitation in the wild or an exact first observation date.",
+      "review_date": "2026-10-14",
+      "review_due": "2026-11-14",
+      "lifecycle": {
+        "state": "active",
+        "superseded_by": null,
+        "withdrawn_reason": null
+      },
+      "sources": [
+        {
+          "type": "vendor_advisory",
+          "url": "https://support.apple.com/en-us/148170",
+          "published_on": "2026-08-06"
+        },
+        {
+          "type": "original_research",
+          "url": "https://calif.io/research/password-fiction",
+          "published_on": "2026-08-10"
+        }
+      ],
+      "scope": {
+        "operating_systems": [
+          "macOS Tahoe"
+        ],
+        "products": [
+          {
+            "name": "macOS Tahoe",
+            "affected_versions": [
+              "26.5.2",
+              "26.6"
+            ],
+            "fixed_versions": [
+              "26.6.1"
+            ]
+          }
+        ]
+      },
+      "services": [
+        {
+          "name": "Screen Sharing",
+          "transports": [
+            "tcp"
+          ]
+        }
+      ],
+      "prerequisites": [
+        {
+          "key": "screen_sharing_enabled",
+          "description": "Screen Sharing is confirmed enabled in the asset configuration."
+        }
+      ],
+      "attack_mappings": [
+        {
+          "technique_id": "T1210",
+          "rationale": "The original research describes unauthorized access through reachable Screen Sharing; apply this mapping only when exploitation for lateral movement between hosts is independently observed.",
+          "required_evidence": [
+            "screen_sharing_lateral_exploitation_observed"
+          ]
+        }
+      ],
+      "defensive": {
+        "detection": [
+          "Inventory the exact macOS Tahoe and Screen Sharing versions and confirm whether Screen Sharing is enabled and reachable."
+        ],
+        "remediation": [
+          "Update macOS Tahoe to 26.6.1 or later as directed by Apple and disable or restrict Screen Sharing when it is not required."
+        ],
+        "safe_applicability": "Applicability requires explicitly allowlisted Tahoe 26.5.2 or 26.6 context plus enabled and reachable Screen Sharing.",
+        "safe_next_action": "Verify the exact OS and Screen Sharing configuration, then follow Apple's update guidance."
+      },
+      "limitations": [
+        "A candidate is not a vulnerability or exploitability finding.",
+        "Other macOS versions remain unknown unless a primary source explicitly adds them.",
+        "Service reachability without exact product, version, and enabled-state evidence is insufficient."
+      ]
+    }
+  ]
+}

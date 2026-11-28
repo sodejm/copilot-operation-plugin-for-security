@@ -5,8 +5,9 @@ from __future__ import annotations
 import io
 import json
 from pathlib import Path
-import pytest
+
 import jsonschema
+import pytest
 
 from cops.authorization import (
     AuthorizationDeniedError,
@@ -86,11 +87,26 @@ def test_route_identity_governance():
     assert decision.triad_plan.skeptic.specialist_id == "cops-redteam-operator"
 
 
+@pytest.mark.parametrize(
+    "query",
+    [
+        "Analyze an Active Directory privilege path from this approved offline export",
+        "Review an Active Directory trust boundary in this approved offline export",
+    ],
+)
+def test_route_active_directory_path_and_boundary(query):
+    """Full Active Directory phrases select the offline AD specialist."""
+    decision = route_request(query)
+    assert decision.primary_profile.id == "cops-ad-specialist"
+    assert decision.interactive_authorization_required
+
+
 def test_route_fallback():
-    """Verify that an ambiguous query defaults safely to cops-soc-analyst triage."""
+    """Verify that an ambiguous query asks for clarification without a silent fallback."""
     decision = route_request("hello, what should we do today?")
-    assert decision.primary_profile.id == "cops-soc-analyst"
-    assert decision.confidence < 0.50
+    assert decision.status == "clarification_required"
+    assert decision.primary_profile is None
+    assert decision.confidence < 0.65
 
 
 def test_direct_profile_mention():

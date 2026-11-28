@@ -1,9 +1,11 @@
 """Tenant-qualified observations, provenance, bounded work, and scope ancestry."""
 from __future__ import annotations
-from dataclasses import dataclass, field
+
 import hashlib
 import os
+from dataclasses import dataclass, field
 from pathlib import Path
+
 from .._runtime.cops.evidence.canonical import canonical, timestamp
 
 
@@ -196,7 +198,7 @@ class Graph:
                  "role_definitions": "role_definition", "directory_definitions": "directory_role",
                  "administrative_units": "administrative_unit", "federated_credentials": "federated_credential",
                  "lighthouse": "delegation", "scope_parents": "scope"}
-        observed = {l["record_id"]: l["observed_at"] for l in self.ledger}
+        observed = {entry["record_id"]: entry["observed_at"] for entry in self.ledger}
 
         def node(identity, tenant, kind, row):
             if identity not in nodes:

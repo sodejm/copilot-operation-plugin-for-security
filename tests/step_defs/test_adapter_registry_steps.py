@@ -12,7 +12,10 @@ scenarios("../../specs/features/tool_adapter_registry.feature")
 
 
 @pytest.fixture
-def context():
+def context(monkeypatch):
+    # Built-in execution definitions require Linux's descriptor-bound launch
+    # support.  These platform-independent scenarios exercise command assembly.
+    monkeypatch.setattr("cops.adapters.registry.sys.platform", "linux")
     return {}
 
 

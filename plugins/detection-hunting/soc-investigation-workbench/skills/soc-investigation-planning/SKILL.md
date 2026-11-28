@@ -1,6 +1,6 @@
 ---
 name: soc-investigation-planning
-description: Plan and resume a scoped SOC investigation across related signals, competing hypotheses, and evidence. Use when selecting or revising multi-step investigation work, ranking the next useful questions, or importing analyst observations. Delegate hunt design, KQL, telemetry correlation, and hunt qualification to the vendored Sentinel skills.
+description: "Use for requests to help me investigate a suspicious login. Plan and resume a scoped SOC investigation across related signals, competing hypotheses, and evidence. Use when selecting or revising multi-step investigation work, ranking the next useful questions, or importing analyst observations. Delegate hunt design, KQL, telemetry correlation, and hunt qualification to the vendored Sentinel skills."
 ---
 
 # SOC investigation planning

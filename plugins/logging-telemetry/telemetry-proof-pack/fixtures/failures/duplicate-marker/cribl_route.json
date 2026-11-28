@@ -1,0 +1,13 @@
+{
+  "route_id": "cribl-route-splunk-ent-01",
+  "pipeline": "pipeline-secops-enrichment",
+  "timestamp": "2026-10-01T12:00:08Z",
+  "status": "routed",
+  "synthetic_marker": "SYN-SPLUNK-TRACE-101",
+  "metrics": {
+    "in_bytes": 1024,
+    "out_bytes": 980,
+    "events_routed": 1,
+    "drop_rate": 0
+  }
+}

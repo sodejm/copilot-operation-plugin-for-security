@@ -13,7 +13,10 @@ sys.path.insert(0, str(ROOT))
 
 from cops.catalog import load_json, plugin_records  # noqa: E402
 from cops.prerequisites import (  # noqa: E402
-    PrerequisiteError, install_command, process_tools, validate_prerequisites,
+    PrerequisiteError,
+    install_command,
+    process_tools,
+    validate_prerequisites,
 )
 
 

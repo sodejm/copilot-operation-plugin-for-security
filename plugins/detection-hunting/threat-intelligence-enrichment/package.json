@@ -11,12 +11,12 @@
     "live_integration": "unverified"
   },
   "limitations": [
-    "Azure application IDs are validated locally but have no supported provider lookup.",
+    "Azure application IDs support only tenant service-principal lookup; this is not a threat verdict.",
     "TAXII complex STIX patterns and paginated collections are reported as incomplete.",
     "Standalone portable installation requires explicit packaging of the shared COPS connector SDK."
   ],
   "demo": {
-    "description": "Run synthetic, no-network normalization of a MISP attribute.",
+    "description": "Exercise injected MISP, TAXII, and Microsoft responses, cache replay, conflicts, pagination, and provider failure without network access.",
     "command": ["$PYTHON", "plugins/detection-hunting/threat-intelligence-enrichment/scripts/run_demo.py"],
     "timeout_seconds": 60
   },

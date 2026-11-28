@@ -1,0 +1,48 @@
+{
+  "schema_version": "cops.agent-mcp-auth-case/v1",
+  "case_id": "reusable-grant",
+  "title": "Reusable grant permits second authorized use",
+  "grant": "reusable-write",
+  "flow": "delegated",
+  "attempts": [
+    {
+      "principal": "principal-alice",
+      "agent": "agent-worker",
+      "downstream_service": "service-canary",
+      "audience": "mcp://auth-fixture",
+      "tenant": "tenant-contoso-01",
+      "resource": "res-canary",
+      "operation": "write",
+      "scopes": [
+        "canary:write"
+      ],
+      "depth": 1,
+      "tick": 1,
+      "tool": "canary/write"
+    },
+    {
+      "principal": "principal-alice",
+      "agent": "agent-worker",
+      "downstream_service": "service-canary",
+      "audience": "mcp://auth-fixture",
+      "tenant": "tenant-contoso-01",
+      "resource": "res-canary",
+      "operation": "write",
+      "scopes": [
+        "canary:write"
+      ],
+      "depth": 1,
+      "tick": 2,
+      "tool": "canary/write"
+    }
+  ],
+  "expected_decisions": [
+    "allowed",
+    "allowed"
+  ],
+  "expected_effect_count": 2,
+  "expected_reasons": [
+    "allowed",
+    "allowed"
+  ]
+}

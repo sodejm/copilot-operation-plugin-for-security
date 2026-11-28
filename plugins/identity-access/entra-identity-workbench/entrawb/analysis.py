@@ -32,18 +32,22 @@ PRIVILEGED_ROLES = {
 def analyze_identity_graph(graph: IdentityGraph) -> list[ReviewHypothesis]:
     """Inspect identity graph nodes and edges to generate prioritized review hypotheses."""
     hypotheses: list[ReviewHypothesis] = []
-    edges_by_source: dict[str, list[Any]] = {}
-    edges_by_target: dict[str, list[Any]] = {}
-
+    current_nodes = {node_id: node for node_id, node in graph.nodes.items() if graph.node_evidence(node)[0] == "fresh"}
+    current_edges = [edge for edge in graph.edges if graph.edge_evidence(edge)[0] == "fresh"]
+    owner_edges_by_target: dict[str, list[Any]] = {}
     for edge in graph.edges:
+        if edge.relation == "owns":
+            owner_edges_by_target.setdefault(edge.target_id, []).append(edge)
+    edges_by_source: dict[str, list[Any]] = {}
+
+    for edge in current_edges:
         edges_by_source.setdefault(edge.source_id, []).append(edge)
-        edges_by_target.setdefault(edge.target_id, []).append(edge)
 
     # 1. Broad App Consent Hypotheses
-    for edge in graph.edges:
+    for edge in current_edges:
         if edge.relation == "consented_api_permission":
             perm = edge.scope
-            principal = graph.nodes.get(edge.source_id)
+            principal = current_nodes.get(edge.source_id)
             principal_name = principal.display_name if principal else edge.source_id
             principal_type = principal.node_type if principal else "unknown"
 
@@ -78,12 +82,9 @@ def analyze_identity_graph(graph: IdentityGraph) -> list[ReviewHypothesis]:
                 )
 
     # 2. Ownerless Principals (App Registrations and Service Principals)
-    for node in graph.nodes.values():
+    for node in current_nodes.values():
         if node.node_type in ("app_registration", "service_principal"):
-            owner_edges = [
-                e for e in edges_by_target.get(node.node_id, [])
-                if e.relation == "owns"
-            ]
+            owner_edges = owner_edges_by_target.get(node.node_id, [])
             if not owner_edges:
                 # Check if this principal holds active privileges
                 outgoing = edges_by_source.get(node.node_id, [])
@@ -118,17 +119,16 @@ def analyze_identity_graph(graph: IdentityGraph) -> list[ReviewHypothesis]:
                 )
 
     # 3. Stale or Wildcard Federated Trust
-    for node in graph.nodes.values():
+    for node in current_nodes.values():
         if node.node_type == "federated_credential":
             is_wildcard = node.properties.get("is_wildcard", False)
             subject = str(node.properties.get("subject", ""))
-            fed_edges = [
-                e for e in edges_by_source.get(node.node_id, [])
-                if e.relation == "federated_with"
-            ]
+            fed_edges = [e for e in edges_by_source.get(node.node_id, []) if e.relation == "federated_with"]
             supp_edges = tuple(e.edge_id for e in fed_edges)
-            target_sp_id = fed_edges[0].target_id if fed_edges else "unknown"
-            target_sp = graph.nodes.get(target_sp_id)
+            if not fed_edges:
+                continue
+            target_sp_id = fed_edges[0].target_id
+            target_sp = current_nodes.get(target_sp_id)
             target_sp_name = target_sp.display_name if target_sp else target_sp_id
 
             if is_wildcard:
@@ -156,16 +156,18 @@ def analyze_identity_graph(graph: IdentityGraph) -> list[ReviewHypothesis]:
                 )
 
     # 4. Privileged Managed Identities
-    for node in graph.nodes.values():
+    for node in current_nodes.values():
         if node.node_type == "managed_identity":
             outgoing = edges_by_source.get(node.node_id, [])
             for e in outgoing:
                 if e.relation in ("assigned_azure_role", "assigned_directory_role"):
-                    target_res = graph.nodes.get(e.target_id)
+                    target_res = current_nodes.get(e.target_id)
                     target_name = target_res.display_name if target_res else e.target_id
                     role_or_scope = e.scope
 
-                    is_priv = any(r.lower() in role_or_scope.lower() or r.lower() in target_name.lower() for r in PRIVILEGED_ROLES)
+                    is_priv = any(
+                        r.lower() in role_or_scope.lower() or r.lower() in target_name.lower() for r in PRIVILEGED_ROLES
+                    )
                     if is_priv:
                         hypotheses.append(
                             ReviewHypothesis(
@@ -191,23 +193,27 @@ def analyze_identity_graph(graph: IdentityGraph) -> list[ReviewHypothesis]:
                         )
 
     # 5. Agent-to-Tool / Resource Privilege Mismatch
-    for node in graph.nodes.values():
+    for node in current_nodes.values():
         if node.node_type == "agent_identity":
             bp_id = str(node.properties.get("blueprint_id", ""))
-            blueprint = graph.nodes.get(bp_id)
+            blueprint = current_nodes.get(bp_id)
+            if blueprint is None:
+                continue
             intended_privilege = blueprint.properties.get("intended_privilege", "read_only") if blueprint else "unknown"
 
             # Check outgoing privileges assigned to the instantiated agent identity
             outgoing = edges_by_source.get(node.node_id, [])
             for e in outgoing:
                 if e.relation in ("assigned_azure_role", "assigned_directory_role", "consented_api_permission"):
-                    target_name = graph.nodes[e.target_id].display_name if e.target_id in graph.nodes else e.target_id
+                    target_name = (
+                        current_nodes[e.target_id].display_name if e.target_id in current_nodes else e.target_id
+                    )
                     scope_or_role = e.scope
 
                     # Check if agent has write/admin privileges conflicting with read-only expectation
-                    has_conflict = (
-                        intended_privilege in ("read_only", "low") and
-                        any(priv.lower() in scope_or_role.lower() or priv.lower() in target_name.lower() for priv in PRIVILEGED_ROLES)
+                    has_conflict = intended_privilege in ("read_only", "low") and any(
+                        priv.lower() in scope_or_role.lower() or priv.lower() in target_name.lower()
+                        for priv in PRIVILEGED_ROLES
                     )
 
                     if has_conflict or e.relation == "assigned_directory_role":
@@ -237,13 +243,15 @@ def analyze_identity_graph(graph: IdentityGraph) -> list[ReviewHypothesis]:
                         )
 
     # 6. Cross-Tenant Exposure
-    for node in graph.nodes.values():
+    for node in current_nodes.values():
         if node.tenant_id != graph.tenant_id:
             # Foreign user or guest
             outgoing = edges_by_source.get(node.node_id, [])
             for e in outgoing:
                 if e.relation in ("assigned_azure_role", "assigned_directory_role", "member_of"):
-                    target_name = graph.nodes[e.target_id].display_name if e.target_id in graph.nodes else e.target_id
+                    target_name = (
+                        current_nodes[e.target_id].display_name if e.target_id in current_nodes else e.target_id
+                    )
                     hypotheses.append(
                         ReviewHypothesis(
                             hypothesis_id=f"HYP-CROSS-TENANT-{e.edge_id}",

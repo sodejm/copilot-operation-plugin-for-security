@@ -7,6 +7,8 @@ description: Assess DNS/mDNS, SNMP, NTP, discovery utilities, RPC, LDAP, and Ker
 
 Execute authorized, protocol-specific assessments across infrastructure and identity-facing services (DNS, mDNS, SNMP, NTP, discovery utilities, RPC, LDAP, Kerberos) under strict Rules of Engagement and operational boundaries.
 
+**Execution boundary:** External live collection is unavailable through this skill and its public assessment APIs. Use the plan-bound service-validation laboratory for approved disposable loopback validation. Offline synthetic assessment remains available; destination allowlists and effect-classification flags do not authorize network execution.
+
 ## Core Capabilities
 
 1. **Protocol-Specific Bounded Collectors**:

@@ -1,0 +1,127 @@
+{
+  "schema_version": "cops.agent-mcp-auth-run/v1",
+  "environment": "local-synthetic-mcp-auth-fixture",
+  "assessment_authorization": {
+    "signed_receipt_verified": true,
+    "authorization_ref": "auth-3ca63363c4424cd8",
+    "plan_id": "plan-auth-approval-test",
+    "plan_digest": "3865cec876fd6397a8e9ba75d37b70604a7ef4216125e9ebc7d95890277b6048",
+    "engagement_id": "eng-auth-approval-test",
+    "worker_identity": "fixture-worker",
+    "consumed_once_for_batch": true
+  },
+  "test_identity": "synthetic-fixture-runner",
+  "cancelled": false,
+  "budget": {
+    "max_duration_seconds": 120,
+    "cleanup_reserve_seconds": 8,
+    "elapsed_seconds": 0.041,
+    "max_observed_fixture_bytes": 1048576,
+    "observed_output_bytes": 5575,
+    "accounting_scope": "received_response_bytes_and_new_ledger_bytes",
+    "stop_reason": null
+  },
+  "pending_case_ids": [],
+  "next_action": null,
+  "planned_case_count": 1,
+  "completed_case_count": 1,
+  "all_expectations_met": true,
+  "security_pass": true,
+  "results": [
+    {
+      "schema_version": "cops.agent-mcp-auth-result/v1",
+      "case_id": "wrong-audience",
+      "plan_digest": "3865cec876fd6397a8e9ba75d37b70604a7ef4216125e9ebc7d95890277b6048",
+      "test_identity": "synthetic-fixture-runner",
+      "grant_alias": "delegated-write",
+      "flow": "delegated",
+      "outcome": "pass",
+      "reason": "expectations_met",
+      "environment_verified": true,
+      "evidence_complete": true,
+      "security_pass": true,
+      "observations": [
+        {
+          "schema_version": "cops.agent-mcp-auth-observation/v1",
+          "case_id": "wrong-audience",
+          "attempt_id": "wrong-audience-1",
+          "request_id": "request-wrong-audience-1",
+          "canary_id": "canary-wrong-audience-1",
+          "plan_digest": "3865cec876fd6397a8e9ba75d37b70604a7ef4216125e9ebc7d95890277b6048",
+          "test_identity": "synthetic-fixture-runner",
+          "tool": "canary/write",
+          "peer": {
+            "schema_version": "cops.agent-mcp-auth-peer-observation/v1",
+            "peer_action": "trusted_forward",
+            "peer_identity": "trusted-forwarding-peer",
+            "attempt_id": "wrong-audience-1",
+            "request_id": "request-wrong-audience-1",
+            "canary_id": "canary-wrong-audience-1",
+            "plan_digest": "3865cec876fd6397a8e9ba75d37b70604a7ef4216125e9ebc7d95890277b6048",
+            "test_identity": "synthetic-fixture-runner",
+            "forwarded_request": {
+              "grant": "delegated-write",
+              "flow": "delegated",
+              "principal": "principal-alice",
+              "agent": "agent-worker",
+              "downstream_service": "service-canary",
+              "audience": "mcp://shadow",
+              "tenant": "tenant-contoso-01",
+              "resource": "res-canary",
+              "operation": "write",
+              "scopes": [
+                "canary:write"
+              ],
+              "depth": 1,
+              "tick": 1,
+              "attempt_id": "wrong-audience-1",
+              "request_id": "request-wrong-audience-1",
+              "canary_id": "canary-wrong-audience-1",
+              "plan_digest": "3865cec876fd6397a8e9ba75d37b70604a7ef4216125e9ebc7d95890277b6048",
+              "test_identity": "synthetic-fixture-runner",
+              "fault_mode": "none",
+              "case_id": "wrong-audience"
+            },
+            "forwarded_request_digest": "fc67c65a86a7bf1bfc5bf5951e5270d728a13c0cedae967e67566321abe91ba3",
+            "redacted": true
+          },
+          "target": {
+            "attempt_id": "wrong-audience-1",
+            "canary_id": "canary-wrong-audience-1",
+            "decision": "denied",
+            "phase": "authorization",
+            "plan_digest": "3865cec876fd6397a8e9ba75d37b70604a7ef4216125e9ebc7d95890277b6048",
+            "reason": "audience_mismatch",
+            "redacted": true,
+            "request_id": "request-wrong-audience-1",
+            "schema_version": "cops.agent-mcp-auth-decision/v1",
+            "server_identity": "fixed-target-authorization-service",
+            "target_grant_alias": "delegated-write",
+            "test_identity": "synthetic-fixture-runner"
+          },
+          "observed_effect_count": 0,
+          "expected_decision": "denied",
+          "expected_reason": "audience_mismatch",
+          "redacted": true
+        }
+      ],
+      "observed_effects": [],
+      "cleanup": {
+        "process_exit_observed": true,
+        "private_directory_removed": true
+      },
+      "redacted": true,
+      "expectation_met": true,
+      "revocation_window": null
+    }
+  ],
+  "redacted": true,
+  "source_snapshot": {
+    "verified": true,
+    "private_directory_removed": true,
+    "reason": null,
+    "failures": []
+  },
+  "execution_failure": null,
+  "recovery_actions": []
+}

@@ -86,6 +86,8 @@ def main(argv: list[str] | None = None) -> int:
                 rule = Rule.from_dict(data)
                 print(f"Validated rule: {rule.rule_id} ({rule.platform}) - {rule.name}")
                 count += 1
+            if count == 0:
+                raise QualityError(f"No rule definitions found in: {args.rules_dir}")
             print(f"\nAll {count} detection rules validated successfully.")
             return 0
 
@@ -97,29 +99,50 @@ def main(argv: list[str] | None = None) -> int:
 
             rule_files = {p.stem: p for p in args.rules_dir.glob("*.json")}
             fixture_files = {p.stem: p for p in args.fixtures_dir.glob("*.json")}
+            if not rule_files:
+                raise QualityError(f"No rule definitions found in: {args.rules_dir}")
+            if not fixture_files:
+                raise QualityError(f"No fixture suites found in: {args.fixtures_dir}")
+            missing_fixtures = sorted(rule_files.keys() - fixture_files.keys())
+            orphaned_fixtures = sorted(fixture_files.keys() - rule_files.keys())
+            if missing_fixtures or orphaned_fixtures:
+                raise QualityError(
+                    f"Rule/fixture mismatch: missing fixtures={missing_fixtures}; orphaned fixtures={orphaned_fixtures}"
+                )
 
-            print(f"Running Detection Quality Test Suite...")
-            print(f"{'Rule ID':<35} {'Platform':<15} {'Precision':<12} {'Recall':<10} {'Status'}")
-            print("-" * 85)
+            print("Running Detection Quality Test Suite...")
+            print(f"{'Rule ID':<35} {'Platform':<15} {'Precision':<12} {'Recall':<10} {'Errors':<8} {'Status'}")
+            print("-" * 93)
 
             all_passed = True
             for name, r_path in sorted(rule_files.items()):
-                f_path = fixture_files.get(name)
-                if not f_path:
-                    print(f"Warning: No matching fixture suite for {name}", file=sys.stderr)
-                    continue
+                f_path = fixture_files[name]
 
                 rule = Rule.from_dict(json.loads(r_path.read_text(encoding="utf-8")))
                 suite = FixtureSuite.from_dict(json.loads(f_path.read_text(encoding="utf-8")))
                 rep = evaluate_rule_suite(rule, suite)
 
-                prec = f"{rep['metrics']['precision_on_labeled_fixtures']*100:.1f}%"
-                rec = f"{rep['metrics']['recall_on_labeled_fixtures']*100:.1f}%"
-                status = "PASS" if rep["metrics"]["false_positives"] == 0 and rep["metrics"]["false_negatives"] == 0 else "REVIEW"
+                metrics = rep["metrics"]
+                precision = metrics["precision_on_labeled_fixtures"]
+                recall = metrics["recall_on_labeled_fixtures"]
+                prec = "N/A" if precision is None else f"{precision * 100:.1f}%"
+                rec = "N/A" if recall is None else f"{recall * 100:.1f}%"
+                errors = metrics["schema_error_cases"]
+                unexpected_schema_errors = any(
+                    result["outcome_classification"] == "missing_field_error" and result["expected_match"]
+                    for result in rep["case_results"]
+                )
+                status = (
+                    "PASS"
+                    if metrics["false_positives"] == 0
+                    and metrics["false_negatives"] == 0
+                    and not unexpected_schema_errors
+                    else "REVIEW"
+                )
                 if status == "REVIEW":
                     all_passed = False
 
-                print(f"{rule.rule_id:<35} {rule.platform:<15} {prec:<12} {rec:<10} {status}")
+                print(f"{rule.rule_id:<35} {rule.platform:<15} {prec:<12} {rec:<10} {errors:<8} {status}")
 
             return 0 if all_passed else 1
 

@@ -18,6 +18,7 @@ This sibling plugin analyzes local, user-supplied export files only. Its first m
 - [x] APW-10: Provide a positive illustrative fixture, denial and recovery variants, and automated tests for the above gates.
 - [x] APW-11: Read untrusted manifests and sources through a shared descriptor-anchored ingestion boundary. Reject links, special files, unsupported compression, oversized or deeply nested JSON, and exhausted file, byte, or record budgets before report completion. Record effective limits and usage in the report.
 - [x] APW-12: Bound path expansions, frontier, retained complete and partial routes, emitted routes, and serialized report size. Emit a replayable v2 search receipt and bind the policy to run identity. Label incomplete rankings as best discovered routes. Audit legacy v1 reports only within hard limits, without inventing a missing completeness receipt.
+- [x] APW-13: Synchronize the new output-directory entry, all four legacy reports, and their directory entries before publishing a digest-bound completion marker without replacement from its open staging file. Synchronize the public marker before staging cleanup, reject output-path rebinding through two fresh descriptor walks, never remove a public marker during failure recovery, and leave partial evidence unadvertised after any pre-publication failure.
 
 ## Evidence and safety constraints
 

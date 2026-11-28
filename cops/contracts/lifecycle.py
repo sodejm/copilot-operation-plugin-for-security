@@ -14,9 +14,7 @@ class ContractError(ValueError):
         super().__init__(self.message)
 
 
-ENGAGEMENT_STATES: Final[frozenset[str]] = frozenset(
-    {"planned", "active", "completed", "cancelled", "aborted"}
-)
+ENGAGEMENT_STATES: Final[frozenset[str]] = frozenset({"planned", "active", "completed", "cancelled", "aborted"})
 
 ENGAGEMENT_TRANSITIONS: Final[dict[str, frozenset[str]]] = {
     "planned": frozenset({"active", "cancelled"}),
@@ -40,9 +38,7 @@ ACTION_PLAN_TRANSITIONS: Final[dict[str, frozenset[str]]] = {
     "cancelled": frozenset(),
 }
 
-EXECUTION_AUTHORIZATION_STATES: Final[frozenset[str]] = frozenset(
-    {"approved", "consumed", "revoked", "expired"}
-)
+EXECUTION_AUTHORIZATION_STATES: Final[frozenset[str]] = frozenset({"approved", "consumed", "revoked", "expired"})
 
 EXECUTION_AUTHORIZATION_TRANSITIONS: Final[dict[str, frozenset[str]]] = {
     "approved": frozenset({"consumed", "revoked", "expired"}),
@@ -91,8 +87,7 @@ def validate_transition(current_state: str, next_state: str, contract_type: str)
         allowed = ENGAGEMENT_TRANSITIONS.get(current_state, frozenset())
         if next_state not in allowed:
             raise ContractError(
-                "illegal_transition",
-                f"illegal engagement transition from '{current_state}' to '{next_state}'"
+                "illegal_transition", f"illegal engagement transition from '{current_state}' to '{next_state}'"
             )
     elif contract_type in ("action_plan", "action-plan"):
         if current_state not in ACTION_PLAN_STATES:
@@ -102,8 +97,7 @@ def validate_transition(current_state: str, next_state: str, contract_type: str)
         allowed = ACTION_PLAN_TRANSITIONS.get(current_state, frozenset())
         if next_state not in allowed:
             raise ContractError(
-                "illegal_transition",
-                f"illegal action plan transition from '{current_state}' to '{next_state}'"
+                "illegal_transition", f"illegal action plan transition from '{current_state}' to '{next_state}'"
             )
     elif contract_type in ("execution_authorization", "execution-authorization"):
         if current_state not in EXECUTION_AUTHORIZATION_STATES:
@@ -114,7 +108,7 @@ def validate_transition(current_state: str, next_state: str, contract_type: str)
         if next_state not in allowed:
             raise ContractError(
                 "illegal_transition",
-                f"illegal execution authorization transition from '{current_state}' to '{next_state}'"
+                f"illegal execution authorization transition from '{current_state}' to '{next_state}'",
             )
     elif contract_type in ("specialist_handoff", "specialist-handoff"):
         if current_state not in SPECIALIST_HANDOFF_STATES:
@@ -124,8 +118,7 @@ def validate_transition(current_state: str, next_state: str, contract_type: str)
         allowed = SPECIALIST_HANDOFF_TRANSITIONS.get(current_state, frozenset())
         if next_state not in allowed:
             raise ContractError(
-                "illegal_transition",
-                f"illegal specialist handoff transition from '{current_state}' to '{next_state}'"
+                "illegal_transition", f"illegal specialist handoff transition from '{current_state}' to '{next_state}'"
             )
     elif contract_type in ("laboratory_environment", "laboratory-environment"):
         if current_state not in LABORATORY_ENVIRONMENT_STATES:
@@ -136,7 +129,9 @@ def validate_transition(current_state: str, next_state: str, contract_type: str)
         if next_state not in allowed:
             raise ContractError(
                 "illegal_transition",
-                f"illegal laboratory environment transition from '{current_state}' to '{next_state}'"
+                f"illegal laboratory environment transition from '{current_state}' to '{next_state}'",
             )
     else:
-        raise ContractError("invalid_contract", f"contract type '{contract_type}' does not define lifecycle transitions")
+        raise ContractError(
+            "invalid_contract", f"contract type '{contract_type}' does not define lifecycle transitions"
+        )

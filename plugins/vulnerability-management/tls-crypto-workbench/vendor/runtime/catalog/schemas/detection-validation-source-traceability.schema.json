@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/sodejm/copilot-operation-plugin-for-security/catalog/schemas/detection-validation-source-traceability.schema.json",
+  "title": "COPS detection validation source traceability",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "issue_family",
+    "mode",
+    "provenance_snapshot",
+    "source_mappings",
+    "native_soc_validation"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "cops.detection-validation-source-traceability/v1"
+    },
+    "issue_family": {
+      "const": "COPS-E17.02"
+    },
+    "mode": {
+      "const": "offline_traceability"
+    },
+    "provenance_snapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "schema_version", "updated_at"],
+      "properties": {
+        "path": {
+          "const": "catalog/provenance.json"
+        },
+        "schema_version": {
+          "const": "cops.provenance/v1"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "source_mappings": {
+      "type": "array",
+      "minItems": 13,
+      "maxItems": 13,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "source_id",
+          "pinned_revision",
+          "relationship",
+          "inventory_reference",
+          "canonical_ids"
+        ],
+        "properties": {
+          "source_id": {
+            "type": "string",
+            "pattern": "^S(?:0[1-9]|1[0-3])$"
+          },
+          "pinned_revision": {
+            "type": "string",
+            "minLength": 1
+          },
+          "relationship": {
+            "enum": ["direct_detection_guidance", "action_context"]
+          },
+          "inventory_reference": {
+            "type": "string",
+            "pattern": "^catalog/provenance\\.json#/sources/(?:[0-9]|1[0-2])/inventory$"
+          },
+          "canonical_ids": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "pattern": "^COPS-E[0-9]{2}\\.[0-9]{2}(?:-S[0-9]{2}|-GUIDE|-[A-Z0-9-]+)$"
+            }
+          }
+        }
+      }
+    },
+    "native_soc_validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "required_evidence", "limitations"],
+      "properties": {
+        "status": {
+          "const": "pending_external_execution"
+        },
+        "required_evidence": {
+          "type": "array",
+          "minItems": 4,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "limitations": {
+          "type": "array",
+          "minItems": 2,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  }
+}

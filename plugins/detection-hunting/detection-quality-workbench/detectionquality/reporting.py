@@ -18,6 +18,10 @@ def render_markdown_report(report_data: dict[str, Any]) -> str:
     static = report_data["static_checks"]
     cases = report_data["case_results"]
     recs = report_data["recommendations"]
+    precision = metrics["precision_on_labeled_fixtures"]
+    recall = metrics["recall_on_labeled_fixtures"]
+    precision_label = "N/A (schema errors)" if precision is None else f"{precision * 100:.1f}%"
+    recall_label = "N/A (schema errors)" if recall is None else f"{recall * 100:.1f}%"
 
     lines = [
         f"# Detection Quality & Regression Report: {rule['rule_id']}",
@@ -38,12 +42,14 @@ def render_markdown_report(report_data: dict[str, Any]) -> str:
         "| Metric | Value | Meaning |",
         "| :--- | :--- | :--- |",
         f"| **Total Test Cases** | {metrics['total_cases']} | Total labeled scenario cases in test suite |",
+        f"| **Evaluated Cases** | {metrics['evaluated_cases']} | Cases classified as TP, FP, TN, or FN |",
+        f"| **Schema Error Cases** | {metrics['schema_error_cases']} | Cases missing required telemetry fields; excluded from the confusion matrix |",
         f"| **True Positives (TP)** | {metrics['true_positives']} | Target malicious attacks correctly caught |",
         f"| **False Positives (FP)** | {metrics['false_positives']} | Benign baseline activity incorrectly flagged (noisy) |",
         f"| **True Negatives (TN)** | {metrics['true_negatives']} | Benign activity correctly ignored |",
         f"| **False Negatives (FN)** | {metrics['false_negatives']} | Target attacks missed by rule logic |",
-        f"| **Fixture Precision** | {metrics['precision_on_labeled_fixtures'] * 100:.1f}% | Ratio of true attacks among all rule alerts |",
-        f"| **Fixture Recall** | {metrics['recall_on_labeled_fixtures'] * 100:.1f}% | Ratio of detected attacks among all actual attacks |",
+        f"| **Fixture Precision** | {precision_label} | Ratio of true attacks among all rule alerts |",
+        f"| **Fixture Recall** | {recall_label} | Ratio of detected attacks among all actual attacks |",
         "",
         "## Static Dependency & Schema Checks",
         "",

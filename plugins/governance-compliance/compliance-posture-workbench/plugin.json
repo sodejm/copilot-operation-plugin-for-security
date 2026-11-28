@@ -1,0 +1,26 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "compliance-posture-workbench",
+  "version": "0.1.0",
+  "description": "Map versioned SOC 2, CIS and NIST controls to dated evidence; identify unsupported and unknown control claims.",
+  "author": {
+    "name": "Justin Soderberg",
+    "url": "https://github.com/sodejm"
+  },
+  "repository": "https://github.com/sodejm/copilot-operation-plugin-for-security",
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "keywords": [
+    "claude",
+    "codex",
+    "github-copilot",
+    "governance-compliance",
+    "offline-analysis"
+  ],
+  "extensions": {
+    "com.openai": {
+      "displayName": "COPS Compliance Posture Workbench",
+      "category": "Developer Tools"
+    },
+    "org.cops": {}
+  }
+}

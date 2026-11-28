@@ -1,0 +1,7 @@
+{
+  "schema_version": "cops.service-laboratory-profile/v1",
+  "profile": "vulnerable",
+  "lateral_access": "allow",
+  "expected_lateral_status": 200,
+  "expected_detection_rule": "lateral-movement"
+}

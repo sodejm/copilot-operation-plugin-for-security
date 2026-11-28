@@ -1,54 +1,139 @@
-"""Tests for scenario-laboratory-management contributor skill."""
+"""Offline workflow check for the scenario-laboratory-management skill."""
 
 from __future__ import annotations
 
+import json
 import tempfile
-from pathlib import Path
 import unittest
+from dataclasses import replace
+from datetime import datetime
+from pathlib import Path
+from unittest.mock import patch
 
-from cops.execution.store import ApprovalStore
+from cops.execution.scope_guard import ScopeDefinition, ScopeGuard
 from cops.laboratory import (
+    LaboratoryCaseJournal,
     LaboratoryHarness,
     make_inert_action_plan,
     make_inert_container_environment,
-    make_inert_execution_authorization,
+)
+from tests.auth_testkit import authorize_test_plan, worker_inventory_for_plan
+from tests.laboratory_testkit import (
+    case_observation,
+    endpoint_inventory,
+    environment_observation,
+    observation_trust_store,
+    remote_run,
+    reset_receipt,
+    supervisor_exchange,
 )
 
 
 class TestScenarioLaboratoryManagementSkill(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory(prefix="cops-skill-lab-")
-        self.temp_path = Path(self.temp_dir.name)
-        self.store = ApprovalStore(self.temp_path / "approvals.sqlite3")
-        self.harness = LaboratoryHarness(store=self.store)
+        temp_path = Path(self.temp_dir.name).resolve()
+        self.evidence_dir = temp_path / "evidence"
+        self.inventory = endpoint_inventory(temp_path)
+        self.harness = LaboratoryHarness(
+            observation_provider=lambda env, nonce: environment_observation(env, nonce, self.inventory),
+            observation_trust_store=observation_trust_store(temp_path),
+            case_journal=LaboratoryCaseJournal(temp_path / "case-journal.sqlite3"),
+            evidence_dir=self.evidence_dir,
+        )
 
     def tearDown(self):
         self.temp_dir.cleanup()
 
     def test_scenario_laboratory_workflow(self):
-        # 1. Register and verify environment
-        env = make_inert_container_environment()
-        verified_env = self.harness.verify_environment(env)
-        self.assertEqual(verified_env.status, "verified")
-        self.assertTrue(verified_env.canary["verified"])
+        environment = make_inert_container_environment()
+        self.assertEqual(
+            self.harness.verify_environment(environment, endpoint_inventory=self.inventory).status,
+            "verified",
+        )
 
-        # 2. Reproducible reset
-        reset_env = self.harness.reproducible_reset(verified_env)
-        self.assertEqual(reset_env.status, "verified")
+        nonce = self.harness.begin_reset(environment)
+        self.assertEqual(environment.status, "resetting")
+        receipt = reset_receipt(environment, nonce, self.inventory)
+        self.assertEqual(
+            self.harness.reproducible_reset(
+                environment, reset_receipt=receipt, endpoint_inventory=self.inventory
+            ).status,
+            "verified",
+        )
 
-        # 3. Controlled case execution with authorization
         plan = make_inert_action_plan()
-        auth = make_inert_execution_authorization(plan)
-        result = self.harness.execute_case(
-            environment=reset_env,
-            action_plan=plan,
-            authorization=auth,
-            case_type="positive",
+        authorization, trust_store, engagement = authorize_test_plan(plan, worker_identity=environment.owner)
+        run = remote_run(plan, authorization.authorization_id, environment.owner)
+        started = datetime.fromisoformat(authorization.issued_at.replace("Z", "+00:00"))
+        timestamp = started.isoformat().replace("+00:00", "Z")
+        run = replace(
+            run,
+            result=replace(run.result, started_at=timestamp, finished_at=timestamp),
+        )
+        with patch(
+            "cops.laboratory.harness.SSHExecutionDispatcher.execute_with_evidence",
+            side_effect=lambda **kwargs: supervisor_exchange(
+                run,
+                plan,
+                authorization.authorization_id,
+                environment.owner,
+                self.inventory,
+                request_id=kwargs["request_id"],
+            ),
+        ):
+            authorized_run = self.harness.execute_case(
+                environment,
+                plan,
+                authorization,
+                "positive",
+                trust_store=trust_store,
+                engagement=engagement,
+                worker_inventory=worker_inventory_for_plan(plan, worker_identity=environment.owner),
+                endpoint_inventory=self.inventory,
+                scope_guard=ScopeGuard(ScopeDefinition.from_engagement_scope(engagement.scope)),
+            )
+        observation = case_observation(
+            environment,
+            plan,
+            authorization.authorization_id,
+            authorized_run,
+            self.inventory,
+            request_nonce=self.harness.case_observation_challenge(authorized_run),
+            canary_token_detected=True,
+            control_blocked=False,
+        )
+        result = self.harness.classify_case(
+            environment,
+            plan,
+            authorized_run,
+            authorization.authorization_id,
+            "positive",
+            case_observation=observation,
+            endpoint_inventory=self.inventory,
         )
         self.assertEqual(result.status, "success")
         self.assertTrue(result.canary_verified)
-        self.assertIsNotNone(result.cleanup_receipt)
-        self.assertEqual(result.cleanup_receipt.status, "completed")
+        self.assertEqual(result.run_result.cleanup_status, "completed")
+        self.assertIsNone(result.cleanup_receipt)
+        self.assertIsNotNone(result.cleanup_receipt_digest)
+
+        evidence = result.details["durable_evidence"]
+        self.assertEqual(
+            {reference["kind"] for reference in evidence},
+            {"pre-execution-observation", "run-result", "cleanup-receipt", "case-observation"},
+        )
+        cleanup_reference = next(reference for reference in evidence if reference["kind"] == "cleanup-receipt")
+        self.assertEqual(cleanup_reference["sha256"], result.cleanup_receipt_digest)
+        evidence_store = self.harness.evidence_store
+        self.assertIsNotNone(evidence_store)
+        assert evidence_store is not None
+        cleanup_path = evidence_store.resolve(cleanup_reference)
+        self.assertEqual(cleanup_path.parent, self.evidence_dir)
+        cleanup_evidence = json.loads(cleanup_path.read_bytes())
+        self.assertEqual(cleanup_evidence["receipt_producer"], "controller")
+        self.assertEqual(cleanup_evidence["cleanup_status"], "completed")
+        self.assertEqual(cleanup_evidence["basis"], "trusted worker result")
 
 
 if __name__ == "__main__":

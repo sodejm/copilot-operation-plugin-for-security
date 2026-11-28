@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Prune ignored directory trees in `collect-repository-context.py` before recursion to prevent unbounded walk into ignored directories (.git, node_modules, build). Added visited-directory budget with partial-scan notice.
 - Reject ambiguous duplicate JSON keys and nonstandard numeric constants in reachability reports.
 - Handle evidence symlink loops cleanly across supported Python versions.
+- Cover synchronized leaf and directory rename-to-symlink races in CVE evidence acceptance tests.
 
 ### Added
 

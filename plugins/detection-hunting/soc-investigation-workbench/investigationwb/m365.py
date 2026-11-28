@@ -1,7 +1,7 @@
 """Offline cross-source leads from validated, tenant-bound evidence envelopes."""
+import re
 from collections import defaultdict
 from hashlib import sha256
-import re
 
 from cops.evidence import EvidenceError, validate_envelope, validate_receipt
 

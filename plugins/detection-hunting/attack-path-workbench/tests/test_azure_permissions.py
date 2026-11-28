@@ -1,6 +1,7 @@
 """Authorization truth table encoded before the evaluator implementation."""
 import copy
 import unittest
+
 from attackpath.azure.model import Graph
 from attackpath.azure.permissions import evaluate
 

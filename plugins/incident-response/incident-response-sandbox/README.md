@@ -4,21 +4,109 @@ This portable package creates typed incident plans and executes two low-risk
 actions against **synthetic local JSON fixtures only**: `isolate-host` and
 `revoke-session`. There is no production API adapter.
 
-Use a private directory (`0700`) for plans, receipts, and a copied fixture.
-The fixture file should be `0600`. Generate a plan with an expiry and unique
-nonce, then save the output as `plan.json`:
+## Prerequisites and quick start
+
+Run these commands from the repository root in an activated project environment
+with Python 3.14 or newer. The demo uses private temporary local fixtures; it does
+not require credentials or network access.
 
 ```sh
-python3 scripts/ir.py plan --action isolate-host --tenant example-tenant --target host-1 --expires-at 2030-01-01T00:00:00Z --nonce example-1 --approver-assertion analyst-1
-python3 scripts/ir.py dry-run plan.json fixture.json > receipt.json
-python3 scripts/ir.py execute plan.json receipt.json fixture.json
+python3 -m cops info incident-response-sandbox
+python3 -m cops demo incident-response-sandbox
+python3 -m cops check incident-response-sandbox
 ```
 
-The second command is mandatory. Execution rejects expired or modified plans,
+## Playback structure and result
+
+The public playback:
+
+1. creates a private synthetic fixture and short-lived typed plans;
+2. proves that dry-run leaves fixture state unchanged;
+3. executes allowed actions and verifies the resulting fixture state;
+4. rejects reuse of the same plan and rejects an expired plan; and
+5. simulates a partial failure, records rollback evidence, and removes temporary
+   state.
+
+| Result field | Purpose |
+| --- | --- |
+| `schema` | Identifies the output as `cops.incident-response-playback/v1`. |
+| `execution_boundary.provider` | Names the synthetic local fixture provider used by the playback. |
+| `execution_boundary.network_calls` | Confirms that the playback made zero network calls. |
+| `execution_boundary.live_containment_validated` | Remains `false`; no production provider action is claimed. |
+| `execution_boundary.temporary_artifacts_removed` | Reports whether playback cleanup completed. |
+| `primary.dry_run_decision`, `primary.dry_run_state_unchanged` | Show the dry-run decision and prove it did not mutate state. |
+| `primary.execute_status`, `primary.verification_state` | Record the allowed execution and its post-action state. |
+| `primary.provider_request_id`, `primary.post_action_verification` | Bind the synthetic operation to its verification record. |
+| `replay_rejection`, `expiry_rejection` | Preserve the fail-closed duplicate and expiry outcomes. |
+| `rollback.status`, `rollback.verification_state`, `rollback.post_action_verification` | Record restoration after the simulated partial failure. |
+
+Run the registered public entry point:
+
+```sh
+python3 -m cops demo incident-response-sandbox
+```
+
+Use the package runner directly only when debugging the playback implementation:
+
+```sh
+python3 plugins/incident-response/incident-response-sandbox/scripts/run_demo.py
+```
+
+For manual runs, use a private directory (`0700`) for plans, receipts, and a
+copied fixture, and keep the fixture file at `0600`. See the
+[operator playback](docs/PLAYBOOK.md) for artifact-preserving commands, expected
+fields, contract definitions, reruns, and cleanup.
+
+## Design and data flow
+
+Execution rejects expired or modified plans,
 tenant or target mismatch, changed state, stale dry-run receipts, missing fixture
 permission, throttling, and duplicate plan hashes or nonces. Simulated partial
 failure records whether rollback succeeded or failed. The fixture execution
 history prevents replay of recorded attempts.
+
+Each execution result and fixture history record include a deterministic
+`provider_request_id` for the synthetic fixture operation and a
+`post_action_verification` object. Available verification reports `succeeded`
+or `failed` with a content-addressed fixture-state reference. When the fixture
+sets `verification_available` to `false`, the result is `unavailable` and the
+reference is `null`. The generated values contain only fixed labels and SHA-256
+digests; do not replace them with credentials, bearer tokens, signed URLs, or
+other secret provider response data. These fields demonstrate the receipt
+shape against a local fixture; they are not evidence from a live provider.
+
+| Contract or artifact | Purpose | Key fields | Producer | Consumer | Validation | Example |
+| --- | --- | --- | --- | --- | --- | --- |
+| Typed plan | Bind one synthetic action to a tenant, target, approval assertion, and expiry | Plan ID, nonce, action, tenant, target, approver, expiry | Operator or playback | Dry-run and execution commands | Schema, action allowlist, expiry, and plan-hash checks | Isolate synthetic host `host-01` |
+| Fixture state | Represent local provider state and execution history | Tenant, targets, sessions, throttling, verification, history | Playback fixture or operator copy | Synthetic executor | Private path, mode, tenant/target, and expected-state checks | Host starts connected |
+| Dry-run receipt | Authorize the exact unchanged plan and fixture state for a later attempt | Plan hash, state reference, issued time | Dry-run command | Execution command | Freshness and exact plan/state binding | Receipt for one revoke-session plan |
+| Execution result and history | Record attempted state change, verification, and replay marker | Outcome, provider request ID, verification, plan hash, nonce | Synthetic executor | Operator, rollback, and replay guard | Result schema, state digest, and unique plan/nonce checks | Session revoked and fixture digest recorded |
+| Rollback result | Record whether simulated partial failure was restored | Original action, rollback status, error | Synthetic executor | Incident reviewer | Required after partial failure | Throttled isolation restored successfully |
+| Playback summary | Qualify plan, dry-run, execution, replay, expiry, and rollback paths | Step results, rejection reasons, cleanup status | `scripts/run_demo.py` | Maintainer | Semantic assertions across success and failure paths | Replay and expired plan both rejected |
+
+Follow the [end-to-end verification playbook](docs/VERIFICATION.md) to qualify this
+package's documented workflow and prepare evidence for a maturity review.
+
+## Retention expectations
+
+Treat plans, receipts, and fixtures as incident records because their timing,
+targets, and operator assertions may be sensitive even when the receipt fields
+contain no secrets. Store them with least-privilege access and encryption where
+required by the organization's approved incident-response, legal-hold, privacy,
+and records-retention policies. Assign an owner and deletion or review date in
+the system of record, preserve records subject to a legal hold, and securely
+delete expired copies and temporary staging files. This package does not choose
+a retention period or operate a records repository.
+
+## Emergency-use expectations
+
+Use this sandbox during an emergency only under an approved break-glass
+procedure that names the authorizing role, allowed action and target, expiry,
+evidence owner, and required after-action review. Continue to use a unique
+nonce, explicit dry run, and private staging; record verification as
+`unavailable` when it cannot be performed instead of treating the action as
+verified. The package cannot grant emergency authority, bypass provider access
+controls, contact a live provider, or attest that authorization occurred.
 
 The approver name is an operator assertion. The plan hash detects accidental
 or unauthorized changes to the plan content only when compared with a trusted

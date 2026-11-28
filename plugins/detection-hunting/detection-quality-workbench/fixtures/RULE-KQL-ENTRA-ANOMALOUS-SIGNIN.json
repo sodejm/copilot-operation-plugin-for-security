@@ -106,6 +106,62 @@
           "AppDisplayName": "Office 365 Exchange Online"
         }
       ]
+    },
+    {
+      "case_id": "CASE-BND-NULL-IP",
+      "description": "A null required IP address is missing telemetry even when risk is high",
+      "label": "boundary",
+      "expected_match": false,
+      "tags": ["null_field", "schema_drift"],
+      "events": [
+        {"TimeGenerated": "2026-10-01T12:00:00Z", "UserPrincipalName": "admin@example.test", "IPAddress": null, "ResultType": 0, "AppDisplayName": "Azure Portal", "RiskLevelDuringSignIn": "high"}
+      ]
+    },
+    {
+      "case_id": "CASE-WINDOW-LOWER-BOUND",
+      "description": "An event exactly one hour before evaluation remains in scope",
+      "label": "positive",
+      "expected_match": true,
+      "evaluation_time": "2026-10-01T12:00:00Z",
+      "tags": ["timestamp_window", "inclusive_boundary"],
+      "events": [
+        {"TimeGenerated": "2026-10-01T11:00:00Z", "UserPrincipalName": "admin@example.test", "IPAddress": "198.51.100.45", "ResultType": 0, "AppDisplayName": "Azure Portal"}
+      ]
+    },
+    {
+      "case_id": "CASE-WINDOW-OUTSIDE",
+      "description": "An event one second before the one-hour lookback is out of scope",
+      "label": "negative",
+      "expected_match": false,
+      "evaluation_time": "2026-10-01T12:00:00Z",
+      "tags": ["timestamp_window", "outside_boundary"],
+      "events": [
+        {"TimeGenerated": "2026-10-01T10:59:59Z", "UserPrincipalName": "admin@example.test", "IPAddress": "198.51.100.45", "ResultType": 0, "AppDisplayName": "Azure Portal"}
+      ]
+    },
+    {
+      "case_id": "CASE-DUPLICATE-EVENT",
+      "description": "Identical event rows remain one labeled case in suite metrics",
+      "label": "positive",
+      "expected_match": true,
+      "tags": ["duplicate_events"],
+      "events": [
+        {"TimeGenerated": "2026-10-01T12:00:00Z", "UserPrincipalName": "admin@example.test", "IPAddress": "198.51.100.45", "ResultType": 0, "AppDisplayName": "Azure Portal"},
+        {"TimeGenerated": "2026-10-01T12:00:00Z", "UserPrincipalName": "admin@example.test", "IPAddress": "198.51.100.45", "ResultType": 0, "AppDisplayName": "Azure Portal"}
+      ]
+    },
+    {
+      "case_id": "CASE-SUPPRESSED-ALERT",
+      "description": "A prior alert for the same user and tenant suppresses a repeated match",
+      "label": "negative",
+      "expected_match": false,
+      "tags": ["suppressed_alert"],
+      "prior_alerts": [
+        {"timestamp": "2026-10-01T11:00:00Z", "identity": "admin@example.test", "tenant_id": "tenant-a"}
+      ],
+      "events": [
+        {"TimeGenerated": "2026-10-01T12:00:00Z", "UserPrincipalName": "admin@example.test", "IPAddress": "198.51.100.45", "ResultType": 0, "AppDisplayName": "Azure Portal", "TenantId": "tenant-a"}
+      ]
     }
   ]
 }

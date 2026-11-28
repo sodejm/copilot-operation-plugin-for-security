@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -11,6 +12,8 @@ from cops.engagement import build_action_plan, validate_engagement_intake
 
 def run_engagement_plan_workflow(
     engagement_manifest: Path | dict[str, Any],
+    *,
+    tool_versions: Mapping[str, str],
     target: str = "10.100.0.10",
     scenario_id: str = "COPS-E03.01-S01",
     root: Path | None = None,
@@ -29,6 +32,7 @@ def run_engagement_plan_workflow(
         engagement=validated_eng,
         scenario=scenario_id,
         target=target,
+        tool_versions=tool_versions,
         specialist_id="cops-pentest-specialist",
         mode=validated_eng.get("mode", "planning"),
         root=root,

@@ -1,6 +1,6 @@
 ---
 name: review-sentinel-hunt
-description: Perform a skeptical analyst and security review of a Sentinel hunt for ambiguity, evidence loss, overclaim, and unsafe operational guidance.
+description: "Use for requests such as \"review the logic of this hunt.\" Perform a skeptical analyst and security review of a Sentinel hunt for ambiguity, evidence loss, overclaim, and unsafe operational guidance."
 ---
 
 # Review Sentinel Hunt

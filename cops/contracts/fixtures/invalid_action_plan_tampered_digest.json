@@ -10,11 +10,14 @@
     {
       "step_id": "step-1",
       "tool": "nmap",
+      "tool_version": "7.94",
       "action": "port_scan",
       "arguments": {"ports": "80,443"},
       "timeout_seconds": 60
     }
   ],
+  "platform_prerequisites": ["linux"],
+  "batch": {"mode": "sequential", "max_operations": 1, "fail_fast": true},
   "limits": {
     "max_duration_seconds": 300,
     "max_output_bytes": 65536,

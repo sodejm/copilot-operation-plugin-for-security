@@ -1,0 +1,11 @@
+{
+  "schema_version": "cops.logging-advisor-playback/v1",
+  "recommendation": "fixtures/recommendation.md",
+  "required_headings": ["## 1. Executive Summary and Context", "## 2. Environment Calibration Strategy", "## 3. Prioritized Logging Recommendations", "## 4. Implementation Plan & Order", "## 5. Cost Notes & SIEM Integration"],
+  "required_fields": ["Priority", "Logging Tier", "Environment Applicability", "Security Value", "Cost Impact", "Recommended Retention", "Relevant Systems/Components", "Candidate Implementation Files", "Events to Capture", "Events to Avoid / Suppress (Cost Control)", "Validation Steps", "Acceptance Criteria", "Rollback Considerations", "Assumptions or Prerequisites"],
+  "expected": {
+    "languages": {"Python": 1, "HashiCorp Configuration Language (HCL)": 1},
+    "framework": "Python Framework: Flask",
+    "iac_and_cloud": ["Terraform", "AWS"]
+  }
+}

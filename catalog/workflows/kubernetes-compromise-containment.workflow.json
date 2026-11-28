@@ -1,0 +1,235 @@
+{
+  "budget": {
+    "max_evidence_refs": 5,
+    "max_output_bytes": 1048576,
+    "max_stages": 5,
+    "max_total_attempts": 5
+  },
+  "description": "Preserve cluster evidence, review RBAC and service accounts, propose containment, exercise it in an authorized laboratory fixture, and verify recovery.",
+  "engagement_id": "eng-integrated-offline-fixtures",
+  "inputs": {
+    "cluster_evidence": {
+      "required": true,
+      "type": "object"
+    }
+  },
+  "outputs": {
+    "hardening_guide": {
+      "source": "stage.verify.output.hardening_guide",
+      "type": "array"
+    },
+    "incident_response_guide": {
+      "source": "stage.verify.output.incident_response_guide",
+      "type": "array"
+    },
+    "outcome": {
+      "source": "stage.verify.output.outcome",
+      "type": "string"
+    },
+    "report": {
+      "source": "stage.verify.output.report",
+      "type": "object"
+    }
+  },
+  "scenario_id": "COPS-E10.08-S01",
+  "schema_version": "cops.workflow-definition/v1",
+  "stages": [
+    {
+      "action": {
+        "action": "kubernetes.capture_snapshot",
+        "expected_evidence": [
+          "cluster snapshot"
+        ],
+        "limits": {
+          "egress_allowed": false,
+          "max_duration_seconds": 30,
+          "max_output_bytes": 262144
+        },
+        "side_effects": [],
+        "specialist_id": "cops-forensic-collector",
+        "target": "fixture://kubernetes-compromise-containment",
+        "timeout_seconds": 30,
+        "tool": "integrated-fixture-playback",
+        "tool_version": "1.0.0"
+      },
+      "depends_on": [],
+      "inputs": {
+        "cluster_evidence": {
+          "source": "workflow.input.cluster_evidence",
+          "type": "object"
+        }
+      },
+      "outputs": {
+        "snapshot": {
+          "type": "object"
+        }
+      },
+      "retry": {
+        "max_attempts": 1
+      },
+      "stage_id": "snapshot"
+    },
+    {
+      "action": {
+        "action": "kubernetes.review_rbac",
+        "expected_evidence": [
+          "RBAC findings",
+          "service account findings"
+        ],
+        "limits": {
+          "egress_allowed": false,
+          "max_duration_seconds": 30,
+          "max_output_bytes": 262144
+        },
+        "side_effects": [],
+        "specialist_id": "cops-kubernetes-specialist",
+        "target": "fixture://kubernetes-compromise-containment",
+        "timeout_seconds": 30,
+        "tool": "integrated-fixture-playback",
+        "tool_version": "1.0.0"
+      },
+      "depends_on": [
+        "snapshot"
+      ],
+      "inputs": {
+        "snapshot": {
+          "source": "stage.snapshot.output.snapshot",
+          "type": "object"
+        }
+      },
+      "outputs": {
+        "rbac_review": {
+          "type": "object"
+        }
+      },
+      "retry": {
+        "max_attempts": 1
+      },
+      "stage_id": "review"
+    },
+    {
+      "action": {
+        "action": "kubernetes.propose_containment",
+        "expected_evidence": [
+          "proposed changes",
+          "authorization requirement"
+        ],
+        "limits": {
+          "egress_allowed": false,
+          "max_duration_seconds": 30,
+          "max_output_bytes": 262144
+        },
+        "side_effects": [],
+        "specialist_id": "cops-kubernetes-specialist",
+        "target": "fixture://kubernetes-compromise-containment",
+        "timeout_seconds": 30,
+        "tool": "integrated-fixture-playback",
+        "tool_version": "1.0.0"
+      },
+      "depends_on": [
+        "review"
+      ],
+      "inputs": {
+        "rbac_review": {
+          "source": "stage.review.output.rbac_review",
+          "type": "object"
+        }
+      },
+      "outputs": {
+        "containment_proposal": {
+          "type": "object"
+        }
+      },
+      "retry": {
+        "max_attempts": 1
+      },
+      "stage_id": "propose"
+    },
+    {
+      "action": {
+        "action": "kubernetes.authorized_lab_apply",
+        "expected_evidence": [
+          "fixture changes",
+          "restoration status"
+        ],
+        "limits": {
+          "egress_allowed": false,
+          "max_duration_seconds": 30,
+          "max_output_bytes": 262144
+        },
+        "side_effects": [],
+        "specialist_id": "cops-kubernetes-specialist",
+        "target": "fixture://kubernetes-compromise-containment",
+        "timeout_seconds": 30,
+        "tool": "integrated-fixture-playback",
+        "tool_version": "1.0.0"
+      },
+      "depends_on": [
+        "propose"
+      ],
+      "inputs": {
+        "containment_proposal": {
+          "source": "stage.propose.output.containment_proposal",
+          "type": "object"
+        }
+      },
+      "outputs": {
+        "lab_application": {
+          "type": "object"
+        }
+      },
+      "retry": {
+        "max_attempts": 1
+      },
+      "stage_id": "lab_apply"
+    },
+    {
+      "action": {
+        "action": "kubernetes.verify_connectivity_cleanup",
+        "expected_evidence": [
+          "connectivity result",
+          "cleanup result"
+        ],
+        "limits": {
+          "egress_allowed": false,
+          "max_duration_seconds": 30,
+          "max_output_bytes": 262144
+        },
+        "side_effects": [],
+        "specialist_id": "cops-kubernetes-specialist",
+        "target": "fixture://kubernetes-compromise-containment",
+        "timeout_seconds": 30,
+        "tool": "integrated-fixture-playback",
+        "tool_version": "1.0.0"
+      },
+      "depends_on": [
+        "lab_apply"
+      ],
+      "inputs": {
+        "lab_application": {
+          "source": "stage.lab_apply.output.lab_application",
+          "type": "object"
+        }
+      },
+      "outputs": {
+        "hardening_guide": {
+          "type": "array"
+        },
+        "incident_response_guide": {
+          "type": "array"
+        },
+        "outcome": {
+          "type": "string"
+        },
+        "report": {
+          "type": "object"
+        }
+      },
+      "retry": {
+        "max_attempts": 1
+      },
+      "stage_id": "verify"
+    }
+  ],
+  "workflow_id": "kubernetes-compromise-containment"
+}

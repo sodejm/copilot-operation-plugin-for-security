@@ -1,81 +1,64 @@
 ---
 name: scenario-laboratory-management
-description: Manage scenario laboratory environments with canary validation, isolation enforcement, reproducible reset, and verified case execution.
+description: Manage scenario laboratory contracts with measured isolation, canary, reset, scope, and case outcome gates.
 ---
 
 # Scenario Laboratory Management
 
-Manage operator-controlled container and VM laboratory environments for offensive and defensive security operations. Enforces tested platform matrices, tool prerequisites, network and process isolation, canary verification, and reproducible resets with cleanup receipts.
+Manage operator-controlled container and VM laboratories for security scenarios. The harness validates tested platforms and tools, verifies independently signed operator observations, and dispatches authorized cases to an SSH endpoint pinned in an owner-provisioned inventory. The operator supplies the actual runtime isolation, measurement, reset, and worker services; the contract alone does not establish those controls.
 
 ## Core Responsibilities
 
-1. **Environment Verification & Matrix Check**:
-   - Verify operator VM/container environments against tested OS, runtime, and tool version matrices.
-   - Enforce network isolation, egress restrictions, and canary token placement.
-2. **Reproducible Baseline Reset**:
-   - Execute deterministic rollback scripts or snapshot reverts to restore pristine verified states.
-   - Confirm canary token presence post-reset.
-3. **Controlled Case Execution**:
-   - Enforce execution authorization, worker identity binding, and scope guard gates prior to launching scenario runs.
-   - Execute positive, negative (controlled rejection), and remediated (defensive mitigation) cases.
-   - Produce structured `RunResult` records and verified `CleanupReceipt` side-effect rollbacks.
+1. **Verify the environment**: Check the platform and tool matrix. Require an operator-owned `observation_provider(environment, nonce)` that measures the runtime boundary, egress restriction, canary digest, and clean baseline. The `LaboratoryObservation` must be signed by an independent operator adapter whose public Ed25519 key is pinned in a verified `LaboratoryObservationTrustStore`; it must match the fresh challenge. Keep the private signer outside the controller and SSH dispatch inventory.
+2. **Verify a reset**: Call `begin_reset(environment)` to invalidate the earlier verification and obtain a single-use nonce. Have the operator's worker perform the configured reset. Pass the adapter's signed `LaboratoryResetReceipt` to `reproducible_reset`, which also requires a fresh signed post-reset observation. The harness does not run the reset command.
+3. **Run and classify a case**: Supply a signed authorization, engagement, verified worker capability and SSH endpoint inventories, an explicit `ScopeGuard`, an owner-only `LaboratoryCaseJournal` used by one controller process, and an absolute owner-only `evidence_dir` outside the disposable worker workspace. `execute_case` records intent before SSH dispatch and persists SHA-256 references to the canonical raw JSON bytes for the pre-execution observation, validated run result, and controller-local cleanup evidence. The attested run carries the worker-produced typed `CleanupReceipt` when one exists. Call `case_observation_challenge` to obtain a fresh nonce and get a signed `LaboratoryCaseObservation` from the independent adapter after completion and cleanup. Call `classify_case` with that observation and the bound result. Classification checks the worker's `RunResult.cleanup_status`, validates any typed cleanup receipt against the exact plan, worker, status, and lifecycle timestamps, retains the signed observation evidence in result details, and binds the controller-local cleanup-evidence digest as `cleanup_receipt_digest`. A legacy run without a typed receipt may still be classified, but it cannot publish executable retest evidence. Publication requires a matching worker receipt with `completed` or `not_required` status. Call `expire_pending_cases` after the two-minute deadline; challenge, classification, and `recorded_cases` also check it. Controller restart, reset, or reverification fails cases lacking valid observations.
 
 ## CLI Usage
 
-### Check Tested Matrix
-
 ```bash
 python3 -m cops lab matrix
-```
-
-### Register an Environment
-
-```bash
 python3 -m cops lab register path/to/env.json
 ```
 
-### Verify Isolation and Canary
+Registration records a contract; it does not verify a running environment. The bundled `lab verify`, `lab reset`, and `lab run` commands fail closed until an operator integration supplies the live observation, worker reset, and case result flows through the Python API.
 
-```bash
-python3 -m cops lab verify path/to/env.json
-```
-
-### Reproducible Reset
-
-```bash
-python3 -m cops lab reset path/to/env.json
-```
-
-### Execute a Laboratory Case
-
-```bash
-python3 -m cops lab run path/to/env.json path/to/action-plan.json path/to/authorization.json --case-type positive
-```
-
-## Python API
+## Python API Sequence
 
 ```python
-from cops.laboratory import (
-    LaboratoryHarness,
-    make_inert_container_environment,
-    make_inert_action_plan,
-    make_inert_execution_authorization,
+from cops.laboratory import LaboratoryCaseJournal, LaboratoryHarness, LaboratoryObservationTrustStore
+
+# The adapter signs measured observations with a private key unavailable to this process.
+observation_trust_store = LaboratoryObservationTrustStore.from_file(observation_trust_path)
+harness = LaboratoryHarness(
+    observation_provider=operator_observe,
+    observation_trust_store=observation_trust_store,
+    case_journal=LaboratoryCaseJournal(case_journal_path),
+    evidence_dir=durable_evidence_path,
+)
+environment = harness.verify_environment(environment, endpoint_inventory=endpoint_inventory)
+
+nonce = harness.begin_reset(environment)
+reset_receipt = operator_reset(environment, nonce)  # independently signed receipt
+environment = harness.reproducible_reset(
+    environment, reset_receipt=reset_receipt, endpoint_inventory=endpoint_inventory
 )
 
-harness = LaboratoryHarness()
-env = make_inert_container_environment()
-verified_env = harness.verify_environment(env)
-
-plan = make_inert_action_plan()
-auth = make_inert_execution_authorization(plan)
-
-result = harness.execute_case(
-    environment=verified_env,
-    action_plan=plan,
-    authorization=auth,
-    case_type="positive",
+# trust_store, engagement, and worker_inventory are independently provisioned.
+authorized_run = harness.execute_case(
+    environment, plan, authorization, "positive",
+    trust_store=trust_store,
+    engagement=engagement,
+    worker_inventory=worker_inventory,
+    endpoint_inventory=endpoint_inventory,
+    scope_guard=scope_guard,
 )
-assert result.status == "success"
-assert result.canary_verified is True
-assert result.cleanup_receipt.status == "completed"
+case_nonce = harness.case_observation_challenge(authorized_run)
+case_observation = operator_observe_case(environment, plan, authorized_run, case_nonce)
+result = harness.classify_case(
+    environment, plan, authorized_run, authorization.authorization_id, "positive",
+    case_observation=case_observation,
+    endpoint_inventory=endpoint_inventory,
+)
 ```
+
+Load `WorkerCapabilityInventory`, `SSHRemoteEndpointInventory`, and `LaboratoryObservationTrustStore` with their protected `from_file` constructors. Use absolute controller-local paths for the journal and durable evidence directory, restrict both to the owning account, and create a new `LaboratoryCaseJournal` object after relocating its database. Durable evidence references contain content-addressed paths relative to that configured directory; resolve them with `harness.evidence_store.resolve(reference)` instead of treating them as filesystem paths. The observation store contains public keys; the independent adapter retains private signing keys. The operator remains responsible for whether the adapter measures the actual runtime correctly. Do not omit the observation provider for execution. `mock_checks=True` produces simulated provenance for contract tests and cannot satisfy the observed-provenance execution gate. Offline synthetic receipts exercise the contract only; they do not prove live isolation or egress enforcement.

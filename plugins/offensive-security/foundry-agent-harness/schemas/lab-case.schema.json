@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "COPS isolated agent and MCP lab case",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "case_id", "title", "source_family", "attack_surface",
+    "legitimate_task", "untrusted_text", "principal_tenant", "tool_permissions",
+    "approved_call", "control_profile", "expected_outcome", "expected_safe_behavior"
+  ],
+  "properties": {
+    "schema_version": {"const": "cops.agent-mcp-lab-case/v1"},
+    "case_id": {"type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"},
+    "title": {"type": "string", "minLength": 1, "maxLength": 512},
+    "source_family": {"const": "COPS-E16.01 (provisional)"},
+    "attack_surface": {
+      "enum": ["retrieval", "tool_response", "cross_tenant", "peer_message", "state_change", "data_exfiltration", "memory", "context", "tool_permission", "trusted_task"]
+    },
+    "legitimate_task": {"type": "string", "minLength": 1, "maxLength": 512},
+    "untrusted_text": {"type": "string", "maxLength": 2048},
+    "principal_tenant": {"const": "tenant-contoso-01"},
+    "tool_permissions": {
+      "type": "array", "uniqueItems": true,
+      "items": {"enum": ["lookup_account", "modify_resource", "export_canary"]}
+    },
+    "approved_call": {
+      "type": "object", "additionalProperties": false,
+      "required": ["name", "arguments"],
+      "properties": {
+        "name": {"type": "string"},
+        "arguments": {"type": "object"}
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "name": {"const": "lookup_account"},
+            "arguments": {
+              "type": "object", "additionalProperties": false,
+              "required": ["tenant_id", "account_id"],
+              "properties": {"tenant_id": {"const": "tenant-contoso-01"}, "account_id": {"const": "acct-001"}}
+            }
+          }
+        },
+        {
+          "properties": {
+            "name": {"const": "modify_resource"},
+            "arguments": {
+              "type": "object", "additionalProperties": false,
+              "required": ["tenant_id", "resource_id", "status"],
+              "properties": {"tenant_id": {"const": "tenant-contoso-01"}, "resource_id": {"const": "res-faq-storage"}, "status": {"enum": ["active", "disabled"]}}
+            }
+          }
+        },
+        {
+          "properties": {
+            "name": {"const": "export_canary"},
+            "arguments": {
+              "type": "object", "additionalProperties": false,
+              "required": ["tenant_id", "destination"],
+              "properties": {"tenant_id": {"const": "tenant-contoso-01"}, "destination": {"const": "lab://canary-sink"}}
+            }
+          }
+        }
+      ]
+    },
+    "control_profile": {"enum": ["strict", "permission_only"]},
+    "expected_outcome": {"enum": ["denied", "executed_effect", "executed_no_effect"]},
+    "expected_safe_behavior": {"type": "string", "minLength": 1, "maxLength": 512}
+  }
+}

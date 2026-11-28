@@ -6,7 +6,6 @@ import json
 from pathlib import Path
 from typing import Any
 
-from cops.contracts.lifecycle import ContractError
 from cops.contracts.validation import validate_identifier
 from cops.evidence.canonical import EvidenceError, canonical
 from cops.evidence.validation import _check
@@ -75,8 +74,11 @@ def validate_scenario_and_provenance_integrity(root: Path = ROOT) -> dict[str, A
     Ensures that:
     1. Every scenario references a known source_id in provenance.json.
     2. No duplicate scenario_id exists.
-    3. Every inventoried item in provenance resolves to a valid scenario, supporting guidance, or explicit decision.
+    3. Every inventoried item in provenance resolves to a valid scenario, registered supporting guidance, or registered decision.
     4. No duplicate item_id exists within any source.
+    5. Each guidance record identifies an existing in-repository document with an exact table entry for its identifier.
+    6. Each licensing review identifies the same source and license as its provenance record.
+    7. Workflow references resolve to valid definitions bound to their scenario.
     """
     prov_data = load_provenance_registry(root)
     scen_data = load_scenario_registry(root)
@@ -85,8 +87,54 @@ def validate_scenario_and_provenance_integrity(root: Path = ROOT) -> dict[str, A
     if len(sources_by_id) != len(prov_data["sources"]):
         raise RegistryError("duplicate_source_id", "duplicate source_id detected in provenance registry")
 
+    guidance_by_id: dict[str, dict[str, Any]] = {}
+    for guidance in prov_data["guidance"]:
+        guidance_id = guidance["guidance_id"]
+        if guidance_id in guidance_by_id:
+            raise RegistryError("duplicate_guidance_id", f"duplicate guidance_id: {guidance_id}")
+        document_path = Path(guidance["document_path"])
+        if document_path.is_absolute() or ".." in document_path.parts:
+            raise RegistryError(
+                "invalid_guidance_document_path",
+                f"guidance '{guidance_id}' has an unsafe document path",
+            )
+        document = root / document_path
+        if not document.is_file():
+            raise RegistryError(
+                "missing_guidance_document",
+                f"guidance '{guidance_id}' document is missing: {guidance['document_path']}",
+            )
+        expected_entry = f"| `{guidance_id}` |"
+        if not any(line.startswith(expected_entry) for line in document.read_text(encoding="utf-8").splitlines()):
+            raise RegistryError(
+                "unregistered_guidance_document",
+                f"guidance '{guidance_id}' is not represented in {guidance['document_path']}",
+            )
+        guidance_by_id[guidance_id] = guidance
+
+    decisions_by_id: dict[str, dict[str, Any]] = {}
+    for decision in prov_data["decisions"]:
+        decision_id = decision["decision_id"]
+        if decision_id in decisions_by_id:
+            raise RegistryError("duplicate_decision_id", f"duplicate decision_id: {decision_id}")
+        decisions_by_id[decision_id] = decision
+
+    for source in prov_data["sources"]:
+        review = source["licensing_review"]
+        if review["reviewed_source_id"] != source["source_id"]:
+            raise RegistryError(
+                "licensing_review_source_mismatch",
+                f"licensing review does not identify source '{source['source_id']}'",
+            )
+        if review["reviewed_license"] != source["license"]:
+            raise RegistryError(
+                "licensing_review_license_mismatch",
+                f"licensing review does not match source '{source['source_id']}' license",
+            )
+
     scenarios = scen_data["scenarios"]
     scenarios_by_id: dict[str, dict[str, Any]] = {}
+    workflow_paths: set[str] = set()
     for scen in scenarios:
         sid = scen["scenario_id"]
         if sid in scenarios_by_id:
@@ -97,10 +145,29 @@ def validate_scenario_and_provenance_integrity(root: Path = ROOT) -> dict[str, A
         src_id = scen["provenance"]["source_id"]
         if src_id not in sources_by_id:
             raise RegistryError(
-                "orphan_scenario_provenance",
-                f"scenario '{sid}' references unknown source_id '{src_id}'"
+                "orphan_scenario_provenance", f"scenario '{sid}' references unknown source_id '{src_id}'"
             )
         scenarios_by_id[sid] = scen
+        for reference in scen.get("workflow_definitions", []):
+            if reference in workflow_paths:
+                raise RegistryError("duplicate_workflow_reference", f"workflow referenced more than once: {reference}")
+            workflow_paths.add(reference)
+            path = Path(reference)
+            if path.is_absolute() or ".." in path.parts or not (root / path).resolve().is_relative_to(root.resolve()):
+                raise RegistryError("invalid_workflow_path", f"scenario '{sid}' has an unsafe workflow path")
+            document = root / path
+            if not document.is_file():
+                raise RegistryError("missing_workflow", f"scenario '{sid}' workflow is missing: {reference}")
+            from cops.workflows.contracts import WorkflowDefinition
+
+            try:
+                definition = WorkflowDefinition.from_dict(json.loads(document.read_text(encoding="utf-8")))
+            except (OSError, ValueError) as err:
+                raise RegistryError("invalid_workflow", f"invalid workflow for scenario '{sid}': {reference}") from err
+            if definition.scenario_id != sid:
+                raise RegistryError(
+                    "workflow_scenario_mismatch", f"workflow is bound to a different scenario: {reference}"
+                )
 
     # Validate that every inventoried item in provenance resolves
     all_item_ids: set[str] = set()
@@ -119,19 +186,28 @@ def validate_scenario_and_provenance_integrity(root: Path = ROOT) -> dict[str, A
                 if target not in scenarios_by_id:
                     raise RegistryError(
                         "orphan_inventory_mapping",
-                        f"inventory item '{item_id}' targets non-existent scenario '{target}'"
+                        f"inventory item '{item_id}' targets non-existent scenario '{target}'",
                     )
-            elif res in ("supporting_guidance", "applicability_decision"):
-                if not target:
+            elif res == "supporting_guidance":
+                if target not in guidance_by_id:
                     raise RegistryError(
-                        "orphan_inventory_mapping",
-                        f"inventory item '{item_id}' missing target reference for {res}"
+                        "orphan_guidance_mapping",
+                        f"inventory item '{item_id}' targets unknown guidance '{target}'",
+                    )
+            elif res == "applicability_decision":
+                if target not in decisions_by_id:
+                    raise RegistryError(
+                        "orphan_decision_mapping",
+                        f"inventory item '{item_id}' targets unknown decision '{target}'",
                     )
 
     return {
         "sources_count": len(sources_by_id),
+        "guidance_count": len(guidance_by_id),
+        "decision_count": len(decisions_by_id),
         "inventory_items_count": total_inventory_items,
         "scenarios_count": len(scenarios_by_id),
+        "workflow_definitions_count": len(workflow_paths),
         "status": "valid",
     }
 
@@ -151,12 +227,8 @@ def list_scenarios(
     if coverage_mode:
         scenarios = [s for s in scenarios if s.get("coverage_mode") == coverage_mode]
     if tactic:
-        scenarios = [
-            s for s in scenarios
-            if tactic in s.get("mitre_attack", {}).get("tactics", [])
-        ]
+        scenarios = [s for s in scenarios if tactic in s.get("mitre_attack", {}).get("tactics", [])]
     return scenarios
-
 
 
 def get_scenario(scenario_id: str, root: Path = ROOT) -> dict[str, Any]:
@@ -181,4 +253,3 @@ def get_provenance_source(source_id: str, root: Path = ROOT) -> dict[str, Any]:
         if src.get("source_id") == source_id:
             return src
     raise RegistryError("source_not_found", f"provenance source not found: {source_id}")
-

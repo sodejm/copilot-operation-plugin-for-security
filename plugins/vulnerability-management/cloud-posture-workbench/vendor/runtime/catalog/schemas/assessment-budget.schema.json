@@ -1,0 +1,125 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/sodejm/copilot-operation-plugin-for-security/catalog/schemas/assessment-budget.schema.json",
+  "title": "COPS Aggregate Assessment Budget Policy",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "engagement_id",
+    "limits",
+    "currency",
+    "price_source",
+    "price_version",
+    "price_effective_date",
+    "price_error_policy"
+  ],
+  "properties": {
+    "schema_version": {"const": "cops.assessment-budget/v1"},
+    "engagement_id": {"$ref": "#/$defs/identifier"},
+    "limits": {"$ref": "#/$defs/limits"},
+    "currency": {"type": "string", "pattern": "^[A-Z]{3}$"},
+    "price_source": {"$ref": "#/$defs/identifier"},
+    "price_version": {"$ref": "#/$defs/identifier"},
+    "price_effective_date": {"type": "string", "format": "date"},
+    "price_error_policy": {"const": "deny"}
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "quantity": {"type": "integer", "minimum": 0, "maximum": 9223372036854775807},
+    "positiveQuantity": {"type": "integer", "minimum": 1, "maximum": 9223372036854775807},
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "max_attempts",
+        "max_estimated_tokens",
+        "max_estimated_cost_microunits",
+        "max_elapsed_ms",
+        "max_concurrency",
+        "max_retained_output_bytes",
+        "max_depth",
+        "max_children_per_parent"
+      ],
+      "properties": {
+        "max_attempts": {"$ref": "#/$defs/positiveQuantity"},
+        "max_estimated_tokens": {"$ref": "#/$defs/positiveQuantity"},
+        "max_estimated_cost_microunits": {"$ref": "#/$defs/positiveQuantity"},
+        "max_elapsed_ms": {"$ref": "#/$defs/positiveQuantity"},
+        "max_concurrency": {"$ref": "#/$defs/positiveQuantity"},
+        "max_retained_output_bytes": {"$ref": "#/$defs/positiveQuantity"},
+        "max_depth": {"$ref": "#/$defs/quantity"},
+        "max_children_per_parent": {"$ref": "#/$defs/positiveQuantity"}
+      }
+    },
+    "attemptRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "attempt_id",
+        "parent_id",
+        "estimated_tokens",
+        "estimated_cost_microunits",
+        "reserved_output_bytes"
+      ],
+      "properties": {
+        "attempt_id": {"$ref": "#/$defs/identifier"},
+        "parent_id": {"oneOf": [{"$ref": "#/$defs/identifier"}, {"type": "null"}]},
+        "estimated_tokens": {"$ref": "#/$defs/quantity"},
+        "estimated_cost_microunits": {"$ref": "#/$defs/quantity"},
+        "reserved_output_bytes": {"$ref": "#/$defs/quantity"},
+        "child_limits": {"$ref": "#/$defs/limits"}
+      }
+    },
+    "cancellationReport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "attempt_id",
+        "requested",
+        "stop_confirmed",
+        "pending",
+        "final_consumption_known",
+        "outcome"
+      ],
+      "properties": {
+        "attempt_id": {"$ref": "#/$defs/identifier"},
+        "requested": {"type": "boolean"},
+        "stop_confirmed": {"type": "boolean"},
+        "pending": {"type": "boolean"},
+        "final_consumption_known": {"type": "boolean"},
+        "outcome": {
+          "oneOf": [
+            {"enum": ["completed", "target_denied", "runner_stopped", "failed", "cancelled"]},
+            {"type": "null"}
+          ]
+        }
+      }
+    },
+    "receipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "receipt_id",
+        "attempt_id",
+        "outcome",
+        "tokens",
+        "cost_microunits",
+        "retained_output_bytes"
+      ],
+      "properties": {
+        "receipt_id": {"$ref": "#/$defs/identifier"},
+        "attempt_id": {"$ref": "#/$defs/identifier"},
+        "outcome": {
+          "enum": ["completed", "target_denied", "runner_stopped", "failed", "cancelled"]
+        },
+        "tokens": {"oneOf": [{"$ref": "#/$defs/quantity"}, {"type": "null"}]},
+        "cost_microunits": {"oneOf": [{"$ref": "#/$defs/quantity"}, {"type": "null"}]},
+        "retained_output_bytes": {"oneOf": [{"$ref": "#/$defs/quantity"}, {"type": "null"}]}
+      }
+    }
+  }
+}

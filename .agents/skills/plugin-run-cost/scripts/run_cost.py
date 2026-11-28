@@ -3,17 +3,16 @@
 from __future__ import annotations
 
 import argparse
-from collections import Counter, defaultdict
-from datetime import datetime, timezone
-from decimal import Decimal, InvalidOperation
 import hashlib
 import importlib.util
 import json
 import math
 import os
-from pathlib import Path
 import re
 import tempfile
+from collections import Counter, defaultdict
+from decimal import Decimal, InvalidOperation
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 parser_spec = importlib.util.spec_from_file_location(
@@ -324,7 +323,7 @@ def profile(repositories, wikis, threat_models, max_files=10000, max_bytes=20000
                 continue
             if not root.exists():
                 raise ValueError('profile input does not exist')
-            def walk():
+            def walk(root=root):
                 # Iterate directories without materializing their contents. The shared
                 # budget counts roots, directories and excluded entries across all inputs.
                 pending = [(root, False)]
@@ -461,7 +460,7 @@ def compare(config):
         item = dict(name=safe_label(option['name']), qualified=option.get('qualified') is True,
                     annual_capacity_hours=float(hours), at_hourly_rate={})
         for rate in rates:
-            def recurring(a):
+            def recurring(a, rate=rate):
                 return ((number(a['active_minutes'])/60*rate + number(a.get('variable_usd', 0)))*annual +
                         number(a.get('monthly_maintenance_hours', 0))*rate*12 +
                         number(a.get('monthly_maintenance_usd', 0))*12 + number(a.get('annual_license_usd', 0)))

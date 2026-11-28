@@ -7,7 +7,6 @@ import json
 from pathlib import Path
 from typing import Any
 
-
 PACKAGE_ROOT = Path(__file__).resolve().parent.parent
 REPOSITORY_ROOT = PACKAGE_ROOT.parent
 HUNTS_DIR = PACKAGE_ROOT / "hunts"
@@ -97,13 +96,16 @@ def write_json(path: Path, value: Any) -> None:
     """Write deterministic, human-readable JSON."""
 
     path.parent.mkdir(parents=True, exist_ok=True)
-    text = json.dumps(
-        value,
-        indent=2,
-        sort_keys=True,
-        ensure_ascii=False,
-        allow_nan=False,
-    ) + "\n"
+    text = (
+        json.dumps(
+            value,
+            indent=2,
+            sort_keys=True,
+            ensure_ascii=False,
+            allow_nan=False,
+        )
+        + "\n"
+    )
     path.write_text(text, encoding="utf-8")
 
 

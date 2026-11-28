@@ -2,15 +2,13 @@
 
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
 import hashlib
 import ipaddress
-import json
-from pathlib import Path
 import socket
+from abc import ABC, abstractmethod
 from typing import Any
 
-from cops.evidence.canonical import canonical, utc_now
+from .developer_destinations import DestinationScopeError, DeveloperDestinationPolicy
 from .developer_models import (
     CleanupReceipt,
     DeveloperAuthPrerequisite,
@@ -24,22 +22,18 @@ from .developer_models import (
     ExecutionEffect,
 )
 
-
 DEFAULT_DEVELOPER_PORTS: dict[str, tuple[int, str, str]] = {
     # Container & Orchestration Runtimes
     DeveloperServiceType.DOCKER.value: (2375, "tcp", DeveloperCategory.CONTAINER_ORCHESTRATION_RUNTIME.value),
     DeveloperServiceType.DOCKER_REGISTRY.value: (5000, "tcp", DeveloperCategory.CONTAINER_ORCHESTRATION_RUNTIME.value),
-
     # Language & Debugging Runtimes
     DeveloperServiceType.RMI.value: (1099, "tcp", DeveloperCategory.LANGUAGE_DEBUG_RUNTIME.value),
     DeveloperServiceType.JDWP.value: (8000, "tcp", DeveloperCategory.LANGUAGE_DEBUG_RUNTIME.value),
     DeveloperServiceType.ERLANG_EPMD.value: (4369, "tcp", DeveloperCategory.LANGUAGE_DEBUG_RUNTIME.value),
     DeveloperServiceType.ADB.value: (5555, "tcp", DeveloperCategory.LANGUAGE_DEBUG_RUNTIME.value),
-
     # Distributed Build & SCM
     DeveloperServiceType.DISTCC.value: (3632, "tcp", DeveloperCategory.DISTRIBUTED_BUILD_SCM.value),
     DeveloperServiceType.SVN.value: (3690, "tcp", DeveloperCategory.DISTRIBUTED_BUILD_SCM.value),
-
     # Application Server & Gateway Interfaces
     DeveloperServiceType.AJP.value: (8009, "tcp", DeveloperCategory.APPLICATION_SERVER_GATEWAY.value),
     DeveloperServiceType.FASTCGI.value: (9000, "tcp", DeveloperCategory.APPLICATION_SERVER_GATEWAY.value),
@@ -68,45 +62,215 @@ class DeveloperServicesCollector(ABC):
     ) -> DeveloperServiceAssessment:
         """Probe and evaluate discrete developer service exposure."""
 
-    def assess_docker(self, target_host: str, canary_artifact: str | None = None, vantage: str = "external", timeout: float = 2.0, port: int = 2375) -> DeveloperServiceAssessment:
+    def assess_docker(
+        self,
+        target_host: str,
+        canary_artifact: str | None = None,
+        vantage: str = "external",
+        timeout: float = 2.0,
+        port: int = 2375,
+    ) -> DeveloperServiceAssessment:
         ip = self.resolve_target(target_host)
-        return self.probe_service(target_host, ip, DeveloperServiceType.DOCKER.value, port, "tcp", DeveloperCategory.CONTAINER_ORCHESTRATION_RUNTIME.value, vantage, canary_artifact, timeout)
+        return self.probe_service(
+            target_host,
+            ip,
+            DeveloperServiceType.DOCKER.value,
+            port,
+            "tcp",
+            DeveloperCategory.CONTAINER_ORCHESTRATION_RUNTIME.value,
+            vantage,
+            canary_artifact,
+            timeout,
+        )
 
-    def assess_docker_registry(self, target_host: str, canary_artifact: str | None = None, vantage: str = "external", timeout: float = 2.0, port: int = 5000) -> DeveloperServiceAssessment:
+    def assess_docker_registry(
+        self,
+        target_host: str,
+        canary_artifact: str | None = None,
+        vantage: str = "external",
+        timeout: float = 2.0,
+        port: int = 5000,
+    ) -> DeveloperServiceAssessment:
         ip = self.resolve_target(target_host)
-        return self.probe_service(target_host, ip, DeveloperServiceType.DOCKER_REGISTRY.value, port, "tcp", DeveloperCategory.CONTAINER_ORCHESTRATION_RUNTIME.value, vantage, canary_artifact, timeout)
+        return self.probe_service(
+            target_host,
+            ip,
+            DeveloperServiceType.DOCKER_REGISTRY.value,
+            port,
+            "tcp",
+            DeveloperCategory.CONTAINER_ORCHESTRATION_RUNTIME.value,
+            vantage,
+            canary_artifact,
+            timeout,
+        )
 
-    def assess_rmi(self, target_host: str, canary_artifact: str | None = None, vantage: str = "external", timeout: float = 2.0, port: int = 1099) -> DeveloperServiceAssessment:
+    def assess_rmi(
+        self,
+        target_host: str,
+        canary_artifact: str | None = None,
+        vantage: str = "external",
+        timeout: float = 2.0,
+        port: int = 1099,
+    ) -> DeveloperServiceAssessment:
         ip = self.resolve_target(target_host)
-        return self.probe_service(target_host, ip, DeveloperServiceType.RMI.value, port, "tcp", DeveloperCategory.LANGUAGE_DEBUG_RUNTIME.value, vantage, canary_artifact, timeout)
+        return self.probe_service(
+            target_host,
+            ip,
+            DeveloperServiceType.RMI.value,
+            port,
+            "tcp",
+            DeveloperCategory.LANGUAGE_DEBUG_RUNTIME.value,
+            vantage,
+            canary_artifact,
+            timeout,
+        )
 
-    def assess_jdwp(self, target_host: str, canary_artifact: str | None = None, vantage: str = "external", timeout: float = 2.0, port: int = 8000) -> DeveloperServiceAssessment:
+    def assess_jdwp(
+        self,
+        target_host: str,
+        canary_artifact: str | None = None,
+        vantage: str = "external",
+        timeout: float = 2.0,
+        port: int = 8000,
+    ) -> DeveloperServiceAssessment:
         ip = self.resolve_target(target_host)
-        return self.probe_service(target_host, ip, DeveloperServiceType.JDWP.value, port, "tcp", DeveloperCategory.LANGUAGE_DEBUG_RUNTIME.value, vantage, canary_artifact, timeout)
+        return self.probe_service(
+            target_host,
+            ip,
+            DeveloperServiceType.JDWP.value,
+            port,
+            "tcp",
+            DeveloperCategory.LANGUAGE_DEBUG_RUNTIME.value,
+            vantage,
+            canary_artifact,
+            timeout,
+        )
 
-    def assess_erlang_epmd(self, target_host: str, canary_artifact: str | None = None, vantage: str = "external", timeout: float = 2.0, port: int = 4369) -> DeveloperServiceAssessment:
+    def assess_erlang_epmd(
+        self,
+        target_host: str,
+        canary_artifact: str | None = None,
+        vantage: str = "external",
+        timeout: float = 2.0,
+        port: int = 4369,
+    ) -> DeveloperServiceAssessment:
         ip = self.resolve_target(target_host)
-        return self.probe_service(target_host, ip, DeveloperServiceType.ERLANG_EPMD.value, port, "tcp", DeveloperCategory.LANGUAGE_DEBUG_RUNTIME.value, vantage, canary_artifact, timeout)
+        return self.probe_service(
+            target_host,
+            ip,
+            DeveloperServiceType.ERLANG_EPMD.value,
+            port,
+            "tcp",
+            DeveloperCategory.LANGUAGE_DEBUG_RUNTIME.value,
+            vantage,
+            canary_artifact,
+            timeout,
+        )
 
-    def assess_adb(self, target_host: str, canary_artifact: str | None = None, vantage: str = "external", timeout: float = 2.0, port: int = 5555) -> DeveloperServiceAssessment:
+    def assess_adb(
+        self,
+        target_host: str,
+        canary_artifact: str | None = None,
+        vantage: str = "external",
+        timeout: float = 2.0,
+        port: int = 5555,
+    ) -> DeveloperServiceAssessment:
         ip = self.resolve_target(target_host)
-        return self.probe_service(target_host, ip, DeveloperServiceType.ADB.value, port, "tcp", DeveloperCategory.LANGUAGE_DEBUG_RUNTIME.value, vantage, canary_artifact, timeout)
+        return self.probe_service(
+            target_host,
+            ip,
+            DeveloperServiceType.ADB.value,
+            port,
+            "tcp",
+            DeveloperCategory.LANGUAGE_DEBUG_RUNTIME.value,
+            vantage,
+            canary_artifact,
+            timeout,
+        )
 
-    def assess_distcc(self, target_host: str, canary_artifact: str | None = None, vantage: str = "external", timeout: float = 2.0, port: int = 3632) -> DeveloperServiceAssessment:
+    def assess_distcc(
+        self,
+        target_host: str,
+        canary_artifact: str | None = None,
+        vantage: str = "external",
+        timeout: float = 2.0,
+        port: int = 3632,
+    ) -> DeveloperServiceAssessment:
         ip = self.resolve_target(target_host)
-        return self.probe_service(target_host, ip, DeveloperServiceType.DISTCC.value, port, "tcp", DeveloperCategory.DISTRIBUTED_BUILD_SCM.value, vantage, canary_artifact, timeout)
+        return self.probe_service(
+            target_host,
+            ip,
+            DeveloperServiceType.DISTCC.value,
+            port,
+            "tcp",
+            DeveloperCategory.DISTRIBUTED_BUILD_SCM.value,
+            vantage,
+            canary_artifact,
+            timeout,
+        )
 
-    def assess_svn(self, target_host: str, canary_artifact: str | None = None, vantage: str = "external", timeout: float = 2.0, port: int = 3690) -> DeveloperServiceAssessment:
+    def assess_svn(
+        self,
+        target_host: str,
+        canary_artifact: str | None = None,
+        vantage: str = "external",
+        timeout: float = 2.0,
+        port: int = 3690,
+    ) -> DeveloperServiceAssessment:
         ip = self.resolve_target(target_host)
-        return self.probe_service(target_host, ip, DeveloperServiceType.SVN.value, port, "tcp", DeveloperCategory.DISTRIBUTED_BUILD_SCM.value, vantage, canary_artifact, timeout)
+        return self.probe_service(
+            target_host,
+            ip,
+            DeveloperServiceType.SVN.value,
+            port,
+            "tcp",
+            DeveloperCategory.DISTRIBUTED_BUILD_SCM.value,
+            vantage,
+            canary_artifact,
+            timeout,
+        )
 
-    def assess_ajp(self, target_host: str, canary_artifact: str | None = None, vantage: str = "external", timeout: float = 2.0, port: int = 8009) -> DeveloperServiceAssessment:
+    def assess_ajp(
+        self,
+        target_host: str,
+        canary_artifact: str | None = None,
+        vantage: str = "external",
+        timeout: float = 2.0,
+        port: int = 8009,
+    ) -> DeveloperServiceAssessment:
         ip = self.resolve_target(target_host)
-        return self.probe_service(target_host, ip, DeveloperServiceType.AJP.value, port, "tcp", DeveloperCategory.APPLICATION_SERVER_GATEWAY.value, vantage, canary_artifact, timeout)
+        return self.probe_service(
+            target_host,
+            ip,
+            DeveloperServiceType.AJP.value,
+            port,
+            "tcp",
+            DeveloperCategory.APPLICATION_SERVER_GATEWAY.value,
+            vantage,
+            canary_artifact,
+            timeout,
+        )
 
-    def assess_fastcgi(self, target_host: str, canary_artifact: str | None = None, vantage: str = "external", timeout: float = 2.0, port: int = 9000) -> DeveloperServiceAssessment:
+    def assess_fastcgi(
+        self,
+        target_host: str,
+        canary_artifact: str | None = None,
+        vantage: str = "external",
+        timeout: float = 2.0,
+        port: int = 9000,
+    ) -> DeveloperServiceAssessment:
         ip = self.resolve_target(target_host)
-        return self.probe_service(target_host, ip, DeveloperServiceType.FASTCGI.value, port, "tcp", DeveloperCategory.APPLICATION_SERVER_GATEWAY.value, vantage, canary_artifact, timeout)
+        return self.probe_service(
+            target_host,
+            ip,
+            DeveloperServiceType.FASTCGI.value,
+            port,
+            "tcp",
+            DeveloperCategory.APPLICATION_SERVER_GATEWAY.value,
+            vantage,
+            canary_artifact,
+            timeout,
+        )
 
 
 class OfflineSyntheticDeveloperCollector(DeveloperServicesCollector):
@@ -143,16 +307,18 @@ class OfflineSyntheticDeveloperCollector(DeveloperServicesCollector):
         canary_artifact: str | None = None,
         timeout: float = 2.0,
     ) -> DeveloperServiceAssessment:
-        self.probes_recorded.append({
-            "target_host": target_host,
-            "resolved_ip": resolved_ip,
-            "service_type": service_type,
-            "category": category,
-            "port": port,
-            "protocol": protocol,
-            "vantage": vantage,
-            "canary_artifact": canary_artifact,
-        })
+        self.probes_recorded.append(
+            {
+                "target_host": target_host,
+                "resolved_ip": resolved_ip,
+                "service_type": service_type,
+                "category": category,
+                "port": port,
+                "protocol": protocol,
+                "vantage": vantage,
+                "canary_artifact": canary_artifact,
+            }
+        )
 
         t_data = self.targets.get(target_host) or self.targets.get(resolved_ip) or {}
         svc_data = t_data.get(service_type) or t_data.get(f"{service_type}:{port}")
@@ -190,10 +356,21 @@ class OfflineSyntheticDeveloperCollector(DeveloperServicesCollector):
         details = dict(svc_data.get("details", {}))
         for k, v in svc_data.items():
             if k not in (
-                "details", "vulnerabilities", "versions", "status", "protected",
-                "inaccessible", "remediated", "state", "auth_prerequisite",
-                "authentication_required", "role", "role_assigned", "can_execute_code",
-                "can_change_state", "bound_to_plan",
+                "details",
+                "vulnerabilities",
+                "versions",
+                "status",
+                "protected",
+                "inaccessible",
+                "remediated",
+                "state",
+                "auth_prerequisite",
+                "authentication_required",
+                "role",
+                "role_assigned",
+                "can_execute_code",
+                "can_change_state",
+                "bound_to_plan",
             ):
                 details.setdefault(k, v)
 
@@ -218,9 +395,7 @@ class OfflineSyntheticDeveloperCollector(DeveloperServicesCollector):
                 bound_to_plan=True,
                 applicable_versions=svc_data.get("versions", [details.get("version", "Remediated")]),
                 configuration_details=details,
-                uncertainty_notes=[
-                    "Service verified remediated against historical unauthenticated exposure"
-                ],
+                uncertainty_notes=["Service verified remediated against historical unauthenticated exposure"],
             )
 
         # 3. Protected Service Check (Properly authenticated & hardened)
@@ -231,11 +406,21 @@ class OfflineSyntheticDeveloperCollector(DeveloperServicesCollector):
             is_protected = True
         elif service_type == DeveloperServiceType.DOCKER_REGISTRY.value and details.get("auth_required") is True:
             is_protected = True
-        elif service_type == DeveloperServiceType.RMI.value and details.get("ssl_enabled") is True and details.get("auth_required") is True:
+        elif (
+            service_type == DeveloperServiceType.RMI.value
+            and details.get("ssl_enabled") is True
+            and details.get("auth_required") is True
+        ):
             is_protected = True
-        elif service_type == DeveloperServiceType.JDWP.value and (details.get("bind_localhost") is True or details.get("disabled") is True):
+        elif service_type == DeveloperServiceType.JDWP.value and (
+            details.get("bind_localhost") is True or details.get("disabled") is True
+        ):
             is_protected = True
-        elif service_type == DeveloperServiceType.ERLANG_EPMD.value and details.get("cookie_required") is True and details.get("firewalled") is True:
+        elif (
+            service_type == DeveloperServiceType.ERLANG_EPMD.value
+            and details.get("cookie_required") is True
+            and details.get("firewalled") is True
+        ):
             is_protected = True
         elif service_type == DeveloperServiceType.ADB.value and details.get("rsa_key_enforced") is True:
             is_protected = True
@@ -243,20 +428,22 @@ class OfflineSyntheticDeveloperCollector(DeveloperServicesCollector):
             is_protected = True
         elif service_type == DeveloperServiceType.SVN.value and details.get("anon_access_none") is True:
             is_protected = True
-        elif service_type == DeveloperServiceType.AJP.value and details.get("secret_required") is True and details.get("secret_configured") is True:
+        elif (
+            service_type == DeveloperServiceType.AJP.value
+            and details.get("secret_required") is True
+            and details.get("secret_configured") is True
+        ):
             is_protected = True
         elif service_type == DeveloperServiceType.FASTCGI.value and details.get("bind_localhost") is True:
             is_protected = True
 
-        canary_active = bool(
-            canary_artifact
-            or details.get("canary_verified")
-            or details.get("canary_probe_received")
-        )
+        canary_active = bool(canary_artifact or details.get("canary_verified") or details.get("canary_probe_received"))
 
         receipts: list[CleanupReceipt] = []
         if canary_active and canary_artifact:
-            receipt_id = hashlib.sha256(f"clean:{target_host}:{service_type}:{canary_artifact}".encode("utf-8")).hexdigest()[:16]
+            receipt_id = hashlib.sha256(f"clean:{target_host}:{service_type}:{canary_artifact}".encode()).hexdigest()[
+                :16
+            ]
             receipts.append(
                 CleanupReceipt(
                     receipt_id=f"rec-{receipt_id}",
@@ -298,7 +485,9 @@ class OfflineSyntheticDeveloperCollector(DeveloperServicesCollector):
         auth_req = svc_data.get("authentication_required", False)
         auth_prereq = svc_data.get(
             "auth_prerequisite",
-            DeveloperAuthPrerequisite.NONE.value if not auth_req else DeveloperAuthPrerequisite.DEFAULT_CREDENTIALS.value
+            DeveloperAuthPrerequisite.NONE.value
+            if not auth_req
+            else DeveloperAuthPrerequisite.DEFAULT_CREDENTIALS.value,
         )
         assigned_role = svc_data.get("role", "anonymous" if not auth_req else "developer")
         status = svc_data.get("status", DeveloperExposureStatus.EXPOSED.value)
@@ -312,8 +501,10 @@ class OfflineSyntheticDeveloperCollector(DeveloperServicesCollector):
         # Protocol-specific candidate evaluation
         if service_type == DeveloperServiceType.DOCKER.value:
             if not auth_req or details.get("tls_verify") is False:
-                vulns.append("Docker daemon TCP socket exposed without mutual TLS; root container breakout / RCE permitted")
-                c_id = hashlib.sha256(f"docker:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                vulns.append(
+                    "Docker daemon TCP socket exposed without mutual TLS; root container breakout / RCE permitted"
+                )
+                c_id = hashlib.sha256(f"docker:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     DeveloperPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -336,8 +527,10 @@ class OfflineSyntheticDeveloperCollector(DeveloperServicesCollector):
 
         elif service_type == DeveloperServiceType.DOCKER_REGISTRY.value:
             if not auth_req or details.get("auth_required") is False:
-                vulns.append("Docker Registry HTTP API exposed without authentication; container image and secret leakage permitted")
-                c_id = hashlib.sha256(f"registry:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                vulns.append(
+                    "Docker Registry HTTP API exposed without authentication; container image and secret leakage permitted"
+                )
+                c_id = hashlib.sha256(f"registry:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     DeveloperPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -359,8 +552,10 @@ class OfflineSyntheticDeveloperCollector(DeveloperServicesCollector):
 
         elif service_type == DeveloperServiceType.RMI.value:
             if not auth_req or details.get("ssl_enabled") is False:
-                vulns.append("Java Remote Method Invocation (RMI) registry exposed without authentication; remote class loading / RCE possible")
-                c_id = hashlib.sha256(f"rmi:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                vulns.append(
+                    "Java Remote Method Invocation (RMI) registry exposed without authentication; remote class loading / RCE possible"
+                )
+                c_id = hashlib.sha256(f"rmi:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     DeveloperPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -383,8 +578,10 @@ class OfflineSyntheticDeveloperCollector(DeveloperServicesCollector):
 
         elif service_type == DeveloperServiceType.JDWP.value:
             if details.get("bind_localhost") is False or not auth_req:
-                vulns.append("Java Debug Wire Protocol (JDWP) port exposed to network; arbitrary JVM bytecode execution permitted")
-                c_id = hashlib.sha256(f"jdwp:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                vulns.append(
+                    "Java Debug Wire Protocol (JDWP) port exposed to network; arbitrary JVM bytecode execution permitted"
+                )
+                c_id = hashlib.sha256(f"jdwp:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     DeveloperPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -407,8 +604,10 @@ class OfflineSyntheticDeveloperCollector(DeveloperServicesCollector):
 
         elif service_type == DeveloperServiceType.ERLANG_EPMD.value:
             if not auth_req or details.get("cookie_required") is False:
-                vulns.append("Erlang Port Mapper Daemon (EPMD) exposed; unauthenticated node discovery and arbitrary command execution")
-                c_id = hashlib.sha256(f"epmd:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                vulns.append(
+                    "Erlang Port Mapper Daemon (EPMD) exposed; unauthenticated node discovery and arbitrary command execution"
+                )
+                c_id = hashlib.sha256(f"epmd:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     DeveloperPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -431,8 +630,10 @@ class OfflineSyntheticDeveloperCollector(DeveloperServicesCollector):
 
         elif service_type == DeveloperServiceType.ADB.value:
             if not auth_req or details.get("rsa_key_enforced") is False:
-                vulns.append("Android Debug Bridge (ADB) daemon exposed without RSA authorization; arbitrary shell access and app installation permitted")
-                c_id = hashlib.sha256(f"adb:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                vulns.append(
+                    "Android Debug Bridge (ADB) daemon exposed without RSA authorization; arbitrary shell access and app installation permitted"
+                )
+                c_id = hashlib.sha256(f"adb:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     DeveloperPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -455,8 +656,10 @@ class OfflineSyntheticDeveloperCollector(DeveloperServicesCollector):
 
         elif service_type == DeveloperServiceType.DISTCC.value:
             if not auth_req or details.get("allow_cidr_enforced") is False:
-                vulns.append("distcc distributed compiler daemon exposed without host filtering; arbitrary command execution (CVE-2004-2687)")
-                c_id = hashlib.sha256(f"distcc:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                vulns.append(
+                    "distcc distributed compiler daemon exposed without host filtering; arbitrary command execution (CVE-2004-2687)"
+                )
+                c_id = hashlib.sha256(f"distcc:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     DeveloperPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -479,8 +682,10 @@ class OfflineSyntheticDeveloperCollector(DeveloperServicesCollector):
 
         elif service_type == DeveloperServiceType.SVN.value:
             if details.get("anon_access_none") is False or not auth_req:
-                vulns.append("Subversion repository daemon (svnserve) allows anonymous read access; source code repository exposure")
-                c_id = hashlib.sha256(f"svn:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                vulns.append(
+                    "Subversion repository daemon (svnserve) allows anonymous read access; source code repository exposure"
+                )
+                c_id = hashlib.sha256(f"svn:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     DeveloperPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -502,8 +707,10 @@ class OfflineSyntheticDeveloperCollector(DeveloperServicesCollector):
 
         elif service_type == DeveloperServiceType.AJP.value:
             if details.get("secret_required") is False or not details.get("secret_configured"):
-                vulns.append("Apache JServ Protocol (AJP13) exposed without secret; Ghostcat arbitrary file read / RCE (CVE-2020-1938)")
-                c_id = hashlib.sha256(f"ajp:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                vulns.append(
+                    "Apache JServ Protocol (AJP13) exposed without secret; Ghostcat arbitrary file read / RCE (CVE-2020-1938)"
+                )
+                c_id = hashlib.sha256(f"ajp:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     DeveloperPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -525,8 +732,10 @@ class OfflineSyntheticDeveloperCollector(DeveloperServicesCollector):
 
         elif service_type == DeveloperServiceType.FASTCGI.value:
             if details.get("bind_localhost") is False or not auth_req:
-                vulns.append("FastCGI (php-fpm) port exposed to external network; arbitrary PHP code execution / file inclusion")
-                c_id = hashlib.sha256(f"fastcgi:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                vulns.append(
+                    "FastCGI (php-fpm) port exposed to external network; arbitrary PHP code execution / file inclusion"
+                )
+                c_id = hashlib.sha256(f"fastcgi:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     DeveloperPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -584,16 +793,28 @@ class OfflineSyntheticDeveloperCollector(DeveloperServicesCollector):
 class StandardSocketDeveloperCollector(DeveloperServicesCollector):
     """Standard-library socket probe collector for developer and runtime interfaces."""
 
+    live_network_io = True
+
     def __init__(
         self,
+        destination_policy: DeveloperDestinationPolicy,
         allow_code_execution: bool = False,
         allow_state_change: bool = False,
     ) -> None:
+        if not isinstance(destination_policy, DeveloperDestinationPolicy):
+            raise DestinationScopeError("live collection requires a destination policy")
+        self.destination_policy = destination_policy
         self.allow_code_execution = allow_code_execution
         self.allow_state_change = allow_state_change
 
     def resolve_target(self, target_host: str) -> str:
-        return socket.gethostbyname(target_host)
+        from .live_execution import reject_unauthorized_live_discovery
+
+        reject_unauthorized_live_discovery(mode="live")
+        self.destination_policy.authorize_host(target_host)
+        resolved_ip = socket.gethostbyname(target_host)
+        self.destination_policy.authorize_ip(resolved_ip)
+        return resolved_ip
 
     def probe_service(
         self,
@@ -607,6 +828,11 @@ class StandardSocketDeveloperCollector(DeveloperServicesCollector):
         canary_artifact: str | None = None,
         timeout: float = 2.0,
     ) -> DeveloperServiceAssessment:
+        from .live_execution import reject_unauthorized_live_discovery
+
+        reject_unauthorized_live_discovery(mode="live")
+        self.destination_policy.authorize_host(target_host)
+        self.destination_policy.authorize_ip(resolved_ip)
         try:
             with socket.create_connection((resolved_ip, port), timeout=timeout):
                 return DeveloperServiceAssessment(
@@ -627,9 +853,11 @@ class StandardSocketDeveloperCollector(DeveloperServicesCollector):
                     can_change_state=False,
                     bound_to_plan=True,
                     configuration_details={"socket_connected": True},
-                    uncertainty_notes=["TCP connect succeeded; protocol-level handshake required to verify authentication"],
+                    uncertainty_notes=[
+                        "TCP connect succeeded; protocol-level handshake required to verify authentication"
+                    ],
                 )
-        except (socket.timeout, ConnectionRefusedError, OSError) as err:
+        except (TimeoutError, ConnectionRefusedError, OSError) as err:
             return DeveloperServiceAssessment(
                 target_host=target_host,
                 resolved_ip=resolved_ip,
@@ -663,17 +891,23 @@ def assess_developer_services(
     timeout: float = 2.0,
     allow_code_execution: bool = False,
     allow_state_change: bool = False,
+    destination_policy: DeveloperDestinationPolicy | None = None,
 ) -> DeveloperServicesReport:
     """Execute exposure and privilege boundary assessment across developer and runtime interfaces."""
-    active_collector = collector or StandardSocketDeveloperCollector(
-        allow_code_execution=allow_code_execution,
-        allow_state_change=allow_state_change,
+    active_collector = collector or OfflineSyntheticDeveloperCollector()
+    from .live_execution import reject_unauthorized_live_discovery
+
+    reject_unauthorized_live_discovery(
+        collector=active_collector, offline_collector_type=OfflineSyntheticDeveloperCollector
     )
+    if isinstance(active_collector, StandardSocketDeveloperCollector):
+        for target in targets:
+            active_collector.destination_policy.authorize_host(target)
     svcs = service_types or list(DEFAULT_DEVELOPER_PORTS.keys())
     canary = canary_artifact or canary_id
 
     targets_str = ",".join(targets)
-    report_id = f"dev-rep-{hashlib.sha256(f'{scope_ref}:{vantage}:{targets_str}'.encode('utf-8')).hexdigest()[:16]}"
+    report_id = f"dev-rep-{hashlib.sha256(f'{scope_ref}:{vantage}:{targets_str}'.encode()).hexdigest()[:16]}"
     assessments: list[DeveloperServiceAssessment] = []
 
     total_exposed = 0

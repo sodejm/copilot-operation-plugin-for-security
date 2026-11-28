@@ -1,3 +1,5 @@
+# Repository path setup precedes standalone entry point imports.
+# ruff: noqa: E402
 #!/usr/bin/env python3
 """Deterministic demo runner for Foundry Agent Harness."""
 
@@ -14,10 +16,18 @@ if str(PLUGIN_ROOT) not in sys.path:
     sys.path.insert(0, str(PLUGIN_ROOT))
 
 from foundryharness.cli import load_scenarios
-from foundryharness.gate import IndependentAuthorizationGate
-from foundryharness.mock_sandbox import MockSandbox
-from foundryharness.reporting import render_markdown_report
-from foundryharness.simulator import evaluate_scenario
+from foundryharness.gate import (
+    IndependentAuthorizationGate,
+)
+from foundryharness.mock_sandbox import (
+    MockSandbox,
+)
+from foundryharness.reporting import (
+    render_markdown_report,
+)
+from foundryharness.simulator import (
+    evaluate_scenario,
+)
 
 
 def main() -> int:
@@ -26,7 +36,7 @@ def main() -> int:
         print(f"Error: Scenarios directory not found at {scenarios_dir}", file=sys.stderr)
         return 1
 
-    print("=== Microsoft Foundry Adversarial Agent Review Demo ===")
+    print("=== Foundry Agent Harness Synthetic Scenario Demo ===")
     print(f"Loading evaluation scenarios from: {scenarios_dir.relative_to(REPO_ROOT)}")
 
     scenarios = load_scenarios(None, scenarios_dir)
@@ -39,9 +49,9 @@ def main() -> int:
         events.append(event)
 
     target_agent = {
-        "agent_name": "Contoso-Enterprise-Foundry-Agent",
+        "agent_name": "Synthetic-Scenario-Fixture",
         "agent_version": "1.0.0",
-        "framework": "Microsoft Foundry / Semantic Kernel",
+        "framework": "Deterministic scenario simulator",
     }
     environment = "mock-sandbox-offline"
 

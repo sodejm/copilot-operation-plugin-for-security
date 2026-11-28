@@ -1,7 +1,7 @@
 Feature: Mail, Messaging, and Message Broker Services Assessment
   As an authorized penetration tester or attack surface specialist
   I want protocol-specific assessment across mail transfer agents, real-time chat, and message brokers
-  So that messaging privilege candidates are routed to unauthorized relay or broker takeover workflows, canary messages generate verified cleanup receipts, bounded message budgets prevent mass outbound relaying, and inaccessible services are never falsely reported as secure
+  So that messaging candidates have scoped evidence, canary delivery follows explicit bounds, and inaccessible services are never reported as secure
 
   Scenario: Assessing mail, chat, and message broker services with protocol-specific collectors
     Given an approved target host exposing SMTP, POP3, IMAP, IRC, RabbitMQ, NATS, IBM MQ, Kafka, and MQTT
@@ -20,13 +20,23 @@ Feature: Mail, Messaging, and Message Broker Services Assessment
     Given an assessment targeting mail and broker services with message budget 5
     When messaging service assessment probes execute against candidate brokers
     Then each assessment enforces a message budget of 5 messages
-    And mass outbound relaying is prohibited and unconstrained bulk mail transmission is blocked
+    And no outbound messages are sent by the synthetic or socket collectors
 
-  Scenario: Validating boundary controls using canary messages and generating verified cleanup receipts
-    Given an assessment configured with canary identifier "canary_mail_probe"
+  Scenario: Validating an allowed synthetic canary and its fixture cleanup evidence
+    Given an assessment configured with an allowed canary identifier "canary_mail_probe" and matching delivery and cleanup evidence
     When the messaging services assessment executes canary validation probes
     Then canary validation status is confirmed in the assessment record
-    And a verified cleanup receipt with "verified_removed" status and receipt hash is emitted
+    And a synthetic cleanup receipt with "synthetic_fixture_cleanup_confirmed" status and receipt hash is emitted
+
+  Scenario: Rejecting a canary route outside the recipient or destination allowlist
+    Given a canary delivery policy with an unauthorized recipient or destination
+    When the messaging services assessment executes canary validation probes
+    Then the canary request is rejected before any probe
+
+  Scenario: Rejecting expired canary retention and exhausted message budget
+    Given an expired canary policy or a synthetic fixture exceeding its message budget
+    When the messaging services assessment executes canary validation probes
+    Then no canary is validated and no cleanup receipt is emitted
 
   Scenario: Extracting messaging privilege candidates for unauthorized relay and broker takeover
     Given an evaluated target exhibiting open relay SMTP, user enumeration, guest RabbitMQ, unauthenticated NATS, and unauthenticated Kafka

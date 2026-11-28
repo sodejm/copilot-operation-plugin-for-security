@@ -1,3 +1,5 @@
+# Repository path setup precedes standalone entry point imports.
+# ruff: noqa: E402
 """Unit, contract, and CLI tests for infrastructure and identity-facing services assessment."""
 
 from __future__ import annotations
@@ -5,10 +7,10 @@ from __future__ import annotations
 import argparse
 import io
 import json
-from pathlib import Path
 import sys
 import tempfile
 import unittest
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
@@ -19,15 +21,15 @@ from cops.discovery import (
     IdentityAttackPathCandidate,
     IdentityAttackPathType,
     InfraAssessmentReport,
-    InfraCollector,
     InfraServiceAssessment,
     InfraServiceType,
     OfflineSyntheticInfraCollector,
     ServiceExposureStatus,
-    StandardSocketInfraCollector,
     assess_infrastructure_services,
 )
-from cops.discovery.cli import command_infra_discovery
+from cops.discovery.cli import (
+    command_infra_discovery,
+)
 
 
 class TestInfrastructureModelsAndSerialization(unittest.TestCase):
@@ -108,7 +110,7 @@ class TestInfrastructureModelsAndSerialization(unittest.TestCase):
             out_file = Path(tmpdir) / "report.json"
             report.save(out_file)
             self.assertTrue(out_file.exists())
-            with open(out_file, "r", encoding="utf-8") as f:
+            with open(out_file, encoding="utf-8") as f:
                 loaded = json.load(f)
             self.assertEqual(loaded["report_id"], "infra-test-001")
 
@@ -336,7 +338,7 @@ class TestInfrastructureCLI(unittest.TestCase):
             self.assertEqual(rc_cand, 0)
             self.assertTrue(cand_path.exists())
 
-            with open(cand_path, "r", encoding="utf-8") as f:
+            with open(cand_path, encoding="utf-8") as f:
                 cands_data = json.load(f)
             self.assertIsInstance(cands_data, list)
             self.assertGreater(len(cands_data), 0)

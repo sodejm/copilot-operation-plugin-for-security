@@ -1,0 +1,139 @@
+# Local agent and MCP laboratories (E16.01)
+
+## Scope
+
+The Foundry Agent Harness gains a reproducible local laboratory for synthetic agent and MCP boundary cases. It uses a deterministic proposal fixture and a separate MCP stdio server. It does not connect to Microsoft Foundry, Semantic Kernel, a hosted model, a live MCP server, or a network endpoint. Results establish behavior of these fixtures and their independent authorization gate only.
+
+This laboratory complements the existing scenario simulator. The original `lab` workflow remains distinct from the signed operator scenario laboratory in `cops/laboratory/`. The issue #236 authorization extension below reuses COPS Action Plan, signed execution authorization, engagement, and approval-store contracts for its separate batch workflow.
+
+## Inputs and provenance
+
+- A case is a versioned JSON object conforming to `schemas/lab-case.schema.json`. Unknown fields, arbitrary commands, unsupported tools, tenants, resources, destinations, or control profiles fail closed.
+- The bundled cases cover retrieval, tool response, cross-tenant, peer message, state change, data exfiltration, memory, context, and tool-permission surfaces, plus authorized controls.
+- The source family is `COPS-E16.01 (provisional)`. The pinned S01 and S02 source inventories are contextual provenance only; per-file source-to-case mapping is deferred to E01.1. The cases are synthetic and do not claim a finding from those inventories.
+- The only tenant IDs, accounts, resources, and canary are synthetic. Case text is data, and the runtime never takes a process command or network target from it.
+
+## Execution and observations
+
+1. Start fresh fixed local Python fixture processes in a temporary directory, with bounded stdio responses and deadlines. Complete the MCP protocol handshake and verify the advertised tool inventory.
+2. Read the MCP fixture state. In the tool-response case, obtain the injected text through an actual MCP lookup before presenting it to the agent fixture.
+3. Capture fixture text and the proposed call separately. An independent gate checks tool permission, tenant, exact argument shape, fixed resource and destination allowlists, and, under the strict profile, equality to the trusted approved call.
+4. Record denied calls without forwarding them. Record permitted calls only after MCP execution. Read state again and derive effects exclusively from the difference in observed fixture state. A tool response or model text alone is never evidence of an effect.
+5. Reset fixture state and verify the reset before reporting the case expectation. Each case uses fresh processes and temporary storage.
+
+A `permission_only` profile intentionally demonstrates the consequence of checking tool and tenant permission without binding a proposed call to the trusted task approval. A paired `strict` case must deny the same injected proposal. The baseline is a controlled local example, not a real agent compromise.
+
+Reports separate `model_text`, `attempted_calls`, `denied_calls`, `executed_calls`, `executed_effects`, before/after state, fixture verification, and cleanup verification. An unmet expected outcome or failed cleanup makes the command fail. Malformed protocol or unverifiable state is an error.
+
+## Acceptance
+
+- Bundled cases run through the local agent and MCP fixture processes, including an observed effect in the permissive baseline and no effect in the strict paired case.
+- Foreign tenant, unauthorized tool, and non-local destination proposals are denied before execution.
+- Legacy fixture reads are executed calls without state mutation. The approved authorization fixture requires an independent disclosure witness for permitted reads and an observed state effect for permitted writes.
+- The CLI emits a versioned JSON run report and a concise human summary, with a nonzero status for unmet expectations.
+- Focused tests, the package validator, `python3 -m cops check foundry-agent-harness`, and `make check` pass.
+- The manifest playback invokes the actual legacy `evaluate` command over the six
+  pinned scenarios, requires one attempted and denied call per scenario with no
+  mock effects or model execution, compares normalized reruns, and proves that a
+  copied scenario without environment approval is rejected.
+
+The package validator and `cops check foundry-agent-harness` inspect bounded JSON, case schemas, required default authorization coverage, and skill frontmatter without importing assessment execution sources or starting fixture processes. Schema admission checks every node, including unused definitions, rejects unsupported constraints, and bounds local reference traversal. These checks reject invalid definitions and do not establish runtime behavior; execution and local observer-ledger effects are verified by the dedicated tests and approved laboratory runs.
+
+## Threat and abuse cases
+
+Untrusted content can claim higher priority, impersonate a peer, request cross-tenant access, or supply a tool call marker. The proposal fixture deliberately parses that marker so the gate can be exercised. It has no tool access. The MCP fixture accepts only fixed synthetic operations over stdio. The gate's allowlists prevent the proposal from selecting a process, tenant, resource, or network destination. This is process and data isolation within the local fixture design, not an operating-system network sandbox; run it only with synthetic case data and do not interpret its result as live-model resistance.
+
+## Offline stdio profile conformance (#149)
+
+### Executable scenario and evidence contracts
+
+`foundry.scenario/v1` remains readable by the offline simulator and inventory
+tools. It cannot request executable laboratory dispatch. Only
+`foundry.scenario/v2`, validated against `scenario-v2.schema.json`, describes an
+executable scenario. The v2 parser rejects unknown fields at every defined
+boundary, unsupported versions, credentials, arbitrary executable or shell
+fields, network destinations, and over-budget values before dispatch. The
+bounded MCP argument map contains inert scalar data; the registered profile and
+existing stdio compiler remain the authority for its exact keys and values.
+
+The v2 execution object pins adapter ID/version and profile ID/digest, contains
+the existing `cops.agent-mcp-stdio-envelope/v1` request, and supplies explicit
+duration, output, event-count, and trace-byte limits. It adds no command-line or
+transport override. Engagement, session, role, tenant, and scenario identities
+are bound with immutable plan, approval, and envelope digests. The envelope
+digest and scenario/profile identities must agree with the contained request.
+Parsing this contract does not grant execution authorization or verify that a
+profile, approval, or executable exists.
+
+Expected terminal decisions are `denied`, `executed`, or `unsupported`. Canary
+observation and an expected effect count of zero or one are explicit assertions;
+denied and unsupported cases require zero effects and no observed canary. Effect
+classifications are limited to `read_only` and `reversible_canary`. Cleanup is
+required and names the expected restored-state digest. The bundled executable
+scenario uses illustrative fixture digests, so it is a contract example rather
+than a signed approval or runnable authorization.
+
+`foundry.execution-trace/v1`, validated against `execution-trace.schema.json`,
+records ordered `model_output`, `tool_call_attempted`, `tool_call_denied`, and
+`tool_effect_executed` events separately. An `unsupported_feature` event records
+a typed reason and decision digest when an adapter capability is unavailable.
+Every event binds the same immutable identity/approval context. Attempts carry a
+request digest; denials carry a decision digest for that same request. Executed
+effects require before/after state digests and an independent observer identity.
+A model statement or attempted call is never an executed-effect event. The
+contract validates evidence structure; it does not establish that an observer
+actually ran or that an effect occurred.
+
+Trace summaries are redacted before serialization, including caller-supplied
+canary values. Raw hostile content, credentials, and raw tool output have no
+trace field. Evidence is represented by digests and bounded redacted summaries.
+Trace limits are enforced after redaction, events cannot follow a terminal
+decision, and verified cleanup requires matching initial/restored state digests.
+The immutable typed records keep canonical JSON internally and return detached
+copies, preventing later caller mutation from altering accepted bindings.
+
+A trusted, versioned profile pins one registered adapter action, supported
+environments, provenance source, license, and revision, executable verification
+arguments, version pattern, digest, and size cap, the complete action command
+template (binary, base arguments, and typed request parameter), MCP protocol, exact
+read-only request contract, and duration and output limits. The compiler accepts only
+a bounded untrusted request matching that contract and rejects credential-shaped
+keys or values in the profile and request arguments before encoding. It encodes the
+request and trusted bindings in one canonical base64url argument of a single Action
+Plan operation. Revalidation checks the plan digest, adapter registration and
+command-template digest, profile bindings, and decoded envelope before any later
+worker may consider execution. Unknown fields, changed arguments or adapter
+execution-contract fields, recognizable credentials, prerequisites, or egress
+allowance fail closed.
+
+Compilation and validation alone start no process and confer no authorization or
+OS network isolation. The separate worker path accepts one unmixed operation in
+a typed envelope, requires the production `LinuxBubblewrapSandbox`, rejects
+egress and destination scope, and uses a registered stdio-only dispatcher. A
+one-shot mediator binds dispatch to the plan, consumed approval, and envelope.
+The fixed dispatcher runs a disposable synthetic canary case and verifies its
+cleanup; its supervisor receipt contains digests and bounded status, not raw model
+text, arguments, canary values, or state. The mediator emits completion only for
+an exact `completed` receipt with `cleanup.verified` set to true. A malformed,
+failed, unverified-cleanup, cancelled, timed-out, or unacknowledged dispatch is
+attempted with an uncertain effect, is not automatically repeated, and must be
+reconciled before a new approval.
+
+Local fixture and macOS test results do not establish actual Linux bubblewrap
+isolation, independently administered observation, provider behavior, or hosted
+acceptance. Hosted CI runs Python 3.14; an exact-revision hosted
+result and human review require separate evidence.
+
+## Agent delegation and MCP authorization boundary extension (issue 236)
+
+The extension is a separate local synthetic pack. Its versioned case, adapter, evidence, normalized observation, and run contracts record a redacted principal, agent or service, downstream audience, tenant, resource, operation, caller-presented scopes, decision, and effect provenance. Only fixed synthetic aliases and grants are accepted; case input never selects a process, network destination, credential, or arbitrary tool. No bearer token is stored or printed. The fixture speaks MCP 2025-11-25 over stdio, which is a local transport demonstration and makes no OAuth or HTTP authorization compliance claim.
+
+The fixture checks pinned advertised server name/version metadata, protocol, the complete capability object, and exact unpaginated tool descriptors (including description and input schema) before testing; it rejects `nextCursor` rather than treating a partial inventory as complete. Advertised server metadata is not cryptographic peer authentication. It separates authentication of the synthetic grant and actor from authorization of audience, tenant, operation, scope, tool permission, and delegation depth. A normal reusable bearer grant may be used twice; a grant explicitly marked one-time rejects a second use within the same target process. The fixture does not prove cross-process or durable replay protection. Logical expiry and revocation are checked at the attempt time. The revocation case records a synthetic zero-tick decision window; it does not measure provider propagation.
+
+Each case starts a separate peer that forwards the approved request or a declared hostile mutation, plus a fresh target server and local effect observer. Request, decision, and effect records bind plan digest, test identity, case, principal, tool, and attempt, request, and canary IDs. The observer child generates and retains an ephemeral Ed25519 private key. The runner receives only a challenge-bound readiness record and public verification key, then verifies the observer session, monotonic record sequence, and every signed effect read directly from the private temporary directory; tool replies cannot establish execution and the runner cannot mint a valid record with its verification material. Missing, forged, or stale readiness and effect records fail closed. The runner still controls the approved observer source, child launch, and private directory on the same host, so this establishes process-level key separation rather than an independently administered external authority. External acceptance requires an observer identity and verification key provisioned through an out-of-band trust path outside caller control. Missing tenant context is denied with `missing_tenant` and zero effects; missing identity telemetry or malformed observer data, failed setup, or failed cleanup yields inconclusive evidence. Process registration and deferred SIGINT and SIGTERM handling protect startup and cleanup; a `finally` path terminates all three processes and independently checks removal of temporary storage on errors, timeouts, and cancellation. The default 22-case pack requires positive delegated controls for both tenants, cross-tenant denials in both directions, an autonomous control, and peer probes for tenant mutation, missing tenant, operation mutation, and receipt substitution. Positive controls require an observer-ledger canary disclosure for reads or state effect for writes; denied cases require neither. Every default case requires complete passing evidence. `evidence_complete`, `expectation_met`, and `security_pass` are distinct: an expected inconclusive result can match its expectation while remaining a failed security acceptance. The CLI returns nonzero for any inconclusive or failed security result.
+
+`auth-plan` uses the installed COPS data-only planner to validate all case fields and bind the entire selected batch, both fixture identities, runtime source hashes, requests, expectations, and aggregate limits in one immutable Action Plan. All seven execution files remain inert during planning and admission; the bootstrap rebuilds and compares the entire manifest before consumption. The trusted installed `auth-lab` bootstrap captures seven bounded regular source files before verifying the signed receipt against that plan, active engagement, trust store, and worker identity. It atomically consumes the receipt before importing a fresh controller or starting a process and executes only those captured approved bytes from a private directory. Preloaded controllers cannot replace the signed controller. The CLI, bootstrap, COPS data-only planner, verifier and store, Python, and operating system remain trusted installation components. Plans, engagements, receipts, cases, and trust stores use bounded regular-file reads and strict JSON decoding. Admission samples time after acquiring the approval-store transaction lock and requires at least nine seconds remaining, including an eight-second cleanup reserve. Approved cases execute without further prompts. Expiry, cancellation, or duration exhaustion stops admission and reports partial results, pending cases, and the next action. Remaining byte limits are applied before reading responses or new ledger bytes. `max_observed_fixture_bytes` accounts for received responses and new ledger bytes; it does not bound the serialized report or process memory. Reports go to stdout, with no arbitrary output-file write interface. Retrying pending cases requires a new approved plan; this command has no durable crash-resume checkpoint. A COPS receipt never replaces the target's independently checked grant.
+
+Acceptance includes competing uses of one receipt, inert planning for all seven execution files, full manifest and case validation, redacted failed reports and independently checked snapshot cleanup after controller initialization exceptions or `SystemExit`, preserving simultaneous initialization and cleanup failures, rejection of changed source before payload import, execution of a differently signed controller despite a preloaded controller, substitution of checkout sources after verification, malformed and oversized inputs, near-expiry admission, aggregate accounting across cases, bounded response timeouts, hostile peer forwarding, observer-ledger effects, missing, forged, and stale observer records, real CLI SIGTERM during startup, exchange, and cleanup, and observed process and directory removal. SIGKILL and host loss cannot run cleanup and leave effects to reconcile. The approval store uses POSIX ownership checks; fixtures do not establish native Windows acceptance or OS-enforced denied egress. The v1 fixture contracts describe only fixed synthetic aliases. The normalized observation schema accepts opaque provider-specific identifiers and records observer trust, but establishes no provider behavior. An external adapter requires separate versioning, provider-specific identity and permission pins, and an independently administered effect observer whose identity and verification key arrive through an out-of-band trust path; this issue claims no provider behavior or live-service coverage.
+
+A later case exception or `SystemExit` stops further admission, preserves completed case results and observed budget usage, and returns a redacted `execution_failure` identifying the interrupted case with uncertain effects. That case and unstarted cases remain pending and the security result and CLI status fail. Ordered `recovery_actions` require effect reconciliation, initialization inspection, and cleanup inspection as applicable before a new approval; `next_action` identifies the first. `source_snapshot.failures` retains every snapshot failure. The consumed receipt cannot be reused; snapshot and process cleanup remain independently checked.

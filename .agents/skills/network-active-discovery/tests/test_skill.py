@@ -1,18 +1,21 @@
+# Repository path setup precedes standalone entry point imports.
+# ruff: noqa: E402
 """Tests for network-active-discovery contributor skill."""
 
 from __future__ import annotations
 
-from pathlib import Path
 import sys
 import unittest
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[4]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from cops.discovery import (
-    ActiveScanSession,
     ActiveScanner,
+    ActiveScanSession,
+    ActiveServiceAssessment,
     OfflineSyntheticDispatcher,
     ScanBudget,
     ScanVantage,
@@ -81,7 +84,7 @@ class TestNetworkActiveDiscoverySkill(unittest.TestCase):
         ssh_ass = ass_by_port[22]
         self.assertEqual(ssh_ass.inferred_fingerprint.service_name, "ssh")
         self.assertEqual(ssh_ass.inferred_fingerprint.product, "OpenSSH")
-        self.assertEqual(ssh_ass.inferred_fingerprint.confidence, "high")
+        self.assertEqual(ssh_ass.inferred_fingerprint.confidence, "medium")
 
         http_ass = ass_by_port[80]
         self.assertEqual(http_ass.inferred_fingerprint.service_name, "http")
@@ -102,14 +105,22 @@ class TestNetworkActiveDiscoverySkill(unittest.TestCase):
         # Pre-mark port 80 as already completed
         key_80 = ActiveScanSession.make_probe_key(ScanVantage.EXTERNAL.value, "tcp", "app.corp.internal", 80)
         session.completed_probe_keys.add(key_80)
+        session.assessments.append(
+            ActiveServiceAssessment(
+                probe_id="prior-80",
+                target_host="app.corp.internal",
+                resolved_ip=self.dns_map["app.corp.internal"],
+                port=80,
+                vantage=ScanVantage.EXTERNAL.value,
+            )
+        )
 
         scanner = ActiveScanner(session=session, dispatcher=dispatcher, scope=self.scope)
         resumed = scanner.run()
 
         # Should only dispatch remaining ports (443 and 22)
         self.assertEqual(dispatcher.side_effect_count, 2)
-        self.assertEqual(len(resumed.assessments), 2)
-        self.assertNotIn(80, {a.port for a in resumed.assessments})
+        self.assertEqual([a.port for a in resumed.assessments], [80, 443, 22])
 
     def test_scope_shift_and_dns_rebind_quarantine(self):
         session = ActiveScanSession(

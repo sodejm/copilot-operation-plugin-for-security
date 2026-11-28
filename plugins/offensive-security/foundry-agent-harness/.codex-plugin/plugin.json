@@ -3,22 +3,24 @@
     "name": "Justin Soderberg",
     "url": "https://github.com/sodejm"
   },
-  "description": "Author adversarial scenarios and evaluate Microsoft Foundry and Semantic Kernel agents against deterministic mock sandboxes.",
+  "description": "Rehearse synthetic agent/MCP authorization and normalize provider-shaped responses from deterministic offline fixtures.",
   "homepage": "https://github.com/sodejm/copilot-operation-plugin-for-security",
   "interface": {
     "displayName": "COPS Microsoft Foundry Adversarial Agent Review Harness",
-    "shortDescription": "Adversarial evaluation harness for Microsoft Foundry agents.",
-    "longDescription": "Author structured adversarial scenarios, simulate indirect prompt injection and privilege escalation against Microsoft Foundry agents, and verify independent authorization gating outside model control.",
+    "shortDescription": "Offline agent, MCP, and provider response laboratory.",
+    "longDescription": "Run deterministic agent/MCP authorization cases and provider-shaped response fixtures through local gates, strict envelope validation, normalization, and synthetic budget accounting.",
     "developerName": "Justin Soderberg",
     "category": "Developer Tools",
     "capabilities": [
-      "Author structured adversarial evaluation scenarios",
-      "Deterministic mock tool and sandbox simulation",
-      "Distinguish model output from executed tool effects",
-      "Independent authorization gate verification"
+      "Run versioned synthetic local agent and MCP cases",
+      "Simulate legacy scenarios in an in-memory mock sandbox",
+      "Separate fixture text and proposals from executed tool effects",
+      "Verify independent authorization gate decisions",
+      "Normalize bundled OpenAI-, Azure-, AWS-, and GCP-shaped response fixtures",
+      "Exercise exact request binding and shared synthetic assessment budgets"
     ],
     "defaultPrompt": [
-      "Evaluate this Microsoft Foundry agent against adversarial scenarios for prompt injection and authorization gating."
+      "Run the bundled synthetic agent, MCP, and provider response fixtures and report gate, normalization, and budget outcomes."
     ]
   },
   "keywords": [

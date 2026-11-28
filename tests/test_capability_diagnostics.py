@@ -3,15 +3,12 @@
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
 from pathlib import Path
-import pytest
 
 from cops.diagnostics import (
-    DiagnosticCheck,
     DiagnosticReport,
-    PackageDiagnostic,
-    SystemDiagnostic,
-    ToolDiagnostic,
     detect_system_platform,
     diagnose_host_tools,
     diagnose_packages,
@@ -22,6 +19,19 @@ from cops.diagnostics import (
 from cops.diagnostics.cli import command_diagnostics
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_operator_cli_starts_without_site_packages():
+    """Keep the pre-install operator smoke path free of third-party imports."""
+    result = subprocess.run(
+        [sys.executable, "-S", "-m", "cops", "doctor"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
 def test_detect_system_platform():
@@ -37,8 +47,8 @@ def test_detect_system_platform():
 
 
 def test_diagnose_tool():
-    """Verify tool diagnosis finds python3 and correctly classifies missing tools."""
-    py_tool = diagnose_tool("python3", ">=3.11")
+    """Verify tool diagnosis finds the selected Python and classifies missing tools."""
+    py_tool = diagnose_tool(sys.executable, ">=3.14")
     assert py_tool.status == "available"
     assert py_tool.installed_version is not None
 
@@ -53,7 +63,7 @@ def test_diagnose_host_tools():
     assert len(tools) >= 5
     tool_map = {t.tool: t for t in tools}
     assert "python3" in tool_map
-    assert tool_map["python3"].status == "available"
+    assert tool_map["python3"].minimum_version == "3.14.0"
     assert "nmap" in tool_map
 
 
@@ -74,7 +84,7 @@ def test_diagnose_packages_all():
     """Verify package diagnosis across all plugins in repository."""
     plugins_dir = ROOT / "plugins"
     packages = diagnose_packages(plugins_dir)
-    assert len(packages) >= 14
+    assert len(packages) >= 17
     pkg_ids = [p.package_id for p in packages]
     assert "offensive-engagement-workbench" in pkg_ids
     assert "security-logging-advisor" in pkg_ids
@@ -86,14 +96,14 @@ def test_run_diagnostics_report():
     assert isinstance(report, DiagnosticReport)
     assert report.system.is_supported is True
     assert report.capability_truth_passed is True
-    assert report.capability_count == 69
-    assert len(report.packages) >= 14
+    assert report.capability_count == 89
+    assert len(report.packages) >= 17
     assert report.all_ready is True
 
     # Test serialization
     as_dict = report.to_dict()
     assert as_dict["capability_truth_passed"] is True
-    assert as_dict["capability_count"] == 69
+    assert as_dict["capability_count"] == 89
     assert "system" in as_dict
     assert "tools" in as_dict
     assert "packages" in as_dict
@@ -133,7 +143,7 @@ def test_command_diagnostics_cli(capsys):
     assert "Tool Prerequisites Matrix" in captured
     assert "Plugin Package Workflows" in captured
     assert "Capability Reconciliation" in captured
-    assert "Total Audited Capabilities: 69" in captured
+    assert "Total Audited Capabilities: 89" in captured
 
     # JSON execution
     code_json = command_diagnostics(root=ROOT, as_json=True)
@@ -141,7 +151,7 @@ def test_command_diagnostics_cli(capsys):
     captured_json = capsys.readouterr().out
     data = json.loads(captured_json)
     assert data["capability_truth_passed"] is True
-    assert data["capability_count"] == 69
+    assert data["capability_count"] == 89
 
     # Scoped package execution
     code_pkg = command_diagnostics(root=ROOT, package="offensive-engagement-workbench")

@@ -18,7 +18,7 @@
   ],
   "properties": {
     "schema_version": {
-      "const": "cops.detection-quality-report/v1"
+      "const": "cops.detection-quality-report/v2"
     },
     "report_id": {
       "type": "string"
@@ -48,6 +48,8 @@
       "additionalProperties": false,
       "required": [
         "total_cases",
+        "evaluated_cases",
+        "schema_error_cases",
         "true_positives",
         "false_positives",
         "true_negatives",
@@ -57,12 +59,14 @@
       ],
       "properties": {
         "total_cases": { "type": "integer" },
+        "evaluated_cases": { "type": "integer" },
+        "schema_error_cases": { "type": "integer" },
         "true_positives": { "type": "integer" },
         "false_positives": { "type": "integer" },
         "true_negatives": { "type": "integer" },
         "false_negatives": { "type": "integer" },
-        "precision_on_labeled_fixtures": { "type": "number" },
-        "recall_on_labeled_fixtures": { "type": "number" }
+        "precision_on_labeled_fixtures": { "type": ["number", "null"] },
+        "recall_on_labeled_fixtures": { "type": ["number", "null"] }
       }
     },
     "static_checks": {

@@ -6,7 +6,7 @@ import io
 import re
 import stat
 import zipfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -17,7 +17,6 @@ from .package_validation import validate_package
 from .paths import EVIDENCE_DIR, PACKAGE_ROOT, RELEASE_DIR, load_hunts, load_json, sha256_bytes, write_json
 from .rendering import compatibility_report
 from .reports import EXTERNAL_EVIDENCE_SCHEMA, INTEGRITY_EVIDENCE_SCHEMA, release_report, release_subject
-
 
 ARCHIVE_NAME = "sentinel-hunt-workbench.zip"
 _SECRET_PATTERNS = {
@@ -56,9 +55,7 @@ def secret_findings(relative: str, content: bytes) -> list[dict[str, str]]:
     """Return only pattern names and paths; never echo possible secret values."""
 
     return [
-        {"path": relative, "pattern": name}
-        for name, pattern in _SECRET_PATTERNS.items()
-        if pattern.search(content)
+        {"path": relative, "pattern": name} for name, pattern in _SECRET_PATTERNS.items() if pattern.search(content)
     ]
 
 
@@ -164,7 +161,7 @@ def build_release_artifacts(seed: int = 20260916) -> dict[str, Any]:
         },
     }
     index: dict[str, dict[str, str]] = {}
-    completed_at = datetime.now(timezone.utc).isoformat()
+    completed_at = datetime.now(UTC).isoformat()
     for kind, payload in payloads.items():
         payload_path, payload_hash = _evidence_file(f"{kind}.payload.json", payload)
         wrapper = {
@@ -189,7 +186,9 @@ def build_release_artifacts(seed: int = 20260916) -> dict[str, Any]:
     envelope_path = _release_file("local-evidence.json", envelope)
     report = release_report(seed, load_json(envelope_path))
     if report["gates"]["release_integrity"]["status"] != "passed":
-        raise ContentError(f"generated integrity evidence failed validation: {report['gates']['release_integrity']['findings']}")
+        raise ContentError(
+            f"generated integrity evidence failed validation: {report['gates']['release_integrity']['findings']}"
+        )
     for name in ("contract_and_schema", "static_validation", "reference_fixture_execution", "adapter_integrity"):
         if report["gates"][name]["status"] != "passed":
             raise ContentError(f"local release gate failed: {name}")

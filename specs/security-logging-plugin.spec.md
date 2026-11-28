@@ -89,6 +89,10 @@ guidance scenario in `specs/features/repository_conformance.feature`.
 - [ ] The generated report matches the fields laid out in the recommendations markdown template.
 - [ ] The repository contains comprehensive documentation on model selection and runtime routing guidelines.
 - [ ] The package contains valid Copilot, Codex, and Claude manifests plus the command definitions in `commands/` and `com.github.copilot/commands/`.
+- [ ] The manifest playback runs the repository-context collector twice over a
+  disposable synthetic repository, checks deterministic collector evidence,
+  validates a manually authored recommendation contract, discloses limited-scan
+  coverage, and rejects a recommendation missing a required field.
 
 ## CVE reachability extension
 

@@ -1,0 +1,16 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "squad_state": {
+      "enabled": true,
+      "type": "local",
+      "command": [
+        "npx",
+        "--ignore-scripts",
+        "-y",
+        "@bradygaster/squad-cli@2.0.0",
+        "state-mcp"
+      ]
+    }
+  }
+}

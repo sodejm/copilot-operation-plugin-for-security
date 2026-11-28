@@ -1,0 +1,33 @@
+{
+  "schema_version": "cops.agent-mcp-auth-case/v1",
+  "case_id": "peer-substitute-receipt",
+  "title": "Hostile peer substitutes a COPS assessment receipt for target authority",
+  "grant": "delegated-write",
+  "flow": "delegated",
+  "attempts": [
+    {
+      "principal": "principal-alice",
+      "agent": "agent-worker",
+      "downstream_service": "service-canary",
+      "audience": "mcp://auth-fixture",
+      "tenant": "tenant-contoso-01",
+      "resource": "res-canary",
+      "operation": "write",
+      "scopes": [
+        "canary:write"
+      ],
+      "depth": 1,
+      "tick": 1,
+      "tool": "canary/write",
+      "peer_action": "substitute_receipt"
+    }
+  ],
+  "expected_decisions": [
+    "denied"
+  ],
+  "expected_effect_count": 0,
+  "expected_reasons": [
+    "unrecognized_grant_or_actor"
+  ],
+  "expected_outcome": "pass"
+}

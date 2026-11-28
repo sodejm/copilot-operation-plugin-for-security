@@ -17,8 +17,8 @@
     "Active methods are unavailable."
   ],
   "demo": {
-    "description": "Print a passive plan for synthetic scope and local exports without network access.",
-    "command": ["$PYTHON", "plugins/offensive-security/attack-surface-planner/scripts/plan.py", "plugins/offensive-security/attack-surface-planner/fixtures/synthetic/scope.json"],
+    "description": "Run the passive planning playback, including semantic rerun assertions and active-mode rejection.",
+    "command": ["$PYTHON", "plugins/offensive-security/attack-surface-planner/scripts/run_playback.py"],
     "timeout_seconds": 30
   },
   "validation": [{

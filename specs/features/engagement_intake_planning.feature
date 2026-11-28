@@ -41,3 +41,19 @@ Feature: Engagement Intake and Execution Planning
     And the action plan includes platform prerequisites
     And the action plan operations include expected evidence, side effects, and cleanup obligations
     And the action plan digest is verifiable
+
+  Scenario: Resolving a polite endpoint assessment question without execution
+    Given a current engagement with the selected target "10.0.0.5"
+    When the goal "Can you assess the selected endpoint?" is resolved
+    Then the goal selects target "10.0.0.5"
+    And the goal reports that no assessment occurred
+
+  Scenario: Duplicate representations do not create multiple goal targets
+    Given a current engagement with duplicate representations of target "api.internal"
+    When the goal "Assess api.internal." is resolved
+    Then the goal selects target "api.internal"
+
+  Scenario: Oversized scope is rejected before intake validation
+    Given a current engagement with more than 1024 scope entries
+    When the goal "Assess the selected endpoint." is resolved
+    Then the goal fails with code "scope_too_large"

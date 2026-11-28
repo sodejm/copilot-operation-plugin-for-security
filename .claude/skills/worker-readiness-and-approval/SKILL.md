@@ -23,8 +23,8 @@ Verify the isolated execution worker runtime, process boundaries, unprivileged i
 ### Check Worker Readiness and Configuration
 
 ```bash
-python3 -m cops worker status
-python3 -m cops worker status --json
+python3 -m cops worker status --worker-inventory path/to/worker-inventory.json
+python3 -m cops worker status --worker-inventory path/to/worker-inventory.json --json
 ```
 
 ### Inspect the Approval Store
@@ -36,25 +36,39 @@ python3 -m cops worker store --status approved --json
 
 ### Execute an Authorized Action Plan
 
+Set `COPS_NMAP_SHA256` to the trusted, independently measured SHA-256 digest of
+the approved Nmap executable. Repeat `--executable-sha256 TOOL=SHA256` for every
+external adapter in the plan; `inert` needs no executable pin.
+
 ```bash
-python3 -m cops worker execute path/to/action-plan.json --authorization auth-12345678
+python3 -m cops worker execute path/to/action-plan.json \
+  --authorization path/to/authorization.json \
+  --worker-inventory path/to/worker-inventory.json \
+  --authorization-trust-store path/to/authorization-trust.json \
+  --engagement path/to/engagement.json \
+  --executable-sha256 "nmap=$COPS_NMAP_SHA256"
 ```
 
 ## Python API
 
+The production supervisor provisions the approval control, sandbox, and an
+owner-only cleanup journal outside the execution workspace. See
+`docs/WORKER_SUPERVISOR.md` for the complete configuration. An embedded worker
+with those provisioned inputs must recover pending cleanup before accepting a
+new plan:
+
 ```python
-from cops.execution import ApprovalStore, IsolatedWorker, WorkerConfig
+from cops.execution import IsolatedWorker
 
-# 1. Initialize approval store
-store = ApprovalStore("~/.cops/approvals.sqlite3")
+worker = IsolatedWorker(
+    inventory,
+    approval_control,
+    sandbox,
+    cleanup_journal_path=journal_path,
+    expected_engagement_id=action_plan.engagement_id,
+)
+worker.recover_pending_cleanup()
 
-# 2. Store pre-signed authorization envelope
-store.store_authorization(auth_envelope)
-
-# 3. Initialize worker
-worker = IsolatedWorker(WorkerConfig(worker_id="worker-linux-01"), store=store)
-
-# 4. Execute action plan
-run_result = worker.execute_plan(action_plan, authorization="auth-12345678")
+run_result = worker.execute_plan(action_plan, authorization=authorization_id)
 assert run_result.is_successful()
 ```

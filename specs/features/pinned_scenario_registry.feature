@@ -32,6 +32,17 @@ Feature: Pinned Scenario and Provenance Registry
     And its category is "article"
     And it contains 8 inventoried items
     And all inventory items resolve to valid scenario targets
+    And its licensing review records source "S07" with disposition "citation_only"
+
+  Scenario: Rejecting orphan supporting-guidance mappings
+    Given a provenance registry containing an orphan supporting-guidance mapping
+    When scenario integrity validation is executed
+    Then the validation fails with error code "orphan_guidance_mapping"
+
+  Scenario: Rejecting duplicate supporting-guidance identifiers
+    Given a provenance registry containing duplicate guidance identifiers
+    When scenario integrity validation is executed
+    Then the validation fails with error code "duplicate_guidance_id"
 
   Scenario: Rejecting orphan mappings and duplicate scenario identifiers
     Given a scenario registry containing a duplicate scenario identifier

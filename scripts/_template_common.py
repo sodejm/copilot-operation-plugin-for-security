@@ -8,7 +8,6 @@ import re
 import shutil
 from pathlib import Path
 
-
 TEMPLATE_MARKER = ".portable-agent-template"
 SKIP_NAMES = {".git", "LICENSE", "__pycache__", ".DS_Store"}
 DISTRIBUTION_IGNORE = shutil.ignore_patterns(
@@ -57,9 +56,7 @@ def copy_template(source: Path, destination: Path) -> None:
 
 def validate_slug(value: str) -> str:
     if not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", value):
-        raise TemplateError(
-            "project slug must contain lowercase letters, digits, and single hyphens"
-        )
+        raise TemplateError("project slug must contain lowercase letters, digits, and single hyphens")
     return value
 
 
@@ -118,7 +115,7 @@ def is_squad_managed_skill(path: Path) -> bool:
     )
     try:
         return marker in skill.read_text(encoding="utf-8").splitlines()
-    except (OSError, UnicodeError):
+    except OSError, UnicodeError:
         return False
 
 
@@ -127,8 +124,7 @@ def synchronize_claude_skills(root: Path) -> None:
     target = root / ".claude" / "skills"
     if not canonical.is_dir():
         raise TemplateError(f"canonical skills directory is missing: {canonical}")
-    skills = sorted(skill for skill in canonical.iterdir()
-                    if skill.is_dir() and not skill.name.startswith("."))
+    skills = sorted(skill for skill in canonical.iterdir() if skill.is_dir() and not skill.name.startswith("."))
     canonical_names = {skill.name for skill in skills}
     if target.is_symlink() or (target.exists() and not target.is_dir()):
         raise TemplateError("Claude skills target must be a regular directory")
@@ -170,9 +166,7 @@ def configure_project(
     root = root.resolve()
     marker = root / TEMPLATE_MARKER
     if not marker.is_file():
-        raise TemplateError(
-            f"{root} is not an unconfigured PARK template (missing {TEMPLATE_MARKER})"
-        )
+        raise TemplateError(f"{root} is not an unconfigured PARK template (missing {TEMPLATE_MARKER})")
     if license_choice not in LICENSE_CHOICES:
         raise TemplateError(f"unsupported license choice: {license_choice}")
     project_slug = validate_slug(slug) if slug else inferred_slug(name)

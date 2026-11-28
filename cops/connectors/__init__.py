@@ -1,6 +1,6 @@
 """Repository-owned, standard-library evidence connector SDK."""
-from .adapters.microsoft import GraphUsers, ResourceGraph
 from .adapters.m365 import GraphCollection
+from .adapters.microsoft import GraphUsers, ResourceGraph
 from .checkpoint import Checkpoint
 from .interfaces import Adapter, CredentialProvider, Page, Request, Response, Result, Transport
 from .policy import Limits

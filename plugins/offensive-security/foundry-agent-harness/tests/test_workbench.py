@@ -1,6 +1,10 @@
+# Repository path setup precedes standalone entry point imports.
+# ruff: noqa: E402
 """Comprehensive unit test suite for Foundry Agent Harness."""
 
 import json
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -12,13 +16,27 @@ REPO_ROOT = PLUGIN_ROOT.parent.parent
 if str(PLUGIN_ROOT) not in sys.path:
     sys.path.insert(0, str(PLUGIN_ROOT))
 
-from foundryharness.cli import load_scenarios, main as cli_main
-from foundryharness.gate import IndependentAuthorizationGate
-from foundryharness.mock_sandbox import MockSandbox
-from foundryharness.models import HarnessError, Scenario
-from foundryharness.redaction import redact_dict, redact_text
-from foundryharness.reporting import render_json_report, render_markdown_report
-from foundryharness.simulator import evaluate_scenario
+from foundryharness.cli import load_scenarios
+from foundryharness.cli import (
+    main as cli_main,
+)
+from foundryharness.gate import (
+    IndependentAuthorizationGate,
+)
+from foundryharness.mock_sandbox import (
+    MockSandbox,
+)
+from foundryharness.models import (
+    HarnessError,
+    Scenario,
+)
+from foundryharness.redaction import (
+    redact_dict,
+    redact_text,
+)
+from foundryharness.simulator import (
+    evaluate_scenario,
+)
 
 
 @pytest.fixture
@@ -78,9 +96,7 @@ def test_outcome_level_model_output_only():
 
 def test_outcome_level_denied_tool_call(scenarios_dir: Path):
     """Verify adversarial prompt attempting tool call is blocked by independent gate."""
-    sc = Scenario.from_dict(
-        json.loads((scenarios_dir / "rag_poisoning.json").read_text(encoding="utf-8"))
-    )
+    sc = Scenario.from_dict(json.loads((scenarios_dir / "rag_poisoning.json").read_text(encoding="utf-8")))
     sandbox = MockSandbox()
     gate = IndependentAuthorizationGate()
 
@@ -123,9 +139,7 @@ def test_outcome_level_executed_mock_effect():
 
 def test_cross_tenant_isolation(scenarios_dir: Path):
     """Verify cross-tenant lookup attempt is strictly blocked by independent gate."""
-    sc = Scenario.from_dict(
-        json.loads((scenarios_dir / "cross_tenant_access.json").read_text(encoding="utf-8"))
-    )
+    sc = Scenario.from_dict(json.loads((scenarios_dir / "cross_tenant_access.json").read_text(encoding="utf-8")))
     sandbox = MockSandbox()
     gate = IndependentAuthorizationGate()
 
@@ -138,9 +152,7 @@ def test_cross_tenant_isolation(scenarios_dir: Path):
 
 def test_egress_allowlist_enforcement(scenarios_dir: Path):
     """Verify data exfiltration to untrusted URL is blocked by independent gate."""
-    sc = Scenario.from_dict(
-        json.loads((scenarios_dir / "data_exfiltration.json").read_text(encoding="utf-8"))
-    )
+    sc = Scenario.from_dict(json.loads((scenarios_dir / "data_exfiltration.json").read_text(encoding="utf-8")))
     sandbox = MockSandbox()
     gate = IndependentAuthorizationGate()
 
@@ -206,7 +218,7 @@ def test_redaction_masks_sensitive_tokens():
     d = {"api_key": "secret_key_123", "token": "ey12345.token.signature", "normal": "hello"}
     redacted_dict = redact_dict(d)
     assert redacted_dict["api_key"] == "[REDACTED]"
-    assert redacted_dict["token"] == "[REDACTED]"
+    assert redacted_dict["token"] == "[REDACTED]"  # noqa: S105 - schema label or operation identifier, not a credential
     assert redacted_dict["normal"] == "hello"
 
 
@@ -222,7 +234,7 @@ def test_cli_list_and_evaluate(scenarios_dir: Path, tmp_path: Path):
     assert exit_code == 0
     assert md_out.exists()
     content = md_out.read_text(encoding="utf-8")
-    assert "# Microsoft Foundry Adversarial Agent Review Report" in content
+    assert "# Foundry Agent Harness Synthetic Scenario Report" in content
     assert "SCN-RAG-POISON-01" in content
 
     # Evaluate JSON
@@ -234,3 +246,77 @@ def test_cli_list_and_evaluate(scenarios_dir: Path, tmp_path: Path):
     assert data["schema_version"] == "foundry.review-report/v1"
     assert data["summary"]["total_scenarios"] == 6
     assert data["summary"]["denied_tool_call_count"] == 6
+
+
+def test_exported_package_provider_runner_needs_no_repo_or_site_packages(tmp_path: Path):
+    """The bundled assessment command runs from an exported package on stdlib alone."""
+    exported = tmp_path / "foundry-agent-harness"
+    shutil.copytree(
+        PLUGIN_ROOT,
+        exported,
+        ignore=shutil.ignore_patterns("__pycache__", ".pytest_cache"),
+    )
+
+    result = subprocess.run(
+        [sys.executable, "-I", "-S", "scripts/run_provider_assessment.py"],
+        cwd=exported,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    report = json.loads(result.stdout)
+    assert report["mode"] == "offline_fixture"
+    assert report["all_expectations_met"] is True
+    assert report["cleanup_verified"] is True
+
+
+def test_exported_package_provider_runner_rejects_nonfinite_json(tmp_path: Path):
+    exported = tmp_path / "foundry-agent-harness"
+    shutil.copytree(
+        PLUGIN_ROOT,
+        exported,
+        ignore=shutil.ignore_patterns("__pycache__", ".pytest_cache"),
+    )
+    cases_path = exported / "provider_fixtures" / "cases.json"
+    cases = json.loads(cases_path.read_text(encoding="utf-8"))
+    denied = next(item for item in cases["cases"] if item["case_id"] == "endpoint-denied")
+    cases_path.write_text(
+        json.dumps({"schema_version": cases["schema_version"], "cases": [denied]}).replace(
+            '"response": {', '"response": {"nonfinite": NaN, ', 1
+        ),
+        encoding="utf-8",
+    )
+    result = subprocess.run(
+        [sys.executable, "-I", "-S", "scripts/run_provider_assessment.py"],
+        cwd=exported,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 2
+    assert not result.stdout
+    assert "ProviderAssessmentError" in result.stderr
+
+
+def test_exported_package_gate_checks_provider_data_without_runtime(tmp_path: Path):
+    """The data-only gate validates bundled fixtures without assessment imports."""
+    exported = tmp_path / "foundry-agent-harness"
+    shutil.copytree(
+        PLUGIN_ROOT,
+        exported,
+        ignore=shutil.ignore_patterns("__pycache__", ".pytest_cache"),
+    )
+
+    result = subprocess.run(
+        [sys.executable, "-I", "-S", "scripts/validate_package.py"],
+        cwd=exported,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "Validated 14 provider fixture cases as data." in result.stdout
+    assert "runtime behavior requires separate observed execution" in result.stdout

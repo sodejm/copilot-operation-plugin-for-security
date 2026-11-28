@@ -1,3 +1,5 @@
+# Repository path setup precedes standalone entry point imports.
+# ruff: noqa: E402
 """Unit, contract, and CLI tests for remote administration, file sharing, and printing services assessment."""
 
 from __future__ import annotations
@@ -5,18 +7,18 @@ from __future__ import annotations
 import argparse
 import io
 import json
-from pathlib import Path
 import sys
 import tempfile
 import unittest
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from cops.discovery import (
-    CleanupReceipt,
     DEFAULT_REMOTE_PORTS,
+    CleanupReceipt,
     HostPrivilegeCandidate,
     LateralMovementImpact,
     OfflineSyntheticRemoteCollector,
@@ -24,13 +26,14 @@ from cops.discovery import (
     RemoteExposureStatus,
     RemoteServiceAssessment,
     RemoteServiceCategory,
-    RemoteServicesCollector,
     RemoteServicesReport,
     RemoteServiceType,
     StandardSocketRemoteCollector,
     assess_remote_services,
 )
-from cops.discovery.cli import command_remote_discovery
+from cops.discovery.cli import (
+    command_remote_discovery,
+)
 
 
 class TestRemoteModelsAndSerialization(unittest.TestCase):
@@ -275,22 +278,18 @@ class TestOfflineSyntheticRemoteCollector(unittest.TestCase):
 class TestStandardSocketRemoteCollector(unittest.TestCase):
     def test_socket_collector_target_resolution(self):
         collector = StandardSocketRemoteCollector()
-        resolved = collector.resolve_target("127.0.0.1")
-        self.assertEqual(resolved, "127.0.0.1")
+        with self.assertRaisesRegex(ValueError, "Unauthenticated live discovery is unavailable"):
+            collector.resolve_target("127.0.0.1")
 
     def test_socket_collector_inaccessible_port(self):
         collector = StandardSocketRemoteCollector()
-        assessment = collector.probe_service(
-            target_host="127.0.0.1",
-            resolved_ip="127.0.0.1",
-            service_type="ssh",
-            port=65534,
-            vantage="external",
-            timeout=0.1,
-        )
-        self.assertEqual(assessment.exposure_status, RemoteExposureStatus.INACCESSIBLE.value)
-        self.assertEqual(assessment.auth_prerequisite, RemoteAuthPrerequisite.UNKNOWN.value)
-        self.assertIn("cannot be reported as secure", assessment.uncertainty_notes[0])
+        with self.assertRaisesRegex(ValueError, "Unauthenticated live discovery is unavailable"):
+            collector.probe_service(
+                target_host="127.0.0.1",
+                resolved_ip="127.0.0.1",
+                service_type="ssh",
+                port=65534,
+            )
 
 
 class TestRemoteDiscoveryCLI(unittest.TestCase):
@@ -388,7 +387,9 @@ class TestRemoteDiscoveryCLI(unittest.TestCase):
                 rc = command_remote_discovery(args_insp_text)
                 self.assertEqual(rc, 0)
                 out = buf.getvalue()
-                self.assertIn("Truth-in-Advertising Notice: Inaccessible services are NOT reported as secure or hardened", out)
+                self.assertIn(
+                    "Truth-in-Advertising Notice: Inaccessible services are NOT reported as secure or hardened", out
+                )
             finally:
                 sys.stdout = sys.__stdout__
 

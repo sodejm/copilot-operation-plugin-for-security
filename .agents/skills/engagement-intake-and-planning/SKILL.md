@@ -1,6 +1,6 @@
 ---
 name: engagement-intake-and-planning
-description: Ingest authorized engagement scope, validate targets and windows, enforce boundaries, and compile reviewable immutable action plans.
+description: Help plan a security assessment or penetration test, turn a rough goal into draft scope, and validate approved details into an immutable action plan.
 ---
 
 # Engagement intake and planning
@@ -11,6 +11,21 @@ Guide the intake, scope validation, execution mode classification, and action pl
 - **Execution Mode Distinction**: Strictly separates `planning` (offline modeling), `import` (static log/artifact parsing), `laboratory` (isolated simulation), and `live` (active execution).
 - **Live Safety Gate**: Refuses incomplete live requests when budget, emergency contact, active window, or narrow subnet boundaries are absent.
 - **Immutable Action Planning**: Produces cryptographically bound `ActionPlan` (`cops.action-plan/v1`) contracts detailing platform prerequisites, expected evidence, side effects, and cleanup obligations.
+
+
+## Start with a draft
+
+Use this skill for “help me plan a security assessment” or “scope a penetration
+test.” Start with the goal and information already available. Ask only for the
+next detail needed to make the draft useful; record missing targets, owners,
+windows, budgets, and permissions as unresolved. Do not require signed scope,
+credentials, or a ready worker to discuss or draft a plan.
+
+Draft notes are not a validated Engagement or ActionPlan. Before using the CLI
+below, gather its required fields and validate them; never invent approvals or
+insert placeholder values to pass validation. Before execution, require the
+applicable approved scope, exact-plan authorization, worker readiness, budgets,
+and cleanup controls. A planning mode contract does not authorize live work.
 
 ## CLI Usage
 

@@ -11,7 +11,6 @@ from pathlib import Path
 from check_prerequisites import check_prerequisites
 from repository_files import repository_files
 
-
 ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -45,12 +44,15 @@ def main() -> int:
         run([sys.executable, "scripts/agent/validate_docs.py"]),
         run([sys.executable, "scripts/agent/sync_adapters.py", "--check"]),
         run([sys.executable, "scripts/agent/validate_marketplace.py"]),
+        run([sys.executable, "scripts/generate_plugin_playbooks.py", "--check"]),
         run([sys.executable, "scripts/agent/install_prerequisites.py", "--validate"]),
         run([sys.executable, "scripts/agent/export_portable.py", "--check"]),
         run([sys.executable, "scripts/agent/bundle_evidence.py", "--check"]),
         run([sys.executable, "-m", "cops", "generate", "--check"]),
         run([sys.executable, "-m", "cops", "coverage", "--check"]),
         run([sys.executable, "-m", "cops", "check"]),
+        run([sys.executable, "scripts/check_web_api_acceptance.py"]),
+        run([sys.executable, "scripts/check_agent_mcp_acceptance.py"]),
     ]
     if (ROOT / "tests").is_dir():
         checks.append(run([sys.executable, "-m", "pytest", "tests", "-q"]))

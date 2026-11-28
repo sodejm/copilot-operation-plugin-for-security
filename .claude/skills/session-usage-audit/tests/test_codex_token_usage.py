@@ -1,9 +1,9 @@
 """Accounting invariants; synthetic records contain no personal transcripts."""
 import importlib.util
 import json
-from pathlib import Path
 import tempfile
 import unittest
+from pathlib import Path
 
 SPEC = importlib.util.spec_from_file_location("audit", Path(__file__).parents[1] / "scripts/codex_token_usage.py")
 audit = importlib.util.module_from_spec(SPEC)

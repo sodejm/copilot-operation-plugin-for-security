@@ -1,17 +1,18 @@
 {
   "contracts": [
     "cops.evidence/v1",
-    "cops.acquisition/v1"
+    "cops.acquisition/v1",
+    "cops.langsmith-query-runs/v2"
   ],
   "schema_version": "attackpath.sdk-bundle/v1",
   "sources": [
     {
       "path": "cops/evidence/__init__.py",
-      "sha256": "f104b285bb1202f9b9447b2cde2b8ba8e1ea289a83213f28b21c5e658fd2e480"
+      "sha256": "d35a31cf3afca4bfe0be2a6128918a9f1d382df04a3ef167760902856ba01792"
     },
     {
       "path": "cops/evidence/canonical.py",
-      "sha256": "4f8a90a6738995313a2a0fc4723d15d062c18df3842d559d1a329594b68d2bae"
+      "sha256": "e33b21d1cbe58798043f3b6b212c375f27a24bea1c38b1d9fbcb1cf86d230504"
     },
     {
       "path": "cops/evidence/contract.py",
@@ -19,11 +20,31 @@
     },
     {
       "path": "cops/evidence/validation.py",
-      "sha256": "0fc330b7c7bef14153791fb0c0d2ba6d61da9c86848a6824314bf784ce80122a"
+      "sha256": "289643c4d0e9e1154d4579ec5dd641cae0173cb6d643750584a3b6ce2088e521"
     },
     {
       "path": "cops/evidence/assessment.py",
-      "sha256": "a4c70a6465d2bbaaafc4d1fdff71da7cd3739880e465916c36a03ff45eff7448"
+      "sha256": "7be15717fdb05158a2fceddae4d34c08a118b706ac150380a4ac307651f3afa5"
+    },
+    {
+      "path": "cops/evidence/ai_inventory.py",
+      "sha256": "ddae2f163e2dd0eb30ef30b91c05eec0534dff44bdbab4b2786266da76b50f2e"
+    },
+    {
+      "path": "cops/evidence/ai_components.py",
+      "sha256": "cefeab795a245eb5a0ee7a39aa143220af9b42bf7f5accca4c64c40e5706e0e8"
+    },
+    {
+      "path": "cops/evidence/export_policy.py",
+      "sha256": "89e224865aea9bfa6493da0b89144d2fa81aa342b6375188a831af0b5c3ce965"
+    },
+    {
+      "path": "cops/evidence/langsmith_inventory.py",
+      "sha256": "a29360c5fd30ca8e9657e3e6e8a0c2803ebb88a5beb30b38b2250430177c1371"
+    },
+    {
+      "path": "cops/execution/redaction.py",
+      "sha256": "a52059bf371df8d3f60e112c5700dd3816cd776e7eb3c7c13cea112f7c3b9faf"
     },
     {
       "path": "catalog/schemas/evidence-envelope.schema.json",

@@ -1,9 +1,9 @@
 {
   "stage": "implementation",
-  "request": "Commit the instruction-budget guard, contract validation fixes, and adapter drift fix while preserving unrelated work.",
+  "request": "Resolve PR #368 conflicts with current main, rerun checks, and push its dedicated branch while preserving unrelated checkout changes.",
   "scope": "Project instruction loading, deterministic repository validation, and canonical Claude adapter synchronization.",
   "setup": "Use the existing development virtual environment; no live providers or credentials are required.",
-  "constraints": "Preserve unrelated checkout changes and Squad files. The user authorized this local commit on the active main checkout and inclusion of the four complete Squad skill files. No push is authorized.",
+  "constraints": "Use the dedicated codex/instruction-budget-guard branch in an isolated worktree. Preserve all unrelated active checkout files and index entries. The user authorized the integration merge, checks, and branch push; no hosted PR merge is authorized.",
   "steps": [
     {
       "action": "Bound automatically loaded project instruction chains and retain mandatory contributor requirements in linked documentation.",
@@ -38,9 +38,7 @@
       "action": "Correct invalid links and machine-specific example paths in the Squad source skills and Claude projections.",
       "paths": [
         ".claude/skills/humanizer/SKILL.md",
-        ".claude/skills/e2e-template-testing/SKILL.md",
-        ".squad/templates/skills/humanizer/SKILL.md",
-        ".squad/templates/skills/e2e-template-testing/SKILL.md"
+        ".claude/skills/e2e-template-testing/SKILL.md"
       ],
       "verify": {
         "command": ".venv/bin/python scripts/agent/validate_contract.py",
@@ -116,8 +114,6 @@
       "paths": [
         ".claude/skills/humanizer/SKILL.md",
         ".claude/skills/e2e-template-testing/SKILL.md",
-        ".squad/templates/skills/humanizer/SKILL.md",
-        ".squad/templates/skills/e2e-template-testing/SKILL.md",
         "tests/test_instruction_budget.py"
       ],
       "runner": "pytest",

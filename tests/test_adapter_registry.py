@@ -1,12 +1,19 @@
 """Unit tests for declarative tool adapter registry."""
 
 import pytest
+
 from cops.adapters import (
     AdapterError,
     AdapterInjectionError,
     AdapterParameterError,
     ToolAdapterRegistry,
 )
+
+
+@pytest.fixture(autouse=True)
+def _linux_adapter_environment(monkeypatch):
+    """Exercise built-in definitions in their declared execution environment."""
+    monkeypatch.setattr("cops.adapters.registry.sys.platform", "linux")
 
 
 def test_registry_lists_default_tools():

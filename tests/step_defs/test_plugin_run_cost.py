@@ -1,10 +1,10 @@
 """Executable acceptance tests using local synthetic evidence; no paid calls."""
 import json
-from pathlib import Path
 import subprocess
 import sys
+from pathlib import Path
 
-from pytest_bdd import given, when, then, scenarios
+from pytest_bdd import given, scenarios, then, when
 
 ROOT = Path(__file__).resolve().parents[2]
 SKILL = ROOT / '.agents/skills/plugin-run-cost'

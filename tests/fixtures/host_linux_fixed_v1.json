@@ -1,0 +1,15 @@
+{
+  "schema_version": "1.0",
+  "source_kind": "synthetic_lab",
+  "source_id": "disposable-ubuntu-fixed",
+  "host": {
+    "kernel_release": "6.8.0", "distribution_id": "ubuntu", "distribution_version": "24.04", "namespace": "host",
+    "protections": {"selinux": "disabled", "apparmor": "enforcing", "no_new_privs": "enabled", "seccomp": "enabled", "user_namespaces": "enabled"}
+  },
+  "coverage": {"permissions": "assessed", "services": "not_assessed", "scheduled_tasks": "not_assessed", "capabilities": "not_assessed", "sudo": "not_assessed", "suid": "not_assessed", "credential_exposure": "not_assessed", "container_context": "not_assessed"},
+  "observations": [{
+    "id": "permissions-fixed", "surface": "permissions", "configuration": "ordinary", "evidence_ids": ["mode-summary-3"],
+    "requirements": {"kernel_release": "6.8.0", "distribution_id": "ubuntu", "distribution_version": "24.04", "namespace": "host", "protections": {}},
+    "canary": {"case": "fixed", "resource_id": "owned-canary-3", "disposable_host": true, "assessment_owned": true, "before_access": "denied", "after_access": "denied", "evidence_ids": ["canary-before-3", "canary-after-3", "cleanup-receipt-3"], "cleanup_verified": true}
+  }]
+}

@@ -1,6 +1,6 @@
 ---
 name: detection-quality-review
-description: Validate detection rules, analyze telemetry field dependencies, evaluate precision and recall on labeled fixtures, and identify schema drift.
+description: "Use for requests to check whether this alert catches the intended behavior. Validate detection rules, analyze telemetry field dependencies, evaluate precision and recall on labeled fixtures, and identify schema drift."
 ---
 
 # Detection Quality & Regression Review Workflow
@@ -24,7 +24,7 @@ flowchart TD
 ### Key Review Principles
 
 1. **Explicit Data Dependencies**:
-   Every detection rule declares required vs. optional fields, source tables/indexes, and join scopes. If a required field is dropped in an upstream logging pipeline, the workbench detects schema drift immediately.
+   Every detection rule declares required vs. optional fields, source tables/indexes, and join scopes. The workbench reports missing required values in fixture primary rows; compare those findings with actual source telemetry separately.
 
 2. **Labeled Fixture Quality Metrics**:
    - **True Positive (TP)**: Target attack events correctly caught.

@@ -1,0 +1,11 @@
+{
+  "schema_version": "cops.ai-inventory/v1",
+  "source": {"provider": "langsmith", "tenant": "tenant-fixture", "collection_id": "runs-fixture", "collected_at": "2026-10-10T00:00:00Z", "completeness": "partial"},
+  "assets": [
+    {"id": "run/root", "kind": "agent_run", "external_id": "run-1", "owner": "security", "sensitivity": "restricted", "trust": "trusted", "permissions": ["tool:billing.read"], "scopes": ["billing"], "provenance": {"record_id": "run-1", "reference": "fixture-run", "completeness": "partial"}},
+    {"id": "tool/billing", "kind": "mcp_tool", "external_id": "tool-1", "owner": "security", "sensitivity": "restricted", "trust": "privileged", "permissions": ["ledger:read"], "provenance": {"record_id": "tool-1", "reference": "fixture-tool", "completeness": "complete"}}
+  ],
+  "relationships": [{"id": "run-tool", "from": "run/root", "to": "tool/billing", "kind": "tool_invocation", "support": "observed", "provenance": {"record_id": "edge-1", "reference": "fixture-edge", "completeness": "partial"}}],
+  "identity_links": [{"asset": "run/root", "identity": {"provider": "entra", "tenant": "tenant-fixture", "kind": "service_principal", "id": "sp-1"}, "reason": "sponsor", "provenance": {"record_id": "link-1", "reference": "fixture-link", "completeness": "partial"}}],
+  "unknowns": [{"subject": "run/root input", "reason": "opaque"}]
+}

@@ -1,0 +1,7 @@
+{
+  "name": "web-api-assessment-workbench",
+  "version": "0.1.0",
+  "description": "Import HTTP traffic, OpenAPI schemas, and Postman collections, model endpoints and isolated sessions, and execute bounded request replays.",
+  "author": {"name": "Justin Soderberg"},
+  "license": "PolyForm-Noncommercial-1.0.0"
+}

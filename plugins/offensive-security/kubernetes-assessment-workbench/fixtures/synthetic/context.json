@@ -1,0 +1,31 @@
+{
+  "schema_version": "1.0",
+  "mode": "offline",
+  "plan": {
+    "approval_reference": "SYNTHETIC-K8S-ROE-121",
+    "context": {"name": "lab-east", "cluster": "lab-cluster", "user": "reader"},
+    "namespaces": ["payments"],
+    "surfaces": ["api_server", "namespaced_resources"],
+    "identity_anchor": {"namespace": "kube-system", "uid": "11111111-2222-4333-8444-555555555555"}
+  },
+  "observation": {
+    "current_context": {"name": "lab-east", "cluster": "lab-cluster", "user": "reader"},
+    "contexts": [{"name": "lab-east", "cluster": "lab-cluster", "user": "reader"}],
+    "identity_anchor": {"namespace": "kube-system", "uid": "11111111-2222-4333-8444-555555555555"},
+    "namespace_access": [{"namespace": "payments", "status": "accessible"}],
+    "surface_access": [
+      {"surface": "api_server", "status": "accessible"},
+      {"surface": "namespaced_resources", "status": "accessible"}
+    ],
+    "cluster_facts": {
+      "server_version": "v1.31.0",
+      "distribution": "kind",
+      "container_runtime": "containerd",
+      "node_os": "Linux",
+      "network_model": "kindnet",
+      "admission_controls": ["Pod Security Admission"],
+      "control_plane_access": "accessible",
+      "node_access": "accessible"
+    }
+  }
+}

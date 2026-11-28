@@ -3,31 +3,48 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
+import sqlite3
 import tempfile
 from pathlib import Path
+
 import pytest
 from pytest_bdd import given, parsers, scenarios, then, when
 
-from cops.contracts.models import ActionPlan, CleanupReceipt
+from cops import worker_supervisor as supervisor
+from cops.contracts.models import ActionPlan, CleanupReceipt, RunResult
 from cops.execution import (
     ApprovalStore,
+    CleanupJournal,
     CleanupManager,
+    CleanupPersistenceError,
     IsolatedWorker,
     SideEffectLedger,
-    WorkerConfig,
-    create_execution_authorization,
 )
+from cops.execution.filesystem import create_directory_exclusive_no_symlinks
+from tests.auth_testkit import (
+    TestApprovalControl,
+    TestExecutionSandbox,
+    authorize_test_plan,
+    worker_inventory_for_plan,
+)
+from tests.test_worker_supervisor import _config_document, _test_receiver
 
 scenarios("../../specs/features/execution_recovery_cleanup.feature")
 
 
 @pytest.fixture
 def recovery_ctx():
-    tmp_workspace = Path(tempfile.mkdtemp(prefix="cops-recovery-bdd-"))
-    ctx = {"workspace": tmp_workspace}
+    tmp_workspace = Path(tempfile.mkdtemp(prefix="cops-recovery-bdd-")).resolve(strict=True)
+    journal_root = Path(tempfile.mkdtemp(prefix="cops-recovery-journal-")).resolve(strict=True)
+    ctx = {
+        "workspace": tmp_workspace,
+        "journal_path": journal_root / "cleanup.sqlite3",
+    }
     yield ctx
     shutil.rmtree(tmp_workspace, ignore_errors=True)
+    shutil.rmtree(journal_root, ignore_errors=True)
     if "outside_dir" in ctx:
         shutil.rmtree(ctx["outside_dir"], ignore_errors=True)
 
@@ -45,14 +62,23 @@ def given_ledger_and_manager(recovery_ctx):
 def given_temp_file_tracked(recovery_ctx):
     workspace = recovery_ctx["workspace"]
     file_path = workspace / "temp_bdd.txt"
-    file_path.write_text("transient state", encoding="utf-8")
     recovery_ctx["file_path"] = file_path
-    recovery_ctx["ledger"].record_effect(
+    effect = recovery_ctx["ledger"].record_effect(
         step_id="step-1",
         resource_type="file",
         target=str(file_path),
         cleanup_action="delete",
     )
+    creation_fd = os.open(
+        file_path,
+        os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
+        0o600,
+    )
+    try:
+        os.write(creation_fd, b"transient state")
+        recovery_ctx["ledger"].record_created_identity(effect, creation_fd=creation_fd)
+    finally:
+        os.close(creation_fd)
 
 
 @given("an external system file tracked in the side-effect ledger")
@@ -105,9 +131,7 @@ def given_worker_with_store(recovery_ctx):
     workspace = recovery_ctx["workspace"]
     db_path = workspace / "approvals.sqlite3"
     store = ApprovalStore(db_path)
-    worker = IsolatedWorker(WorkerConfig(worker_id="worker-bdd-02"), store=store)
     recovery_ctx["store"] = store
-    recovery_ctx["worker"] = worker
 
 
 @given("an action plan containing a non-idempotent mutating step")
@@ -123,6 +147,7 @@ def given_plan_with_non_idempotent_step(recovery_ctx):
         {
             "step_id": "step-mutate",
             "tool": "inert",
+            "tool_version": "0.7.0",
             "action": "mutate",
             "arguments": {},
             "timeout_seconds": 10,
@@ -142,13 +167,19 @@ def given_plan_with_non_idempotent_step(recovery_ctx):
         specialist_id=sample_plan["specialist_id"],
         operations=operations,
         limits=sample_plan["limits"],
-        credential_references=sample_plan["credential_references"],
+        credential_references=[],
         created_at=sample_plan["created_at"],
     )
-    auth = create_execution_authorization(plan, operator="operator@corp", valid_hours=1)
+    auth, trust_store, engagement = authorize_test_plan(plan, worker_identity="worker-bdd-02")
     recovery_ctx["store"].store_authorization(auth)
     recovery_ctx["plan"] = plan
     recovery_ctx["auth"] = auth
+    recovery_ctx["worker"] = IsolatedWorker(
+        worker_inventory_for_plan(plan, worker_identity="worker-bdd-02"),
+        TestApprovalControl(recovery_ctx["store"], trust_store, engagement),
+        TestExecutionSandbox(),
+        cleanup_journal_path=recovery_ctx["journal_path"],
+    )
 
 
 @when("execution is interrupted during the non-idempotent step")
@@ -178,7 +209,451 @@ def then_retry_disallowed(recovery_ctx):
     assert "automatic repeat disallowed" in reason or "automatic retry disallowed" in reason
 
 
-@then("cleanup receipt documents verified rollback")
-def then_cleanup_documents_rollback(recovery_ctx):
-    assert recovery_ctx["result"].cleanup_status == "completed"
-    assert not recovery_ctx["target_file"].exists()
+@then("cleanup receipt documents unresolved caller-owned state")
+def then_cleanup_documents_unresolved_caller_state(recovery_ctx):
+    assert recovery_ctx["result"].cleanup_status == "failed"
+    assert recovery_ctx["target_file"].exists()
+    receipt = recovery_ctx["worker"].last_cleanup_receipt
+    assert receipt is not None
+    assert receipt.status == "failed"
+    assert len(receipt.unresolved_effects) == 1
+    assert "does not establish worker ownership" in receipt.unresolved_effects[0]["reason"]
+
+
+@given("a durable cleanup journal containing unresolved worker-owned side effects")
+def given_durable_cleanup_journal(recovery_ctx):
+    workspace = recovery_ctx["workspace"]
+    journal_root = workspace / "cleanup-journal"
+    journal_root.mkdir(mode=0o700)
+    journal = CleanupJournal(journal_root / "cleanup.sqlite3")
+    run_workspace = workspace / "run-workspace"
+    run_workspace.mkdir()
+    ledger = SideEffectLedger(
+        "plan-bdd-restart",
+        "eng-bdd-restart",
+        "worker-bdd-restart",
+        journal=journal,
+        run_id="run-bdd-restart",
+        workspace_dir=run_workspace,
+    )
+
+    cleaned_path = run_workspace / "already-cleaned.txt"
+    cleaned_path.write_text("first generation", encoding="utf-8")
+    cleaned_effect = ledger.record_effect(
+        step_id="step-cleaned",
+        resource_type="file",
+        target=str(cleaned_path),
+        cleanup_action="delete",
+    )
+    ledger.transition_effect(cleaned_effect, "cleaning")
+    cleaned_path.unlink()
+    ledger.transition_effect(cleaned_effect, "cleaned", details={"action_taken": "deleted_file"})
+    cleaned_path.write_text("replacement generation", encoding="utf-8")
+
+    interrupted_path = run_workspace / "interrupted"
+    interrupted_path.mkdir()
+    interrupted_effect = ledger.record_effect(
+        step_id="step-interrupted",
+        resource_type="directory",
+        target=str(interrupted_path),
+        cleanup_action="delete",
+    )
+    ledger.record_effect(
+        step_id="step-process",
+        resource_type="process",
+        target=str(os.getpid()),
+        cleanup_action="terminate",
+    )
+    recovery_ctx.update(
+        journal=journal,
+        cleaned_path=cleaned_path,
+        interrupted_effect_id=interrupted_effect.effect_id,
+    )
+
+
+@given("one cleanup transition was interrupted before its terminal journal record")
+def given_interrupted_cleanup_transition(recovery_ctx):
+    recovered = recovery_ctx["journal"].recoverable_runs("worker-bdd-restart")[0]
+    interrupted_effect = next(
+        effect for effect in recovered.effects if effect.effect_id == recovery_ctx["interrupted_effect_id"]
+    )
+    recovery_ctx["journal"].transition(recovered.run_id, interrupted_effect, "cleaning")
+
+
+@when("a replacement worker recovers the cleanup journal")
+def when_replacement_worker_recovers(recovery_ctx, monkeypatch):
+    journal = recovery_ctx["journal"]
+    recovered = journal.recoverable_runs("worker-bdd-restart")[0]
+    ledger = SideEffectLedger(
+        recovered.plan_id,
+        recovered.engagement_id,
+        recovered.worker_identity,
+        journal=journal,
+        run_id=recovered.run_id,
+        workspace_dir=recovered.workspace_dir,
+        recovered_effects=recovered.effects,
+        start_run=False,
+    )
+    signalled: list[tuple[int, int]] = []
+    monkeypatch.setattr(os, "kill", lambda pid, signal: signalled.append((pid, signal)))
+
+    def fail_receipt_write(_run_id, _receipt):
+        raise CleanupPersistenceError("injected receipt persistence failure")
+
+    monkeypatch.setattr(journal, "record_receipt", fail_receipt_write)
+    recovery_ctx["receipt"] = CleanupManager(
+        ledger,
+        worker_identity=recovered.worker_identity,
+        workspace_dir=recovered.workspace_dir,
+    ).rollback(recovered=True)
+    recovery_ctx["recovered_ledger"] = ledger
+    recovery_ctx["signalled"] = signalled
+
+
+@then("already-cleaned effects are not replayed")
+def then_cleaned_effect_not_replayed(recovery_ctx):
+    assert recovery_ctx["cleaned_path"].read_text(encoding="utf-8") == "replacement generation"
+
+
+@then("the interrupted cleanup outcome is recorded as unknown")
+def then_interrupted_outcome_unknown(recovery_ctx):
+    interrupted_effect = next(
+        effect
+        for effect in recovery_ctx["recovered_ledger"].get_effects()
+        if effect.effect_id == recovery_ctx["interrupted_effect_id"]
+    )
+    assert interrupted_effect.status == "unknown"
+
+
+@then("recovered process identifiers are not signalled")
+def then_recovered_process_not_signalled(recovery_ctx):
+    assert recovery_ctx["signalled"] == []
+
+
+@then("persistence failures produce an explicit partial or failed cleanup receipt")
+def then_persistence_failure_is_explicit(recovery_ctx):
+    receipt = recovery_ctx["receipt"]
+    assert receipt.status in {"partial", "failed"}
+    assert any(
+        unresolved["resource_type"] == "cleanup_journal" and "receipt persistence failed" in unresolved["reason"]
+        for unresolved in receipt.unresolved_effects
+    )
+
+
+@given("a provisioned supervisor with a pending process effect in its cleanup journal")
+def given_supervisor_with_pending_cleanup(recovery_ctx, tmp_path, monkeypatch):
+    context = _test_receiver(tmp_path, monkeypatch)
+    journal = context.receiver.worker.cleanup_journal
+    ledger = SideEffectLedger(
+        context.plan.plan_id,
+        context.plan.engagement_id,
+        context.config.worker_identity,
+        journal=journal,
+    )
+    effect = ledger.record_effect(
+        step_id="step-interrupted",
+        resource_type="process",
+        target=str(os.getpid()),
+        cleanup_action="terminate",
+    )
+    config_path = tmp_path / "supervisor.json"
+    config_path.write_text(json.dumps(_config_document(context.config)), encoding="utf-8")
+    config_path.chmod(0o600)
+    monkeypatch.setattr(os, "kill", lambda *_args: pytest.fail("recovered process signalled"))
+    monkeypatch.setattr(supervisor, "serve_forever", lambda *_args, **_kwargs: pytest.fail("relay listener opened"))
+    recovery_ctx.update(
+        supervisor_config_path=config_path,
+        supervisor_journal_path=journal.path,
+        supervisor_run_id=ledger.run_id,
+        supervisor_effect_id=effect.effect_id,
+    )
+
+
+@when("the supervisor restarts")
+def when_supervisor_restarts(recovery_ctx):
+    recovery_ctx["startup_status"] = supervisor.main(["--config", str(recovery_ctx["supervisor_config_path"])])
+
+
+@then("the supervisor refuses startup before opening the relay listener")
+def then_supervisor_refuses_startup(recovery_ctx):
+    assert recovery_ctx["startup_status"] == 1
+
+
+@then("the recovered process effect is durably recorded as unresolved")
+def then_supervisor_persists_unresolved_effect(recovery_ctx):
+    with sqlite3.connect(recovery_ctx["supervisor_journal_path"]) as connection:
+        (payload,) = connection.execute(
+            "SELECT payload_json FROM cleanup_events WHERE run_id = ? AND event_type = 'cleanup_receipt'",
+            (recovery_ctx["supervisor_run_id"],),
+        ).fetchone()
+    receipt = CleanupReceipt.from_dict(json.loads(payload))
+    assert receipt.status == "failed"
+    assert len(receipt.unresolved_effects) == 1
+    effect = receipt.unresolved_effects[0]
+    assert effect["effect_id"] == recovery_ctx["supervisor_effect_id"]
+    assert "cannot be verified after worker restart" in effect["reason"]
+
+
+@given("executable staging effects were durably cleaned before final rollback")
+def given_eager_staging_cleanup(recovery_ctx, monkeypatch):
+    workspace = recovery_ctx["workspace"]
+    journal = CleanupJournal(recovery_ctx["journal_path"])
+    ledger = SideEffectLedger(
+        "plan-bdd-eager-cleanup",
+        "eng-bdd-eager-cleanup",
+        "worker-bdd-eager-cleanup",
+        journal=journal,
+        run_id="run-bdd-eager-cleanup",
+        workspace_dir=workspace,
+    )
+    manager = CleanupManager(
+        ledger,
+        worker_identity="worker-bdd-eager-cleanup",
+        workspace_dir=workspace,
+    )
+
+    staging_dir = workspace / ".executables"
+    directory_effect = ledger.record_effect(
+        step_id="step-staging-directory",
+        resource_type="directory",
+        target=str(staging_dir),
+        cleanup_action="delete",
+    )
+    directory_fd = create_directory_exclusive_no_symlinks(staging_dir)
+    try:
+        ledger.record_created_identity(directory_effect, creation_fd=directory_fd)
+    finally:
+        os.close(directory_fd)
+
+    executable_path = staging_dir / "verified-tool"
+    file_effect = ledger.record_effect(
+        step_id="step-staged-executable",
+        resource_type="file",
+        target=str(executable_path),
+        cleanup_action="delete",
+    )
+    file_fd = os.open(
+        executable_path,
+        os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
+        0o700,
+    )
+    try:
+        os.write(file_fd, b"verified executable")
+        ledger.record_created_identity(file_effect, creation_fd=file_fd)
+    finally:
+        os.close(file_fd)
+
+    manager.cleanup_effect(file_effect)
+    manager.cleanup_effect(directory_effect)
+
+    ordered_effects = []
+    original_rollback_order = manager._rollback_order
+
+    def capture_rollback_order(effects):
+        ordered_effects.extend(effects)
+        return original_rollback_order(effects)
+
+    monkeypatch.setattr(manager, "_rollback_order", capture_rollback_order)
+    recovery_ctx.update(
+        eager_cleanup_manager=manager,
+        eager_cleanup_effects=(file_effect, directory_effect),
+        eager_cleanup_ordered_effects=ordered_effects,
+        staging_dir=staging_dir,
+    )
+
+
+@when("the worker emits its final cleanup receipt and run result")
+def when_worker_emits_final_cleanup_evidence(recovery_ctx):
+    manager = recovery_ctx["eager_cleanup_manager"]
+    receipt = manager.rollback()
+    recovery_ctx["receipt"] = receipt
+    recovery_ctx["result"] = RunResult(
+        schema_version="cops.run-result/v1",
+        result_id="result-bdd-eager-cleanup",
+        plan_id=manager.ledger.plan_id,
+        engagement_id=manager.ledger.engagement_id,
+        status="success",
+        started_at="2026-01-01T00:00:00Z",
+        finished_at="2026-01-01T00:00:01Z",
+        status_details={"summary": "Execution completed successfully"},
+        evidence_records=[receipt.evidence_hash],
+        artifacts=[],
+        cleanup_status=receipt.status,
+        worker_identity=manager.worker_identity,
+        exit_code=0,
+    )
+
+
+@then("the receipt reports every durable staging cleanup action without replaying it")
+def then_eager_cleanup_reported_without_replay(recovery_ctx):
+    receipt = recovery_ctx["receipt"]
+    effects = recovery_ctx["eager_cleanup_effects"]
+    assert recovery_ctx["eager_cleanup_ordered_effects"] == []
+    assert not recovery_ctx["staging_dir"].exists()
+    assert {cleaned["effect_id"]: cleaned["action_taken"] for cleaned in receipt.cleaned_effects} == {
+        effect.effect_id: effect.transition_details["action_taken"] for effect in effects
+    }
+
+
+@then(parsers.parse('the run result reports cleanup status "{status}"'))
+def then_run_result_reports_cleanup_status(recovery_ctx, status):
+    assert recovery_ctx["result"].cleanup_status == status
+
+
+@given("a resource was deleted but its terminal cleanup transition could not be persisted")
+def given_deleted_resource_with_failed_terminal_transition(recovery_ctx, monkeypatch):
+    workspace = recovery_ctx["workspace"]
+    ledger = SideEffectLedger(
+        "plan-bdd-stale-quarantine",
+        "eng-bdd-stale-quarantine",
+        "worker-bdd-stale-quarantine",
+    )
+    target = workspace / "deleted-before-transition.txt"
+    effect = ledger.record_effect(
+        step_id="step-stale-quarantine",
+        resource_type="file",
+        target=str(target),
+        cleanup_action="delete",
+    )
+    creation_fd = os.open(
+        target,
+        os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
+        0o600,
+    )
+    try:
+        os.write(creation_fd, b"transient")
+        ledger.record_created_identity(effect, creation_fd=creation_fd)
+    finally:
+        os.close(creation_fd)
+
+    manager = CleanupManager(
+        ledger,
+        worker_identity="worker-bdd-stale-quarantine",
+        workspace_dir=workspace,
+    )
+    quarantine_target = Path(manager._quarantine_target(effect))
+    original_transition = manager._transition
+
+    def fail_terminal_transition(effect_arg, status, *, details=None):
+        if status == "cleaned":
+            raise CleanupPersistenceError("injected terminal transition failure")
+        original_transition(effect_arg, status, details=details)
+
+    monkeypatch.setattr(manager, "_transition", fail_terminal_transition)
+    recovery_ctx.update(
+        failed_transition_manager=manager,
+        failed_transition_target=target,
+        failed_transition_quarantine_target=quarantine_target,
+    )
+
+
+@when("the cleanup manager emits the failed cleanup receipt")
+def when_cleanup_manager_emits_failed_receipt(recovery_ctx):
+    recovery_ctx["receipt"] = recovery_ctx["failed_transition_manager"].rollback()
+
+
+@then("the deleted resource is unresolved without a stale quarantine location")
+def then_deleted_resource_omits_stale_quarantine(recovery_ctx):
+    receipt = recovery_ctx["receipt"]
+    assert receipt.status == "failed"
+    assert not recovery_ctx["failed_transition_target"].exists()
+    assert not recovery_ctx["failed_transition_quarantine_target"].exists()
+    assert len(receipt.unresolved_effects) == 1
+    assert "quarantine_target" not in receipt.unresolved_effects[0]
+
+
+@given("a durable cleanup journal with file and directory creation crash windows")
+def given_creation_identity_crash_windows(recovery_ctx):
+    workspace = recovery_ctx["workspace"]
+    journal = CleanupJournal(recovery_ctx["journal_path"])
+    run_workspace = workspace / "identity-run"
+    run_workspace.mkdir()
+    ledger = SideEffectLedger(
+        "plan-bdd-identity",
+        "eng-bdd-identity",
+        "worker-bdd-identity",
+        journal=journal,
+        run_id="run-bdd-identity",
+        workspace_dir=run_workspace,
+    )
+    resources = {}
+    for resource_type in ("file", "directory"):
+        for window in ("before_creation", "after_creation", "after_identity"):
+            path = run_workspace / f"{resource_type}-{window}"
+            effect = ledger.record_effect(
+                step_id=f"step-{resource_type}-{window}",
+                resource_type=resource_type,
+                target=str(path),
+                cleanup_action="delete",
+            )
+            resources[(resource_type, window)] = (path, effect.effect_id)
+            if window == "before_creation":
+                continue
+            if resource_type == "file":
+                fd = os.open(
+                    path,
+                    os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
+                    0o600,
+                )
+            else:
+                fd = create_directory_exclusive_no_symlinks(path)
+            try:
+                if window == "after_identity":
+                    ledger.record_created_identity(effect, creation_fd=fd)
+            finally:
+                os.close(fd)
+    recovery_ctx.update(
+        identity_journal=journal,
+        identity_resources=resources,
+    )
+
+
+@when("cleanup recovery evaluates recorded creation identities")
+def when_recovery_evaluates_creation_identities(recovery_ctx):
+    journal = recovery_ctx["identity_journal"]
+    recovered = journal.recoverable_runs("worker-bdd-identity")[0]
+    ledger = SideEffectLedger(
+        recovered.plan_id,
+        recovered.engagement_id,
+        recovered.worker_identity,
+        journal=journal,
+        run_id=recovered.run_id,
+        workspace_dir=recovered.workspace_dir,
+        recovered_effects=recovered.effects,
+        start_run=False,
+    )
+    recovery_ctx["identity_receipt"] = CleanupManager(
+        ledger,
+        worker_identity=recovered.worker_identity,
+        workspace_dir=recovered.workspace_dir,
+    ).rollback(recovered=True)
+
+
+@then("only resources with durably recorded creation identity are removed")
+def then_only_identity_bound_resources_removed(recovery_ctx):
+    resources = recovery_ctx["identity_resources"]
+    for resource_type in ("file", "directory"):
+        assert not resources[(resource_type, "before_creation")][0].exists()
+        assert resources[(resource_type, "after_creation")][0].exists()
+        assert not resources[(resource_type, "after_identity")][0].exists()
+
+
+@then("unverified creation outcomes remain in a durable unresolved receipt")
+def then_unverified_creation_outcomes_are_durable(recovery_ctx):
+    resources = recovery_ctx["identity_resources"]
+    expected_ids = {
+        effect_id
+        for (_resource_type, window), (_path, effect_id) in resources.items()
+        if window in {"before_creation", "after_creation"}
+    }
+    receipt = recovery_ctx["identity_receipt"]
+    assert {item["effect_id"] for item in receipt.unresolved_effects} == expected_ids
+
+    with sqlite3.connect(recovery_ctx["journal_path"]) as connection:
+        durable_row = connection.execute(
+            "SELECT payload_json FROM cleanup_events "
+            "WHERE event_type = 'cleanup_receipt' ORDER BY sequence DESC LIMIT 1"
+        ).fetchone()
+    assert durable_row is not None
+    durable_receipt = json.loads(durable_row[0])
+    assert {item["effect_id"] for item in durable_receipt["unresolved_effects"]} == expected_ids

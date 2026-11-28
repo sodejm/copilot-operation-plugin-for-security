@@ -1,0 +1,124 @@
+{
+  "entrypoints": [
+    {
+      "argv": [
+        "python3",
+        "plugins/incident-response/incident-response-sandbox/scripts/run_demo.py"
+      ],
+      "effects": {
+        "authorization": "not applicable to this offline entrypoint",
+        "network": "none declared by the offline package contract",
+        "read_scope": "exact argv-declared repository paths; the script can also select package-local fixtures, so inspect its implementation before invocation",
+        "reads": [
+          "plugins/incident-response/incident-response-sandbox/scripts/run_demo.py"
+        ],
+        "subprocess": "the generator executes none; operator invocation may run subprocesses implemented by the declared repository script",
+        "temporary_storage": "implementation-controlled and not retained; location is not declared by argv",
+        "write_scope": "complete durable destinations explicitly declared in argv; an empty list means no durable destination is declared, not that the implementation performs no temporary writes",
+        "writes": []
+      },
+      "expectations": {
+        "evidence": [
+          "the declared command exits successfully",
+          "reported results are limited to the supplied offline fixtures and metadata"
+        ],
+        "inputs": {
+          "argv": [],
+          "implementation_selected": "package-local fixtures may be selected inside the declared script; review the script before invocation",
+          "review_sources": [
+            "plugins/incident-response/incident-response-sandbox/package.json",
+            "plugins/incident-response/incident-response-sandbox/docs/PLAYBOOK.md"
+          ]
+        },
+        "outputs": {
+          "durable_destinations": [],
+          "process": [
+            "exit status",
+            "standard output",
+            "standard error"
+          ],
+          "schemas": []
+        }
+      },
+      "id": "demo",
+      "purpose": "Exercise fresh-clock plan, dry-run, execution, replay and expiry rejection, and rollback against disposable synthetic state.",
+      "timeout_seconds": 30,
+      "working_directory": "."
+    },
+    {
+      "argv": [
+        "python3",
+        "plugins/incident-response/incident-response-sandbox/scripts/validate-package.py"
+      ],
+      "effects": {
+        "authorization": "not applicable to this offline entrypoint",
+        "network": "none declared by the offline package contract",
+        "read_scope": "exact argv-declared repository paths; the script can also select package-local fixtures, so inspect its implementation before invocation",
+        "reads": [
+          "plugins/incident-response/incident-response-sandbox/scripts/validate-package.py"
+        ],
+        "subprocess": "the generator executes none; operator invocation may run subprocesses implemented by the declared repository script",
+        "temporary_storage": "implementation-controlled and not retained; location is not declared by argv",
+        "write_scope": "complete durable destinations explicitly declared in argv; an empty list means no durable destination is declared, not that the implementation performs no temporary writes",
+        "writes": []
+      },
+      "expectations": {
+        "evidence": [
+          "the declared command exits successfully",
+          "reported results are limited to the supplied offline fixtures and metadata"
+        ],
+        "inputs": {
+          "argv": [],
+          "implementation_selected": "package-local fixtures may be selected inside the declared script; review the script before invocation",
+          "review_sources": [
+            "plugins/incident-response/incident-response-sandbox/package.json",
+            "plugins/incident-response/incident-response-sandbox/docs/PLAYBOOK.md"
+          ]
+        },
+        "outputs": {
+          "durable_destinations": [],
+          "process": [
+            "exit status",
+            "standard output",
+            "standard error"
+          ],
+          "schemas": []
+        }
+      },
+      "id": "validation-1",
+      "purpose": "offline sandbox behavior",
+      "timeout_seconds": 120,
+      "working_directory": "."
+    }
+  ],
+  "generation": {
+    "commands_executed": false,
+    "source": "catalog/plugins.json and package metadata"
+  },
+  "limitations": [
+    "Only synthetic local JSON fixture actions are executable; production integrations are unavailable.",
+    "Approver identity and plan hash are self-recorded assertions, not approval attestation or immutable provenance.",
+    "Concurrent mutation by untrusted local accounts is not supported; use private staging.",
+    "Host installation and live incident response behavior have not been verified."
+  ],
+  "links": {
+    "operator_playbook": "../docs/PLAYBOOK.md",
+    "package_contract": "../package.json",
+    "walkthrough": "../walkthroughs/offline-assessment.md"
+  },
+  "package_path": "plugins/incident-response/incident-response-sandbox",
+  "plugin_id": "incident-response-sandbox",
+  "purpose": "Create expiring typed plans and rehearse incident actions against synthetic local fixtures only.",
+  "schema_version": "cops.plugin-playbook/v1",
+  "status": {
+    "isolated_laboratory": "unverified",
+    "maturity": "experimental",
+    "offline_workflow": "validated",
+    "support": {
+      "host_installation": "unverified",
+      "live_integration": "unverified",
+      "offline_workflow": "validated",
+      "structural_validation": "validated"
+    }
+  }
+}

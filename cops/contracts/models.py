@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC
+from types import MappingProxyType
 from typing import Any
 
 from .lifecycle import validate_transition
@@ -118,28 +120,127 @@ class Scenario:
         )
 
 
+def _freeze(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return MappingProxyType({str(key): _freeze(item) for key, item in value.items()})
+    if isinstance(value, (list, tuple)):
+        return tuple(_freeze(item) for item in value)
+    return value
+
+
+def _thaw(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return {key: _thaw(item) for key, item in value.items()}
+    if isinstance(value, tuple):
+        return [_thaw(item) for item in value]
+    return value
+
+
 @dataclass
+class _Lifecycle:
+    status: str
+    consumed_at: str | None = None
+    consumed_by_worker: str | None = None
+
+
 class ActionPlan:
     """Immutable sequence of authorized operations bound to a scenario and engagement."""
 
-    schema_version: str
-    plan_id: str
-    engagement_id: str
-    scenario_id: str
-    status: str
-    target: str
-    specialist_id: str
-    operations: list[dict[str, Any]]
-    limits: dict[str, Any]
-    credential_references: list[str]
-    plan_digest: str
-    created_at: str
-    platform_prerequisites: list[str] | None = None
+    _immutable_fields = frozenset(
+        {
+            "schema_version",
+            "plan_id",
+            "engagement_id",
+            "scenario_id",
+            "target",
+            "specialist_id",
+            "operations",
+            "limits",
+            "credential_references",
+            "plan_digest",
+            "created_at",
+            "platform_prerequisites",
+            "batch",
+            "offline_research",
+        }
+    )
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        immutable_fields = type(self)._immutable_fields
+        if name == "_immutable_fields" or (name in immutable_fields and hasattr(self, name)):
+            raise AttributeError(f"approved action plan field {name!r} is immutable")
+        object.__setattr__(self, name, value)
+
+    def __delattr__(self, name: str) -> None:
+        if name == "_immutable_fields" or name in type(self)._immutable_fields:
+            raise AttributeError(f"approved action plan field {name!r} is immutable")
+        object.__delattr__(self, name)
+
+    def __init__(
+        self,
+        *,
+        schema_version: str,
+        plan_id: str,
+        engagement_id: str,
+        scenario_id: str,
+        status: str,
+        target: str,
+        specialist_id: str,
+        operations: list[dict[str, Any]],
+        limits: dict[str, Any],
+        credential_references: list[str],
+        plan_digest: str,
+        created_at: str,
+        platform_prerequisites: list[str] | None = None,
+        batch: dict[str, Any] | None = None,
+        offline_research: dict[str, Any] | None = None,
+    ) -> None:
+        self.schema_version = schema_version
+        self.plan_id = plan_id
+        self.engagement_id = engagement_id
+        self.scenario_id = scenario_id
+        self.target = target
+        self.specialist_id = specialist_id
+        self.operations = _freeze(operations)
+        self.limits = _freeze(limits)
+        self.credential_references = _freeze(credential_references)
+        self.plan_digest = plan_digest
+        self.created_at = created_at
+        self.platform_prerequisites = _freeze(platform_prerequisites or [])
+        self.batch = _freeze(batch or {"mode": "sequential", "max_operations": len(operations), "fail_fast": True})
+        self.offline_research = _freeze(offline_research) if offline_research is not None else None
+        self._lifecycle = _Lifecycle(status)
+
+    @property
+    def status(self) -> str:
+        return self._lifecycle.status
 
     def transition_to(self, next_state: str) -> None:
         """Attempt to transition action plan to a new lifecycle state."""
         validate_transition(self.status, next_state, "action_plan")
-        self.status = next_state
+        self._lifecycle.status = next_state
+
+    def approved_snapshot(self, *, include_digest: bool = False) -> dict[str, Any]:
+        """Return the complete immutable plan content covered by approval."""
+        result = {
+            "schema_version": self.schema_version,
+            "plan_id": self.plan_id,
+            "engagement_id": self.engagement_id,
+            "scenario_id": self.scenario_id,
+            "target": self.target,
+            "specialist_id": self.specialist_id,
+            "operations": _thaw(self.operations),
+            "limits": _thaw(self.limits),
+            "credential_references": _thaw(self.credential_references),
+            "created_at": self.created_at,
+            "platform_prerequisites": _thaw(self.platform_prerequisites),
+            "batch": _thaw(self.batch),
+        }
+        if self.offline_research is not None:
+            result["offline_research"] = _thaw(self.offline_research)
+        if include_digest:
+            result["plan_digest"] = self.plan_digest
+        return result
 
     def to_dict(self) -> dict[str, Any]:
         result: dict[str, Any] = {
@@ -150,21 +251,23 @@ class ActionPlan:
             "status": self.status,
             "target": self.target,
             "specialist_id": self.specialist_id,
-            "operations": self.operations,
-            "limits": self.limits,
-            "credential_references": self.credential_references,
+            "operations": _thaw(self.operations),
+            "limits": _thaw(self.limits),
+            "credential_references": _thaw(self.credential_references),
             "plan_digest": self.plan_digest,
             "created_at": self.created_at,
         }
-        if self.platform_prerequisites is not None:
-            result["platform_prerequisites"] = self.platform_prerequisites
+        result["platform_prerequisites"] = _thaw(self.platform_prerequisites)
+        result["batch"] = _thaw(self.batch)
+        if self.offline_research is not None:
+            result["offline_research"] = _thaw(self.offline_research)
         return result
 
     @classmethod
     def create(
         cls,
         *,
-        plan_id: str,
+        plan_id: str | None,
         engagement_id: str,
         scenario_id: str,
         target: str,
@@ -175,13 +278,30 @@ class ActionPlan:
         created_at: str,
         status: str = "draft",
         platform_prerequisites: list[str] | None = None,
+        batch: dict[str, Any] | None = None,
+        offline_research: dict[str, Any] | None = None,
     ) -> ActionPlan:
-        computed_digest = build_action_plan_digest(
-            target=target,
-            specialist_id=specialist_id,
-            operations=operations,
-            limits=limits,
-        )
+        batch = batch or {"mode": "sequential", "max_operations": len(operations), "fail_fast": True}
+        snapshot = {
+            "schema_version": "cops.action-plan/v1",
+            "engagement_id": engagement_id,
+            "scenario_id": scenario_id,
+            "target": target,
+            "specialist_id": specialist_id,
+            "operations": operations,
+            "limits": limits,
+            "credential_references": credential_references,
+            "created_at": created_at,
+            "platform_prerequisites": platform_prerequisites or [],
+            "batch": batch,
+        }
+        if offline_research is not None:
+            snapshot["offline_research"] = offline_research
+        if plan_id is None:
+            # A resumable identity must change with every immutable planning input.
+            plan_id = f"plan-cops-{build_action_plan_digest(snapshot=snapshot)[:24]}"
+        snapshot["plan_id"] = plan_id
+        computed_digest = build_action_plan_digest(snapshot=snapshot)
         plan = cls(
             schema_version="cops.action-plan/v1",
             plan_id=plan_id,
@@ -196,6 +316,8 @@ class ActionPlan:
             plan_digest=computed_digest,
             created_at=created_at,
             platform_prerequisites=platform_prerequisites,
+            batch=batch,
+            offline_research=offline_research,
         )
         validate_contract(plan.to_dict(), "action_plan")
         return plan
@@ -217,32 +339,118 @@ class ActionPlan:
             plan_digest=data["plan_digest"],
             created_at=data["created_at"],
             platform_prerequisites=data.get("platform_prerequisites"),
+            batch=data.get("batch"),
+            offline_research=data.get("offline_research"),
         )
 
 
-@dataclass
 class ExecutionAuthorization:
     """Cryptographically bound, operator-authenticated approval envelope for an action plan."""
 
-    schema_version: str
-    authorization_id: str
-    action_plan_id: str
-    plan_digest: str
-    engagement_id: str
-    operator: str
-    status: str
-    issued_at: str
-    authorized_until_utc: str
-    bound_parameters: dict[str, Any]
-    approval_mode: str
-    signature_digest: str
-    consumed_at: str | None = None
-    consumed_by_worker: str | None = None
+    _immutable_fields = frozenset(
+        {
+            "schema_version",
+            "authorization_id",
+            "action_plan_id",
+            "plan_digest",
+            "engagement_id",
+            "operator",
+            "issued_at",
+            "authorized_until_utc",
+            "bound_parameters",
+            "approval_mode",
+            "signature_algorithm",
+            "signing_key_id",
+            "signature_digest",
+        }
+    )
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        immutable_fields = type(self)._immutable_fields
+        if name == "_immutable_fields" or (name in immutable_fields and hasattr(self, name)):
+            raise AttributeError(f"signed authorization field {name!r} is immutable")
+        object.__setattr__(self, name, value)
+
+    def __delattr__(self, name: str) -> None:
+        if name == "_immutable_fields" or name in type(self)._immutable_fields:
+            raise AttributeError(f"signed authorization field {name!r} is immutable")
+        object.__delattr__(self, name)
+
+    def __init__(
+        self,
+        *,
+        schema_version: str,
+        authorization_id: str,
+        action_plan_id: str,
+        plan_digest: str,
+        engagement_id: str,
+        operator: str,
+        status: str,
+        issued_at: str,
+        authorized_until_utc: str,
+        bound_parameters: dict[str, Any],
+        approval_mode: str,
+        signature_digest: str,
+        signature_algorithm: str,
+        signing_key_id: str,
+        consumed_at: str | None = None,
+        consumed_by_worker: str | None = None,
+    ) -> None:
+        self.schema_version = schema_version
+        self.authorization_id = authorization_id
+        self.action_plan_id = action_plan_id
+        self.plan_digest = plan_digest
+        self.engagement_id = engagement_id
+        self.operator = operator
+        self.issued_at = issued_at
+        self.authorized_until_utc = authorized_until_utc
+        self.bound_parameters = _freeze(bound_parameters)
+        self.approval_mode = approval_mode
+        self.signature_algorithm = signature_algorithm
+        self.signing_key_id = signing_key_id
+        self.signature_digest = signature_digest
+        self._lifecycle = _Lifecycle(status, consumed_at, consumed_by_worker)
+
+    @property
+    def status(self) -> str:
+        return self._lifecycle.status
+
+    @property
+    def consumed_at(self) -> str | None:
+        return self._lifecycle.consumed_at
+
+    @consumed_at.setter
+    def consumed_at(self, value: str | None) -> None:
+        self._lifecycle.consumed_at = value
+
+    @property
+    def consumed_by_worker(self) -> str | None:
+        return self._lifecycle.consumed_by_worker
+
+    @consumed_by_worker.setter
+    def consumed_by_worker(self, value: str | None) -> None:
+        self._lifecycle.consumed_by_worker = value
+
+    def signed_payload(self) -> dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "authorization_id": self.authorization_id,
+            "action_plan_id": self.action_plan_id,
+            "plan_digest": self.plan_digest,
+            "engagement_id": self.engagement_id,
+            "operator": self.operator,
+            "issued_at": self.issued_at,
+            "authorized_until_utc": self.authorized_until_utc,
+            "bound_parameters": _thaw(self.bound_parameters),
+            "approval_mode": self.approval_mode,
+            "signature_algorithm": self.signature_algorithm,
+            "signing_key_id": self.signing_key_id,
+        }
 
     def transition_to(self, next_state: str) -> None:
         """Attempt to transition execution authorization to a new lifecycle state."""
         validate_transition(self.status, next_state, "execution_authorization")
-        self.status = next_state
+        self._lifecycle.status = next_state
 
     def is_valid_at(self, current_time_iso: str | None = None) -> bool:
         """Check if authorization is in approved state and within the authorized time window."""
@@ -256,7 +464,7 @@ class ExecutionAuthorization:
             now_dt = timestamp(current_time_iso)
         else:
             now_dt = datetime.now(UTC)
-        return now_dt <= timestamp(self.authorized_until_utc)
+        return timestamp(self.issued_at) <= now_dt < timestamp(self.authorized_until_utc)
 
     def to_dict(self) -> dict[str, Any]:
         data: dict[str, Any] = {
@@ -269,8 +477,10 @@ class ExecutionAuthorization:
             "status": self.status,
             "issued_at": self.issued_at,
             "authorized_until_utc": self.authorized_until_utc,
-            "bound_parameters": self.bound_parameters,
+            "bound_parameters": _thaw(self.bound_parameters),
             "approval_mode": self.approval_mode,
+            "signature_algorithm": self.signature_algorithm,
+            "signing_key_id": self.signing_key_id,
             "signature_digest": self.signature_digest,
         }
         if self.consumed_at is not None:
@@ -294,6 +504,8 @@ class ExecutionAuthorization:
             authorized_until_utc=data["authorized_until_utc"],
             bound_parameters=data["bound_parameters"],
             approval_mode=data["approval_mode"],
+            signature_algorithm=data["signature_algorithm"],
+            signing_key_id=data["signing_key_id"],
             signature_digest=data["signature_digest"],
             consumed_at=data.get("consumed_at"),
             consumed_by_worker=data.get("consumed_by_worker"),
@@ -317,13 +529,14 @@ class RunResult:
     cleanup_status: str
     worker_identity: str
     exit_code: int | None = None
+    offline_research: dict[str, Any] | None = None
 
     def is_successful(self) -> bool:
         """Return True only if status is strictly 'success'."""
         return evaluate_run_result(self.to_dict())
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        result = {
             "schema_version": self.schema_version,
             "result_id": self.result_id,
             "plan_id": self.plan_id,
@@ -338,6 +551,9 @@ class RunResult:
             "cleanup_status": self.cleanup_status,
             "worker_identity": self.worker_identity,
         }
+        if self.offline_research is not None:
+            result["offline_research"] = self.offline_research
+        return result
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> RunResult:
@@ -356,6 +572,7 @@ class RunResult:
             artifacts=data["artifacts"],
             cleanup_status=data["cleanup_status"],
             worker_identity=data["worker_identity"],
+            offline_research=data.get("offline_research"),
         )
 
 
@@ -495,6 +712,7 @@ class SpecialistHandoff:
         """Transition handoff to next state and record in transition_log."""
         validate_transition(self.status, next_state, "specialist_handoff")
         from cops.evidence.canonical import utc_now
+
         now_iso = utc_now()
         log_entry: dict[str, Any] = {
             "from_status": self.status,
@@ -570,6 +788,7 @@ class LaboratoryEnvironment:
         """Transition laboratory environment to a new lifecycle state."""
         validate_transition(self.status, next_state, "laboratory_environment")
         from cops.evidence.canonical import utc_now
+
         self.status = next_state
         self.updated_at = utc_now()
 

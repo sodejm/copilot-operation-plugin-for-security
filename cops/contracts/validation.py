@@ -24,6 +24,12 @@ IDENTIFIER_PATTERNS: dict[str, re.Pattern[str]] = {
     "cleanup_receipt": re.compile(r"^cln-[a-z0-9_-]{4,64}$"),
     "specialist_handoff": re.compile(r"^hnd-[a-z0-9_-]{4,64}$"),
     "laboratory_environment": re.compile(r"^env-lab-[a-z0-9_-]{4,64}$"),
+    "assessment_report": re.compile(r"^report-[a-z0-9_-]{4,64}$"),
+    "assessment_input": re.compile(r"^report-[a-z0-9_-]{4,64}$"),
+    "detection_validation_input": re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"),
+    "detection_validation_report": re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"),
+    "retest_input": re.compile(r"^retest-[a-z0-9_-]{4,64}$"),
+    "retest_report": re.compile(r"^retest-[a-z0-9_-]{4,64}$"),
 }
 
 SCHEMA_MAP: dict[str, str] = {
@@ -34,8 +40,16 @@ SCHEMA_MAP: dict[str, str] = {
     "cops.finding/v1": "finding-contract.schema.json",
     "cops.execution-authorization/v1": "execution-authorization.schema.json",
     "cops.cleanup-receipt/v1": "cleanup-receipt.schema.json",
+    "cops.cleanup-receipt/v2": "cleanup-receipt-v2.schema.json",
     "cops.specialist-handoff/v1": "specialist-handoff.schema.json",
     "cops.laboratory-environment/v1": "laboratory-environment.schema.json",
+    "cops.assessment-report/v1": "assessment-report.schema.json",
+    "cops.assessment-input/v1": "assessment-input.schema.json",
+    "cops.detection-validation-input/v1": "detection-validation-input.schema.json",
+    "cops.detection-validation-report/v1": "detection-validation-report.schema.json",
+    "cops.retest-input/v1": "retest-input.schema.json",
+    "cops.retest-report/v1": "retest-report.schema.json",
+    "cops.laboratory-retest-evidence/v1": "laboratory-retest-evidence.schema.json",
 }
 
 TYPE_MAP: dict[str, str] = {
@@ -46,8 +60,16 @@ TYPE_MAP: dict[str, str] = {
     "cops.finding/v1": "finding",
     "cops.execution-authorization/v1": "execution_authorization",
     "cops.cleanup-receipt/v1": "cleanup_receipt",
+    "cops.cleanup-receipt/v2": "cleanup_receipt",
     "cops.specialist-handoff/v1": "specialist_handoff",
     "cops.laboratory-environment/v1": "laboratory_environment",
+    "cops.assessment-report/v1": "assessment_report",
+    "cops.assessment-input/v1": "assessment_input",
+    "cops.detection-validation-input/v1": "detection_validation_input",
+    "cops.detection-validation-report/v1": "detection_validation_report",
+    "cops.retest-input/v1": "retest_input",
+    "cops.retest-report/v1": "retest_report",
+    "cops.laboratory-retest-evidence/v1": "laboratory_retest_evidence",
 }
 
 
@@ -60,27 +82,22 @@ def validate_identifier(identifier: str, kind: str) -> None:
         raise ContractError("invalid_contract", f"unknown identifier kind: {kind}")
     if not pattern.fullmatch(identifier):
         raise ContractError(
-            "malformed_identifier",
-            f"identifier '{identifier}' does not match required pattern for {kind}"
+            "malformed_identifier", f"identifier '{identifier}' does not match required pattern for {kind}"
         )
 
 
 def build_action_plan_digest(
     *,
-    target: str,
-    specialist_id: str,
-    operations: list[dict[str, Any]],
-    limits: dict[str, Any],
+    snapshot: dict[str, Any],
     max_bytes: int = 1024 * 1024,
 ) -> str:
-    """Calculate deterministic canonical digest of an action plan payload."""
-    payload = {
-        "target": target,
-        "specialist_id": specialist_id,
-        "operations": operations,
-        "limits": limits,
-    }
-    return digest(payload, max_bytes=max_bytes)
+    """Calculate a deterministic digest over every approved plan field."""
+    return digest(snapshot, max_bytes=max_bytes)
+
+
+def workflow_target_checksum(target: dict[str, Any]) -> str:
+    """Detect partial target edits within one handoff record; not authenticate it."""
+    return f"sha256:{digest(target)}"
 
 
 def evaluate_run_result(result: dict[str, Any]) -> bool:
@@ -108,8 +125,7 @@ def validate_contract(
     version = document.get("schema_version")
     if not version or version not in SCHEMA_MAP:
         raise ContractError(
-            "unsupported_version",
-            f"unsupported schema_version: {version!r}. Supported versions: {sorted(SCHEMA_MAP)}"
+            "unsupported_version", f"unsupported schema_version: {version!r}. Supported versions: {sorted(SCHEMA_MAP)}"
         )
 
     expected_type = TYPE_MAP[version]
@@ -118,7 +134,7 @@ def validate_contract(
         if normalized_requested != expected_type:
             raise ContractError(
                 "invalid_contract",
-                f"requested type '{contract_type}' does not match document schema_version '{version}'"
+                f"requested type '{contract_type}' does not match document schema_version '{version}'",
             )
 
     schema_file = SCHEMA_MAP[version]
@@ -137,6 +153,12 @@ def validate_contract(
         "cleanup_receipt": "receipt_id",
         "specialist_handoff": "handoff_id",
         "laboratory_environment": "environment_id",
+        "assessment_report": "report_id",
+        "assessment_input": "report_id",
+        "detection_validation_input": "validation_id",
+        "detection_validation_report": "validation_id",
+        "retest_input": "retest_id",
+        "retest_report": "retest_id",
     }
     primary_id_field = id_field_map.get(expected_type)
     if primary_id_field and primary_id_field in document:
@@ -175,17 +197,11 @@ def validate_contract(
             if any(secret_marker in ref.lower() for secret_marker in ("bearer ", "ghp_", "eyj", "pass")):
                 raise ContractError("credential_leak_detected", "raw credential detected in credential_references")
 
-        expected_digest = build_action_plan_digest(
-            target=document["target"],
-            specialist_id=document["specialist_id"],
-            operations=document["operations"],
-            limits=document["limits"],
-            max_bytes=max_bytes,
-        )
+        snapshot = {key: value for key, value in document.items() if key not in {"status", "plan_digest"}}
+        expected_digest = build_action_plan_digest(snapshot=snapshot, max_bytes=max_bytes)
         if document["plan_digest"] != expected_digest:
             raise ContractError(
-                "integrity_mismatch",
-                f"plan_digest mismatch: expected {expected_digest}, got {document['plan_digest']}"
+                "integrity_mismatch", f"plan_digest mismatch: expected {expected_digest}, got {document['plan_digest']}"
             )
 
     elif expected_type == "execution_authorization":
@@ -198,29 +214,10 @@ def validate_contract(
         if t_auth_until < t_issued:
             raise ContractError("invalid_timestamp", "authorized_until_utc cannot precede issued_at")
 
-        # Verify signature_digest over payload
-        payload = {
-            "action_plan_id": document["action_plan_id"],
-            "plan_digest": document["plan_digest"],
-            "engagement_id": document["engagement_id"],
-            "operator": document["operator"],
-            "issued_at": document["issued_at"],
-            "authorized_until_utc": document["authorized_until_utc"],
-            "bound_parameters": document["bound_parameters"],
-            "approval_mode": document["approval_mode"],
-        }
-        expected_sig = digest(payload, max_bytes=max_bytes)
-        if document["signature_digest"] != expected_sig:
-            raise ContractError(
-                "integrity_mismatch",
-                f"signature_digest mismatch: expected {expected_sig}, got {document['signature_digest']}"
-            )
-
         if document.get("status") == "consumed":
             if not document.get("consumed_at") or not document.get("consumed_by_worker"):
                 raise ContractError(
-                    "missing_consumption_metadata",
-                    "status 'consumed' requires consumed_at and consumed_by_worker"
+                    "missing_consumption_metadata", "status 'consumed' requires consumed_at and consumed_by_worker"
                 )
 
     elif expected_type == "run_result":
@@ -243,7 +240,7 @@ def validate_contract(
             if not reason or not isinstance(reason, str) or not reason.strip():
                 raise ContractError(
                     "missing_reason",
-                    f"non-success status '{status}' requires an explicit, non-empty status_details.reason"
+                    f"non-success status '{status}' requires an explicit, non-empty status_details.reason",
                 )
 
     elif expected_type == "finding":
@@ -258,7 +255,7 @@ def validate_contract(
             if not evidence_refs:
                 raise ContractError(
                     "missing_evidence_reference",
-                    "a verified finding must reference at least one evidence envelope record"
+                    "a verified finding must reference at least one evidence envelope record",
                 )
 
     elif expected_type == "cleanup_receipt":
@@ -273,14 +270,26 @@ def validate_contract(
 
         if document["status"] == "failed" and not document.get("unresolved_effects"):
             raise ContractError(
-                "missing_unresolved_effects",
-                "a cleanup_receipt with status 'failed' must report unresolved_effects"
+                "missing_unresolved_effects", "a cleanup_receipt with status 'failed' must report unresolved_effects"
             )
 
     elif expected_type == "specialist_handoff":
         validate_identifier(document["handoff_id"], "specialist_handoff")
         validate_identifier(document["engagement_id"], "engagement")
         validate_identifier(document["action_plan_id"], "action_plan")
+        if document["status"] in {"accepted", "in_review", "completed"}:
+            target = document["task"].get("workflow_target")
+            if not isinstance(target, dict) or not {"implementation", "implementation_digest"} <= target.keys():
+                raise ContractError(
+                    "missing_workflow_target", "accepted specialist handoff requires a resolved workflow target"
+                )
+            accepted_entries = [entry for entry in document["transition_log"] if entry.get("to_status") == "accepted"]
+            if len(accepted_entries) != 1 or accepted_entries[0].get(
+                "workflow_target_checksum"
+            ) != workflow_target_checksum(target):
+                raise ContractError(
+                    "invalid_workflow_target_checksum", "accepted specialist handoff workflow target checksum differs"
+                )
 
     elif expected_type == "laboratory_environment":
         validate_identifier(document["environment_id"], "laboratory_environment")
@@ -288,5 +297,49 @@ def validate_contract(
         t_updated = timestamp(document["updated_at"])
         if t_updated < t_created:
             raise ContractError("invalid_timestamp", "updated_at cannot precede created_at")
+
+    elif expected_type == "assessment_report":
+        from cops.reporting.assessment import ReportError, validate_report_semantics
+
+        try:
+            validate_report_semantics(document)
+        except ReportError as err:
+            raise ContractError("invalid_contract", str(err)) from err
+
+    elif expected_type == "detection_validation_input":
+        from cops.reporting.assessment import ReportError
+        from cops.reporting.detection import build_detection_report
+
+        try:
+            build_detection_report(document)
+        except ReportError as err:
+            raise ContractError("invalid_contract", str(err)) from err
+
+    elif expected_type == "detection_validation_report":
+        from cops.reporting.assessment import ReportError
+        from cops.reporting.detection import validate_detection_report_semantics
+
+        try:
+            validate_detection_report_semantics(document)
+        except ReportError as err:
+            raise ContractError("invalid_contract", str(err)) from err
+
+    elif expected_type == "retest_input":
+        from cops.reporting.assessment import ReportError
+        from cops.reporting.retest import validate_retest_input_semantics
+
+        try:
+            validate_retest_input_semantics(document)
+        except ReportError as err:
+            raise ContractError("invalid_contract", str(err)) from err
+
+    elif expected_type == "retest_report":
+        from cops.reporting.assessment import ReportError
+        from cops.reporting.retest import validate_retest_report_semantics
+
+        try:
+            validate_retest_report_semantics(document)
+        except ReportError as err:
+            raise ContractError("invalid_contract", str(err)) from err
 
     return document

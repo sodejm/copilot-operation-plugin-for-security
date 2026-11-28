@@ -2,15 +2,12 @@
 
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
 import hashlib
 import ipaddress
-import json
-from pathlib import Path
 import socket
+from abc import ABC, abstractmethod
 from typing import Any
 
-from cops.evidence.canonical import canonical, utc_now
 from .data_models import (
     CleanupReceipt,
     DataAuthPrerequisite,
@@ -23,23 +20,19 @@ from .data_models import (
     DataServiceType,
 )
 
-
 DEFAULT_DATA_PORTS: dict[str, tuple[int, str, str]] = {
     # Relational Databases
     DataServiceType.MYSQL.value: (3306, "tcp", DataServiceCategory.RELATIONAL_DB.value),
     DataServiceType.POSTGRES.value: (5432, "tcp", DataServiceCategory.RELATIONAL_DB.value),
     DataServiceType.MSSQL.value: (1433, "tcp", DataServiceCategory.RELATIONAL_DB.value),
     DataServiceType.ORACLE.value: (1521, "tcp", DataServiceCategory.RELATIONAL_DB.value),
-
     # NoSQL & Document Stores
     DataServiceType.MONGODB.value: (27017, "tcp", DataServiceCategory.NOSQL_DOCUMENT.value),
     DataServiceType.COUCHDB.value: (5984, "tcp", DataServiceCategory.NOSQL_DOCUMENT.value),
     DataServiceType.CASSANDRA.value: (9042, "tcp", DataServiceCategory.NOSQL_DOCUMENT.value),
-
     # In-Memory & Caches
     DataServiceType.REDIS.value: (6379, "tcp", DataServiceCategory.CACHE_INMEMORY.value),
     DataServiceType.MEMCACHED.value: (11211, "tcp", DataServiceCategory.CACHE_INMEMORY.value),
-
     # Search & Analytics Engines
     DataServiceType.ELASTICSEARCH.value: (9200, "tcp", DataServiceCategory.SEARCH_ANALYTICS.value),
     DataServiceType.INFLUXDB.value: (8086, "tcp", DataServiceCategory.SEARCH_ANALYTICS.value),
@@ -71,58 +64,226 @@ class DataServicesCollector(ABC):
     ) -> DataServiceAssessment:
         """Probe and evaluate discrete data service exposure."""
 
-    def assess_mysql(self, target_host: str, canary_artifact: str | None = None, vantage: str = "external", timeout: float = 2.0) -> DataServiceAssessment:
+    def assess_mysql(
+        self, target_host: str, canary_artifact: str | None = None, vantage: str = "external", timeout: float = 2.0
+    ) -> DataServiceAssessment:
         ip = self.resolve_target(target_host)
-        return self.probe_service(target_host, ip, DataServiceType.MYSQL.value, 3306, "tcp", DataServiceCategory.RELATIONAL_DB.value, vantage, canary_artifact, 5, timeout)
+        return self.probe_service(
+            target_host,
+            ip,
+            DataServiceType.MYSQL.value,
+            3306,
+            "tcp",
+            DataServiceCategory.RELATIONAL_DB.value,
+            vantage,
+            canary_artifact,
+            5,
+            timeout,
+        )
 
-    def assess_postgres(self, target_host: str, canary_artifact: str | None = None, vantage: str = "external", timeout: float = 2.0) -> DataServiceAssessment:
+    def assess_postgres(
+        self, target_host: str, canary_artifact: str | None = None, vantage: str = "external", timeout: float = 2.0
+    ) -> DataServiceAssessment:
         ip = self.resolve_target(target_host)
-        return self.probe_service(target_host, ip, DataServiceType.POSTGRES.value, 5432, "tcp", DataServiceCategory.RELATIONAL_DB.value, vantage, canary_artifact, 5, timeout)
+        return self.probe_service(
+            target_host,
+            ip,
+            DataServiceType.POSTGRES.value,
+            5432,
+            "tcp",
+            DataServiceCategory.RELATIONAL_DB.value,
+            vantage,
+            canary_artifact,
+            5,
+            timeout,
+        )
 
-    def assess_mssql(self, target_host: str, canary_artifact: str | None = None, vantage: str = "external", timeout: float = 2.0) -> DataServiceAssessment:
+    def assess_mssql(
+        self, target_host: str, canary_artifact: str | None = None, vantage: str = "external", timeout: float = 2.0
+    ) -> DataServiceAssessment:
         ip = self.resolve_target(target_host)
-        return self.probe_service(target_host, ip, DataServiceType.MSSQL.value, 1433, "tcp", DataServiceCategory.RELATIONAL_DB.value, vantage, canary_artifact, 5, timeout)
+        return self.probe_service(
+            target_host,
+            ip,
+            DataServiceType.MSSQL.value,
+            1433,
+            "tcp",
+            DataServiceCategory.RELATIONAL_DB.value,
+            vantage,
+            canary_artifact,
+            5,
+            timeout,
+        )
 
-    def assess_oracle(self, target_host: str, canary_artifact: str | None = None, vantage: str = "external", timeout: float = 2.0) -> DataServiceAssessment:
+    def assess_oracle(
+        self, target_host: str, canary_artifact: str | None = None, vantage: str = "external", timeout: float = 2.0
+    ) -> DataServiceAssessment:
         ip = self.resolve_target(target_host)
-        return self.probe_service(target_host, ip, DataServiceType.ORACLE.value, 1521, "tcp", DataServiceCategory.RELATIONAL_DB.value, vantage, canary_artifact, 5, timeout)
+        return self.probe_service(
+            target_host,
+            ip,
+            DataServiceType.ORACLE.value,
+            1521,
+            "tcp",
+            DataServiceCategory.RELATIONAL_DB.value,
+            vantage,
+            canary_artifact,
+            5,
+            timeout,
+        )
 
-    def assess_mongodb(self, target_host: str, canary_artifact: str | None = None, vantage: str = "external", timeout: float = 2.0) -> DataServiceAssessment:
+    def assess_mongodb(
+        self, target_host: str, canary_artifact: str | None = None, vantage: str = "external", timeout: float = 2.0
+    ) -> DataServiceAssessment:
         ip = self.resolve_target(target_host)
-        return self.probe_service(target_host, ip, DataServiceType.MONGODB.value, 27017, "tcp", DataServiceCategory.NOSQL_DOCUMENT.value, vantage, canary_artifact, 5, timeout)
+        return self.probe_service(
+            target_host,
+            ip,
+            DataServiceType.MONGODB.value,
+            27017,
+            "tcp",
+            DataServiceCategory.NOSQL_DOCUMENT.value,
+            vantage,
+            canary_artifact,
+            5,
+            timeout,
+        )
 
-    def assess_couchdb(self, target_host: str, canary_artifact: str | None = None, vantage: str = "external", timeout: float = 2.0) -> DataServiceAssessment:
+    def assess_couchdb(
+        self, target_host: str, canary_artifact: str | None = None, vantage: str = "external", timeout: float = 2.0
+    ) -> DataServiceAssessment:
         ip = self.resolve_target(target_host)
-        return self.probe_service(target_host, ip, DataServiceType.COUCHDB.value, 5984, "tcp", DataServiceCategory.NOSQL_DOCUMENT.value, vantage, canary_artifact, 5, timeout)
+        return self.probe_service(
+            target_host,
+            ip,
+            DataServiceType.COUCHDB.value,
+            5984,
+            "tcp",
+            DataServiceCategory.NOSQL_DOCUMENT.value,
+            vantage,
+            canary_artifact,
+            5,
+            timeout,
+        )
 
-    def assess_cassandra(self, target_host: str, canary_artifact: str | None = None, vantage: str = "external", timeout: float = 2.0) -> DataServiceAssessment:
+    def assess_cassandra(
+        self, target_host: str, canary_artifact: str | None = None, vantage: str = "external", timeout: float = 2.0
+    ) -> DataServiceAssessment:
         ip = self.resolve_target(target_host)
-        return self.probe_service(target_host, ip, DataServiceType.CASSANDRA.value, 9042, "tcp", DataServiceCategory.NOSQL_DOCUMENT.value, vantage, canary_artifact, 5, timeout)
+        return self.probe_service(
+            target_host,
+            ip,
+            DataServiceType.CASSANDRA.value,
+            9042,
+            "tcp",
+            DataServiceCategory.NOSQL_DOCUMENT.value,
+            vantage,
+            canary_artifact,
+            5,
+            timeout,
+        )
 
-    def assess_redis(self, target_host: str, canary_artifact: str | None = None, vantage: str = "external", timeout: float = 2.0) -> DataServiceAssessment:
+    def assess_redis(
+        self, target_host: str, canary_artifact: str | None = None, vantage: str = "external", timeout: float = 2.0
+    ) -> DataServiceAssessment:
         ip = self.resolve_target(target_host)
-        return self.probe_service(target_host, ip, DataServiceType.REDIS.value, 6379, "tcp", DataServiceCategory.CACHE_INMEMORY.value, vantage, canary_artifact, 5, timeout)
+        return self.probe_service(
+            target_host,
+            ip,
+            DataServiceType.REDIS.value,
+            6379,
+            "tcp",
+            DataServiceCategory.CACHE_INMEMORY.value,
+            vantage,
+            canary_artifact,
+            5,
+            timeout,
+        )
 
-    def assess_memcached(self, target_host: str, canary_artifact: str | None = None, vantage: str = "external", timeout: float = 2.0) -> DataServiceAssessment:
+    def assess_memcached(
+        self, target_host: str, canary_artifact: str | None = None, vantage: str = "external", timeout: float = 2.0
+    ) -> DataServiceAssessment:
         ip = self.resolve_target(target_host)
-        return self.probe_service(target_host, ip, DataServiceType.MEMCACHED.value, 11211, "tcp", DataServiceCategory.CACHE_INMEMORY.value, vantage, canary_artifact, 5, timeout)
+        return self.probe_service(
+            target_host,
+            ip,
+            DataServiceType.MEMCACHED.value,
+            11211,
+            "tcp",
+            DataServiceCategory.CACHE_INMEMORY.value,
+            vantage,
+            canary_artifact,
+            5,
+            timeout,
+        )
 
-    def assess_elasticsearch(self, target_host: str, canary_artifact: str | None = None, vantage: str = "external", timeout: float = 2.0) -> DataServiceAssessment:
+    def assess_elasticsearch(
+        self, target_host: str, canary_artifact: str | None = None, vantage: str = "external", timeout: float = 2.0
+    ) -> DataServiceAssessment:
         ip = self.resolve_target(target_host)
-        return self.probe_service(target_host, ip, DataServiceType.ELASTICSEARCH.value, 9200, "tcp", DataServiceCategory.SEARCH_ANALYTICS.value, vantage, canary_artifact, 5, timeout)
+        return self.probe_service(
+            target_host,
+            ip,
+            DataServiceType.ELASTICSEARCH.value,
+            9200,
+            "tcp",
+            DataServiceCategory.SEARCH_ANALYTICS.value,
+            vantage,
+            canary_artifact,
+            5,
+            timeout,
+        )
 
-    def assess_influxdb(self, target_host: str, canary_artifact: str | None = None, vantage: str = "external", timeout: float = 2.0) -> DataServiceAssessment:
+    def assess_influxdb(
+        self, target_host: str, canary_artifact: str | None = None, vantage: str = "external", timeout: float = 2.0
+    ) -> DataServiceAssessment:
         ip = self.resolve_target(target_host)
-        return self.probe_service(target_host, ip, DataServiceType.INFLUXDB.value, 8086, "tcp", DataServiceCategory.SEARCH_ANALYTICS.value, vantage, canary_artifact, 5, timeout)
+        return self.probe_service(
+            target_host,
+            ip,
+            DataServiceType.INFLUXDB.value,
+            8086,
+            "tcp",
+            DataServiceCategory.SEARCH_ANALYTICS.value,
+            vantage,
+            canary_artifact,
+            5,
+            timeout,
+        )
 
-    def assess_kibana(self, target_host: str, canary_artifact: str | None = None, vantage: str = "external", timeout: float = 2.0) -> DataServiceAssessment:
+    def assess_kibana(
+        self, target_host: str, canary_artifact: str | None = None, vantage: str = "external", timeout: float = 2.0
+    ) -> DataServiceAssessment:
         ip = self.resolve_target(target_host)
-        return self.probe_service(target_host, ip, DataServiceType.KIBANA.value, 5601, "tcp", DataServiceCategory.SEARCH_ANALYTICS.value, vantage, canary_artifact, 5, timeout)
+        return self.probe_service(
+            target_host,
+            ip,
+            DataServiceType.KIBANA.value,
+            5601,
+            "tcp",
+            DataServiceCategory.SEARCH_ANALYTICS.value,
+            vantage,
+            canary_artifact,
+            5,
+            timeout,
+        )
 
-    def assess_splunk(self, target_host: str, canary_artifact: str | None = None, vantage: str = "external", timeout: float = 2.0) -> DataServiceAssessment:
+    def assess_splunk(
+        self, target_host: str, canary_artifact: str | None = None, vantage: str = "external", timeout: float = 2.0
+    ) -> DataServiceAssessment:
         ip = self.resolve_target(target_host)
-        return self.probe_service(target_host, ip, DataServiceType.SPLUNK.value, 8089, "tcp", DataServiceCategory.SEARCH_ANALYTICS.value, vantage, canary_artifact, 5, timeout)
-
+        return self.probe_service(
+            target_host,
+            ip,
+            DataServiceType.SPLUNK.value,
+            8089,
+            "tcp",
+            DataServiceCategory.SEARCH_ANALYTICS.value,
+            vantage,
+            canary_artifact,
+            5,
+            timeout,
+        )
 
 
 class OfflineSyntheticDataCollector(DataServicesCollector):
@@ -153,17 +314,19 @@ class OfflineSyntheticDataCollector(DataServicesCollector):
         query_budget_rows: int = 5,
         timeout: float = 2.0,
     ) -> DataServiceAssessment:
-        self.probes_recorded.append({
-            "target_host": target_host,
-            "resolved_ip": resolved_ip,
-            "service_type": service_type,
-            "category": category,
-            "port": port,
-            "protocol": protocol,
-            "vantage": vantage,
-            "canary_artifact": canary_artifact,
-            "query_budget_rows": query_budget_rows,
-        })
+        self.probes_recorded.append(
+            {
+                "target_host": target_host,
+                "resolved_ip": resolved_ip,
+                "service_type": service_type,
+                "category": category,
+                "port": port,
+                "protocol": protocol,
+                "vantage": vantage,
+                "canary_artifact": canary_artifact,
+                "query_budget_rows": query_budget_rows,
+            }
+        )
 
         t_data = self.targets.get(target_host) or self.targets.get(resolved_ip) or {}
         svc_data = t_data.get(service_type) or t_data.get(f"{service_type}:{port}")
@@ -199,9 +362,18 @@ class OfflineSyntheticDataCollector(DataServicesCollector):
         details = dict(svc_data.get("details", {}))
         for k, v in svc_data.items():
             if k not in (
-                "details", "vulnerabilities", "versions", "status", "protected",
-                "inaccessible", "remediated", "state", "auth_prerequisite",
-                "authentication_required", "role", "role_assigned",
+                "details",
+                "vulnerabilities",
+                "versions",
+                "status",
+                "protected",
+                "inaccessible",
+                "remediated",
+                "state",
+                "auth_prerequisite",
+                "authentication_required",
+                "role",
+                "role_assigned",
             ):
                 details.setdefault(k, v)
 
@@ -224,9 +396,7 @@ class OfflineSyntheticDataCollector(DataServicesCollector):
                 query_budget_rows=query_budget_rows,
                 applicable_versions=svc_data.get("versions", [details.get("version", "Remediated")]),
                 configuration_details=details,
-                uncertainty_notes=[
-                    "Service verified remediated against historical unauthenticated exposure"
-                ],
+                uncertainty_notes=["Service verified remediated against historical unauthenticated exposure"],
             )
 
         # 3. Protected Service Check (Properly authenticated & hardened)
@@ -235,11 +405,19 @@ class OfflineSyntheticDataCollector(DataServicesCollector):
 
         if service_type == DataServiceType.REDIS.value and details.get("requirepass") is True:
             is_protected = True
-        elif service_type == DataServiceType.POSTGRES.value and details.get("auth_method") in ("scram-sha-256", "md5", "cert"):
+        elif service_type == DataServiceType.POSTGRES.value and details.get("auth_method") in (
+            "scram-sha-256",
+            "md5",
+            "cert",
+        ):
             is_protected = True
         elif service_type == DataServiceType.MYSQL.value and details.get("password_required") is True:
             is_protected = True
-        elif service_type == DataServiceType.MSSQL.value and details.get("sa_disabled") is True and details.get("windows_auth_only") is True:
+        elif (
+            service_type == DataServiceType.MSSQL.value
+            and details.get("sa_disabled") is True
+            and details.get("windows_auth_only") is True
+        ):
             is_protected = True
         elif service_type == DataServiceType.MONGODB.value and details.get("auth_enabled") is True:
             is_protected = True
@@ -258,15 +436,13 @@ class OfflineSyntheticDataCollector(DataServicesCollector):
         elif service_type == DataServiceType.SPLUNK.value and details.get("default_creds") is False:
             is_protected = True
 
-        canary_active = bool(
-            canary_artifact
-            or details.get("canary_verified")
-            or details.get("canary_query_executed")
-        )
+        canary_active = bool(canary_artifact or details.get("canary_verified") or details.get("canary_query_executed"))
 
         receipts: list[CleanupReceipt] = []
         if canary_active and canary_artifact:
-            receipt_id = hashlib.sha256(f"clean:{target_host}:{service_type}:{canary_artifact}".encode("utf-8")).hexdigest()[:16]
+            receipt_id = hashlib.sha256(f"clean:{target_host}:{service_type}:{canary_artifact}".encode()).hexdigest()[
+                :16
+            ]
             receipts.append(
                 CleanupReceipt(
                     receipt_id=f"rec-{receipt_id}",
@@ -306,7 +482,7 @@ class OfflineSyntheticDataCollector(DataServicesCollector):
         auth_req = svc_data.get("authentication_required", False)
         auth_prereq = svc_data.get(
             "auth_prerequisite",
-            DataAuthPrerequisite.NONE.value if not auth_req else DataAuthPrerequisite.DEFAULT_CREDENTIALS.value
+            DataAuthPrerequisite.NONE.value if not auth_req else DataAuthPrerequisite.DEFAULT_CREDENTIALS.value,
         )
         assigned_role = svc_data.get("role", "admin" if not auth_req else "anonymous")
         status = svc_data.get("status", DataExposureStatus.EXPOSED.value)
@@ -318,7 +494,7 @@ class OfflineSyntheticDataCollector(DataServicesCollector):
         if service_type == DataServiceType.REDIS.value:
             if not auth_req or details.get("requirepass") is False:
                 vulns.append("Redis instance accepts unauthenticated TCP commands")
-                c_id = hashlib.sha256(f"redis:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"redis:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     DataPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -337,7 +513,7 @@ class OfflineSyntheticDataCollector(DataServicesCollector):
                 )
             if details.get("config_set_enabled", True) and not auth_req:
                 vulns.append("Redis CONFIG command accessible; potential arbitrary file write / code execution")
-                c_id = hashlib.sha256(f"redis_config:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"redis_config:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     DataPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -358,7 +534,7 @@ class OfflineSyntheticDataCollector(DataServicesCollector):
         elif service_type == DataServiceType.ELASTICSEARCH.value:
             if not auth_req or details.get("security_enabled") is False:
                 vulns.append("Elasticsearch REST endpoint open without authentication")
-                c_id = hashlib.sha256(f"es:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"es:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     DataPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -372,14 +548,17 @@ class OfflineSyntheticDataCollector(DataServicesCollector):
                         privilege_impact=DataPrivilegeImpact.DATA_EXFILTRATION.value,
                         affected_role="superuser",
                         applicable_versions=applicable_versions,
-                        supporting_evidence={"cluster_name": details.get("cluster_name", "elasticsearch"), "indices": details.get("indices", [])},
+                        supporting_evidence={
+                            "cluster_name": details.get("cluster_name", "elasticsearch"),
+                            "indices": details.get("indices", []),
+                        },
                     )
                 )
 
         elif service_type == DataServiceType.MONGODB.value:
             if not auth_req or details.get("auth_enabled") is False:
                 vulns.append("MongoDB instance running without authentication (--auth)")
-                c_id = hashlib.sha256(f"mongo:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"mongo:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     DataPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -400,7 +579,7 @@ class OfflineSyntheticDataCollector(DataServicesCollector):
         elif service_type == DataServiceType.MEMCACHED.value:
             if not auth_req or details.get("sasl_enabled") is False:
                 vulns.append("Memcached daemon accepts unauthenticated slab dump requests")
-                c_id = hashlib.sha256(f"memcached:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"memcached:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     DataPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -421,7 +600,7 @@ class OfflineSyntheticDataCollector(DataServicesCollector):
         elif service_type == DataServiceType.MYSQL.value:
             if details.get("password_required") is False or not auth_req:
                 vulns.append("MySQL server accessible with blank/unauthenticated root credentials")
-                c_id = hashlib.sha256(f"mysql:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"mysql:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     DataPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -442,7 +621,7 @@ class OfflineSyntheticDataCollector(DataServicesCollector):
         elif service_type == DataServiceType.POSTGRES.value:
             if details.get("auth_method") == "trust" or not auth_req:
                 vulns.append("PostgreSQL pg_hba.conf configured with 'trust' authentication")
-                c_id = hashlib.sha256(f"postgres:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"postgres:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     DataPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -463,7 +642,7 @@ class OfflineSyntheticDataCollector(DataServicesCollector):
         elif service_type == DataServiceType.MSSQL.value:
             if details.get("blank_sa") is True or details.get("blank_sa_password") is True or not auth_req:
                 vulns.append("Microsoft SQL Server configured with blank sa password or xp_cmdshell enabled")
-                c_id = hashlib.sha256(f"mssql:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"mssql:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     DataPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -484,7 +663,7 @@ class OfflineSyntheticDataCollector(DataServicesCollector):
         elif service_type == DataServiceType.ORACLE.value:
             if details.get("default_credentials") is True or not auth_req:
                 vulns.append("Oracle database accessible with default administrative credentials (SYS/SYSTEM)")
-                c_id = hashlib.sha256(f"oracle:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"oracle:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     DataPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -505,7 +684,7 @@ class OfflineSyntheticDataCollector(DataServicesCollector):
         elif service_type == DataServiceType.COUCHDB.value:
             if details.get("admin_party") is True or not auth_req:
                 vulns.append("CouchDB running in unauthenticated Admin Party mode")
-                c_id = hashlib.sha256(f"couchdb:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"couchdb:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     DataPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -526,7 +705,7 @@ class OfflineSyntheticDataCollector(DataServicesCollector):
         elif service_type == DataServiceType.CASSANDRA.value:
             if details.get("default_creds") is True or not auth_req:
                 vulns.append("Cassandra cluster accessible using default superuser credentials (cassandra/cassandra)")
-                c_id = hashlib.sha256(f"cassandra:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"cassandra:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     DataPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -547,7 +726,7 @@ class OfflineSyntheticDataCollector(DataServicesCollector):
         elif service_type == DataServiceType.INFLUXDB.value:
             if not auth_req or details.get("auth_enabled") is False:
                 vulns.append("InfluxDB HTTP API open without mandatory authentication")
-                c_id = hashlib.sha256(f"influx:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"influx:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     DataPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -568,7 +747,7 @@ class OfflineSyntheticDataCollector(DataServicesCollector):
         elif service_type == DataServiceType.KIBANA.value:
             if not auth_req or details.get("auth_enabled") is False:
                 vulns.append("Kibana analytics dashboard exposed without user authentication")
-                c_id = hashlib.sha256(f"kibana:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"kibana:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     DataPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -589,7 +768,7 @@ class OfflineSyntheticDataCollector(DataServicesCollector):
         elif service_type == DataServiceType.SPLUNK.value:
             if details.get("default_creds") is True:
                 vulns.append("Splunk management daemon accessible with default credentials (admin/changeme)")
-                c_id = hashlib.sha256(f"splunk:{target_host}:{port}".encode("utf-8")).hexdigest()[:16]
+                c_id = hashlib.sha256(f"splunk:{target_host}:{port}".encode()).hexdigest()[:16]
                 candidates.append(
                     DataPrivilegeCandidate(
                         candidate_id=f"priv-{c_id}",
@@ -633,7 +812,12 @@ class OfflineSyntheticDataCollector(DataServicesCollector):
 class StandardSocketDataCollector(DataServicesCollector):
     """Standard-library socket probe collector for databases, caches, and search services."""
 
+    live_network_io = True
+
     def resolve_target(self, target_host: str) -> str:
+        from .live_execution import reject_unauthorized_live_discovery
+
+        reject_unauthorized_live_discovery(mode="live")
         return socket.gethostbyname(target_host)
 
     def probe_service(
@@ -649,6 +833,9 @@ class StandardSocketDataCollector(DataServicesCollector):
         query_budget_rows: int = 5,
         timeout: float = 2.0,
     ) -> DataServiceAssessment:
+        from .live_execution import reject_unauthorized_live_discovery
+
+        reject_unauthorized_live_discovery(mode="live")
         try:
             with socket.create_connection((resolved_ip, port), timeout=timeout):
                 return DataServiceAssessment(
@@ -669,7 +856,7 @@ class StandardSocketDataCollector(DataServicesCollector):
                     configuration_details={"socket_connected": True},
                     uncertainty_notes=["TCP connect succeeded; protocol credentials required to verify authentication"],
                 )
-        except (socket.timeout, ConnectionRefusedError, OSError) as err:
+        except (TimeoutError, ConnectionRefusedError, OSError) as err:
             return DataServiceAssessment(
                 target_host=target_host,
                 resolved_ip=resolved_ip,
@@ -705,6 +892,9 @@ def assess_data_services(
     effective_canary = canary_artifact or canary_id
     if collector is None:
         collector = OfflineSyntheticDataCollector()
+    from .live_execution import reject_unauthorized_live_discovery
+
+    reject_unauthorized_live_discovery(collector=collector, offline_collector_type=OfflineSyntheticDataCollector)
 
     selected_services = service_types or list(DEFAULT_DATA_PORTS.keys())
     assessments: list[DataServiceAssessment] = []
@@ -723,7 +913,7 @@ def assess_data_services(
     }
 
     report_id = hashlib.sha256(
-        f"{scope_ref}:{sorted(targets)}:{sorted(selected_services)}:{vantage}".encode("utf-8")
+        f"{scope_ref}:{sorted(targets)}:{sorted(selected_services)}:{vantage}".encode()
     ).hexdigest()[:16]
 
     for target in targets:

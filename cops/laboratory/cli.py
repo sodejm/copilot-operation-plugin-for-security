@@ -8,12 +8,6 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from cops.contracts.models import ActionPlan, LaboratoryEnvironment
-from cops.execution.scope_guard import ScopeDefinition, ScopeGuard
-from cops.execution.store import ApprovalStore
-
-from .harness import LaboratoryHarness
-
 ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -44,9 +38,24 @@ def _load_json_or_file(source: Any) -> dict[str, Any]:
 def command_laboratory(args: argparse.Namespace, root: Path = ROOT) -> int:
     """Handle `cops lab <register|verify|reset|matrix|run>`."""
     cmd = getattr(args, "lab_command", None)
-    harness = LaboratoryHarness()
 
     try:
+        if cmd == "run":
+            if getattr(args, "explain", False):
+                from ..contracts import ActionPlan
+                from ..expansion_cli import load_bounded_json
+                from ..preview import preview_action_plan, render_preview
+
+                preview = preview_action_plan(ActionPlan.from_dict(load_bounded_json(Path(args.plan))))
+                print(json.dumps(preview, indent=2) if args.json else render_preview(preview))
+                return 0
+            raise ValueError(
+                "laboratory execution requires live observations, verified worker inventories, "
+                "and an explicit scope guard; use the Python harness API"
+            )
+        from .harness import LaboratoryHarness
+
+        harness = LaboratoryHarness(evidence_dir=getattr(args, "evidence_dir", None))
         if cmd == "register":
             doc = _load_json_or_file(args.environment)
             env = harness.register_environment(doc)
@@ -54,18 +63,25 @@ def command_laboratory(args: argparse.Namespace, root: Path = ROOT) -> int:
 
         elif cmd == "verify":
             doc = _load_json_or_file(args.environment)
-            env = LaboratoryEnvironment.from_dict(doc)
-            req_tools = None
-            if getattr(args, "tools", None):
-                req_tools = [t.strip() for t in args.tools.split(",") if t.strip()]
-            env = harness.verify_environment(env, required_tools=req_tools, mock_checks=getattr(args, "mock", True))
-            output_data = env.to_dict()
+            env = harness.register_environment(doc)
+            if not getattr(args, "mock", False):
+                raise ValueError(
+                    "real laboratory verification requires an operator-owned observation provider "
+                    "and verified SSH endpoint inventory; use the Python harness API"
+                )
+            tools = [item.strip() for item in (getattr(args, "tools", None) or "").split(",") if item.strip()]
+            output_data = harness.verify_environment(env, required_tools=tools or None, mock_checks=True).to_dict()
 
         elif cmd == "reset":
             doc = _load_json_or_file(args.environment)
-            env = LaboratoryEnvironment.from_dict(doc)
-            env = harness.reproducible_reset(env, mock_reset=getattr(args, "mock", True))
-            output_data = env.to_dict()
+            env = harness.register_environment(doc)
+            if not getattr(args, "mock", False):
+                raise ValueError(
+                    "real laboratory reset requires an operator-owned observation provider, "
+                    "a challenged worker reset receipt, and verified SSH endpoint inventory; "
+                    "use the Python harness API"
+                )
+            output_data = harness.simulate_reset(env).to_dict()
 
         elif cmd == "matrix":
             output_data = {
@@ -75,36 +91,6 @@ def command_laboratory(args: argparse.Namespace, root: Path = ROOT) -> int:
                 "supported_runtimes": harness.matrix.supported_runtimes,
                 "tool_minimum_versions": harness.matrix.tool_minimum_versions,
             }
-
-        elif cmd == "run":
-            env_doc = _load_json_or_file(args.environment)
-            plan_doc = _load_json_or_file(args.plan)
-            auth_doc = _load_json_or_file(args.authorization)
-            env = LaboratoryEnvironment.from_dict(env_doc)
-            plan = ActionPlan.from_dict(plan_doc)
-
-            case_type = getattr(args, "case_type", "positive")
-            store = ApprovalStore(Path(args.store)) if getattr(args, "store", None) else None
-
-            # Optional scope guard
-            guard = None
-            if getattr(args, "allowed_cidr", None):
-                scope_def = ScopeDefinition()
-                from cops.execution.scope_guard import parse_ip_or_network
-                net = parse_ip_or_network(args.allowed_cidr)
-                if net:
-                    scope_def.included_networks.append(net)
-                guard = ScopeGuard(scope_def)
-
-            result = harness.execute_case(
-                environment=env,
-                action_plan=plan,
-                authorization=auth_doc,
-                case_type=case_type,
-                store=store,
-                scope_guard=guard,
-            )
-            output_data = result.to_dict()
 
         else:
             print(f"Unknown laboratory command: {cmd}", file=sys.stderr)

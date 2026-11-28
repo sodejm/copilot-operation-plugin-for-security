@@ -10,7 +10,6 @@ from urllib.parse import unquote, urlsplit
 
 from repository_files import repository_files
 
-
 ROOT = Path(__file__).resolve().parents[2]
 PROJECT_DOC_MAX_BYTES = 8192
 PROJECT_DOC_NAMES = ("AGENTS.override.md", "AGENTS.md")
@@ -29,9 +28,7 @@ PRIVATE_PATHS = (
     re.compile(r"[A-Za-z]:\\" + r"Users\\[^\\\s]+\\"),
 )
 MARKDOWN_LINK = re.compile(r"!?\[[^\]]*\]\((?P<target><[^>]+>|[^)\s]+)")
-MARKDOWN_REFERENCE = re.compile(
-    r"^\s{0,3}\[[^\]]+\]:\s*(?P<target><[^>]+>|\S+)"
-)
+MARKDOWN_REFERENCE = re.compile(r"^\s{0,3}\[[^\]]+\]:\s*(?P<target><[^>]+>|\S+)")
 
 
 def frontmatter(path: Path) -> dict[str, str]:
@@ -97,9 +94,7 @@ def validate_markdown_links(errors: list[str]) -> None:
         if relative == Path("templates/project/README.md"):
             continue
         in_fence = False
-        for line_number, line in enumerate(
-            path.read_text(encoding="utf-8").splitlines(), start=1
-        ):
+        for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
             if re.match(r"^\s*(```|~~~)", line):
                 in_fence = not in_fence
                 continue
@@ -112,18 +107,11 @@ def validate_markdown_links(errors: list[str]) -> None:
             for match in matches:
                 target = match.group("target").strip("<>")
                 parsed = urlsplit(target)
-                if (
-                    parsed.scheme
-                    or parsed.netloc
-                    or target.startswith(("#", "/"))
-                    or not parsed.path
-                ):
+                if parsed.scheme or parsed.netloc or target.startswith(("#", "/")) or not parsed.path:
                     continue
                 destination = (path.parent / unquote(parsed.path)).resolve()
                 if not destination.exists():
-                    errors.append(
-                        f"{relative}:{line_number}: Markdown target does not exist: {target}"
-                    )
+                    errors.append(f"{relative}:{line_number}: Markdown target does not exist: {target}")
 
 
 def validate_instruction_budget(errors: list[str]) -> None:
@@ -137,18 +125,11 @@ def validate_instruction_budget(errors: list[str]) -> None:
         for directory, files in by_directory.items()
     }
     for directory in sorted(selected):
-        chain = [
-            selected[parent]
-            for parent in (*reversed(directory.parents), directory)
-            if parent in selected
-        ]
+        chain = [selected[parent] for parent in (*reversed(directory.parents), directory) if parent in selected]
         size = sum(path.stat().st_size for path in chain)
         if size > PROJECT_DOC_MAX_BYTES:
             names = " + ".join(path.relative_to(ROOT).as_posix() for path in chain)
-            errors.append(
-                f"{names}: {size} bytes exceeds {PROJECT_DOC_MAX_BYTES}-byte "
-                "project instruction budget"
-            )
+            errors.append(f"{names}: {size} bytes exceeds {PROJECT_DOC_MAX_BYTES}-byte project instruction budget")
 
 
 def main() -> int:

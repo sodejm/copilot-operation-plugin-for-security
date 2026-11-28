@@ -1,0 +1,15 @@
+{
+  "schema_version": "1.0",
+  "tools": [
+    {
+      "id": "git",
+      "command": "git",
+      "packages": {
+        "brew": "git",
+        "apt-get": "git",
+        "dnf": "git",
+        "winget": "Git.Git"
+      }
+    }
+  ]
+}

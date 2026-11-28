@@ -1,0 +1,10 @@
+{
+  "schema_version": "cops.attack-surface-playback/v1",
+  "scope_manifest": "../../fixtures/synthetic/scope.json",
+  "expected": {
+    "source_kinds": ["azure_resource_graph", "dns_ct", "entra", "public_endpoint"],
+    "summary": {"in_scope": 4, "excluded": 3, "unresolved": 1},
+    "test_plan_count": 4,
+    "network_requests": 0
+  }
+}

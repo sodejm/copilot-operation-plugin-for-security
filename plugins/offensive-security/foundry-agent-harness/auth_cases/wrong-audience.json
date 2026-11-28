@@ -1,0 +1,31 @@
+{
+  "schema_version": "cops.agent-mcp-auth-case/v1",
+  "case_id": "wrong-audience",
+  "title": "Grant presented to a different audience",
+  "grant": "delegated-write",
+  "flow": "delegated",
+  "attempts": [
+    {
+      "principal": "principal-alice",
+      "agent": "agent-worker",
+      "downstream_service": "service-canary",
+      "audience": "mcp://shadow",
+      "tenant": "tenant-contoso-01",
+      "resource": "res-canary",
+      "operation": "write",
+      "scopes": [
+        "canary:write"
+      ],
+      "depth": 1,
+      "tick": 1,
+      "tool": "canary/write"
+    }
+  ],
+  "expected_decisions": [
+    "denied"
+  ],
+  "expected_effect_count": 0,
+  "expected_reasons": [
+    "audience_mismatch"
+  ]
+}

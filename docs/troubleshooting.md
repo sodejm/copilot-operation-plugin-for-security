@@ -18,36 +18,43 @@ Whenever unexpected behavior occurs, run the built-in diagnostic tool first:
 python3 -m cops doctor
 ```
 
-For contributor environments with test dependencies, run:
+`cops doctor` checks the Python version, catalog and package manifests, and generated marketplace indexes. It does not run plugins or audit their network behavior.
+
+For contributor environments, also run:
 
 ```bash
-.venv/bin/python scripts/agent/doctor.py
+.venv/bin/python -m cops doctor --contributor
 ```
 
-`cops doctor` inspects your Python version, verifies catalog synchronization, checks test dependencies, and validates tool paths.
+The contributor check looks for the `pytest` and `pytest_bdd` modules and the `git` executable. It also reports whether the optional `make` and `gh` executables are present. It does not check all contributor dependency versions. To check Python and the test dependencies in `requirements.txt`, including their version bounds, run:
+
+```bash
+make check-prerequisites PYTHON=.venv/bin/python
+```
 
 ---
 
 ## Common Issues & Solutions
 
-### 1. Python Version Mismatch (< 3.11)
+### 1. Python Version Mismatch (< 3.14)
 
 **Symptom**:
 ```text
-error: Python 3.11 or newer is required (found 3.10.x)
+Python 3.13.9: /path/to/python3 (selected interpreter)
+error: Python 3.14 or newer is required for contributor checks
 ```
 
 **Cause**:
-Your system's default `python3` points to an older version of Python. COPS requires Python 3.11+ for modern standard-library features (such as `tomllib` and enhanced typing).
+Your system's default `python3` points to an older version of Python. COPS supports Python 3.14 or newer.
 
 **Resolution**:
 1. Check available Python versions on your system:
    ```bash
-   python3.11 --version || python3.12 --version || python3.13 --version
+   python3.14 --version
    ```
-2. Create your virtual environment with Python 3.11 or newer:
+2. Create your virtual environment with Python 3.14 or newer:
    ```bash
-   python3.11 -m venv .venv
+   python3.14 -m venv .venv
    source .venv/bin/activate
    ```
 3. When running `make`, explicitly pass your Python interpreter:
@@ -65,7 +72,7 @@ Your system's default `python3` points to an older version of Python. COPS requi
 error: pytest: missing
 error: pytest-bdd: missing
 error: jsonschema: missing
-Create and activate a Python 3.11+ virtual environment, then run:
+Create and activate a Python 3.14+ virtual environment, then run:
   python -m pip install -r requirements.txt
 make: *** [check-prerequisites] Error 1
 ```

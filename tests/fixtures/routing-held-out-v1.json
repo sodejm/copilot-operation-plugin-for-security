@@ -1,0 +1,1757 @@
+{
+  "version": "cops.routing-held-out/v1",
+  "clear": [
+    {
+      "id": "ad-01",
+      "query": "Trace this Active Directory privilege path from the helpdesk group to domain administration.",
+      "expected": "cops-ad-specialist"
+    },
+    {
+      "id": "ad-02",
+      "query": "Review the Active Directory trust between the acquired company and our production forest.",
+      "expected": "cops-ad-specialist"
+    },
+    {
+      "id": "ad-03",
+      "query": "Determine whether AD ACL delegation lets the service desk reset privileged accounts.",
+      "expected": "cops-ad-specialist"
+    },
+    {
+      "id": "ad-04",
+      "query": "Map the forest trust boundary before we approve access from the partner domain.",
+      "expected": "cops-ad-specialist"
+    },
+    {
+      "id": "ad-05",
+      "query": "Explain the unexpected domain group membership shown in this directory export.",
+      "expected": "cops-ad-specialist"
+    },
+    {
+      "id": "ad-06",
+      "query": "Validate the directory privilege path identified in the BloodHound results.",
+      "expected": "cops-ad-specialist"
+    },
+    {
+      "id": "ad-07",
+      "query": "Could this Active Directory trust allow users in the child domain to control the root domain?",
+      "expected": "cops-ad-specialist"
+    },
+    {
+      "id": "ad-08",
+      "query": "Check AD ACL delegation for rights that grant control of the domain controllers OU.",
+      "expected": "cops-ad-specialist"
+    },
+    {
+      "id": "ad-09",
+      "query": "Assess whether the forest trust boundary prevents credential reuse across domains.",
+      "expected": "cops-ad-specialist"
+    },
+    {
+      "id": "ad-10",
+      "query": "Reconcile domain group membership with the privileges assigned to the backup operators.",
+      "expected": "cops-ad-specialist"
+    },
+    {
+      "id": "ai-adversary-01",
+      "query": "Evaluate this support chatbot for prompt injection through uploaded documents.",
+      "expected": "cops-ai-adversary-specialist"
+    },
+    {
+      "id": "ai-adversary-02",
+      "query": "Test whether indirect prompt injection in retrieved pages can trigger a privileged tool.",
+      "expected": "cops-ai-adversary-specialist"
+    },
+    {
+      "id": "ai-adversary-03",
+      "query": "Review this jailbreak attempt and explain which guardrail failed.",
+      "expected": "cops-ai-adversary-specialist"
+    },
+    {
+      "id": "ai-adversary-04",
+      "query": "Design an LLM security evaluation for an assistant that can create support tickets.",
+      "expected": "cops-ai-adversary-specialist"
+    },
+    {
+      "id": "ai-adversary-05",
+      "query": "Analyze the trace for agent tool abuse after untrusted email content was retrieved.",
+      "expected": "cops-ai-adversary-specialist"
+    },
+    {
+      "id": "ai-adversary-06",
+      "query": "Check this transcript for system prompt leakage and exposed internal instructions.",
+      "expected": "cops-ai-adversary-specialist"
+    },
+    {
+      "id": "ai-adversary-07",
+      "query": "Build a safe prompt injection test set for the new retrieval workflow.",
+      "expected": "cops-ai-adversary-specialist"
+    },
+    {
+      "id": "ai-adversary-08",
+      "query": "Investigate an indirect prompt injection hidden in a calendar invitation.",
+      "expected": "cops-ai-adversary-specialist"
+    },
+    {
+      "id": "ai-adversary-09",
+      "query": "Classify each jailbreak attempt in this evaluation dataset by failure mode.",
+      "expected": "cops-ai-adversary-specialist"
+    },
+    {
+      "id": "ai-adversary-10",
+      "query": "Assess whether agent tool abuse could change a customer's account settings.",
+      "expected": "cops-ai-adversary-specialist"
+    },
+    {
+      "id": "api-security-01",
+      "query": "Review API authorization when one tenant requests another tenant's invoice.",
+      "expected": "cops-api-security-specialist"
+    },
+    {
+      "id": "api-security-02",
+      "query": "Test object-level authorization for the numeric order identifiers in this REST service.",
+      "expected": "cops-api-security-specialist"
+    },
+    {
+      "id": "api-security-03",
+      "query": "Assess this endpoint for a BOLA vulnerability involving project records.",
+      "expected": "cops-api-security-specialist"
+    },
+    {
+      "id": "api-security-04",
+      "query": "Investigate a reported IDOR vulnerability in the document download route.",
+      "expected": "cops-api-security-specialist"
+    },
+    {
+      "id": "api-security-05",
+      "query": "Perform a REST API security review of the account recovery endpoints.",
+      "expected": "cops-api-security-specialist"
+    },
+    {
+      "id": "api-security-06",
+      "query": "Check GraphQL security for nested queries that expose another user's profile.",
+      "expected": "cops-api-security-specialist"
+    },
+    {
+      "id": "api-security-07",
+      "query": "Evaluate API rate limiting on password reset and verification requests.",
+      "expected": "cops-api-security-specialist"
+    },
+    {
+      "id": "api-security-08",
+      "query": "Confirm object-level authorization on update and delete operations for team resources.",
+      "expected": "cops-api-security-specialist"
+    },
+    {
+      "id": "api-security-09",
+      "query": "Reproduce the BOLA vulnerability using the sanitized HAR capture and OpenAPI description.",
+      "expected": "cops-api-security-specialist"
+    },
+    {
+      "id": "api-security-10",
+      "query": "Review GraphQL security around mutations that accept caller-supplied owner IDs.",
+      "expected": "cops-api-security-specialist"
+    },
+    {
+      "id": "appsec-engineer-01",
+      "query": "Perform a secure code review of the new password reset handler.",
+      "expected": "cops-appsec-engineer"
+    },
+    {
+      "id": "appsec-engineer-02",
+      "query": "Complete an application security review of this file upload implementation.",
+      "expected": "cops-appsec-engineer"
+    },
+    {
+      "id": "appsec-engineer-03",
+      "query": "Determine whether the reported source code vulnerability permits command injection.",
+      "expected": "cops-appsec-engineer"
+    },
+    {
+      "id": "appsec-engineer-04",
+      "query": "Triage this SAST finding against the changed request validation code.",
+      "expected": "cops-appsec-engineer"
+    },
+    {
+      "id": "appsec-engineer-05",
+      "query": "Run a security diff review on the authentication middleware update.",
+      "expected": "cops-appsec-engineer"
+    },
+    {
+      "id": "appsec-engineer-06",
+      "query": "Use taint analysis to trace the header value into the SQL query builder.",
+      "expected": "cops-appsec-engineer"
+    },
+    {
+      "id": "appsec-engineer-07",
+      "query": "Review the source_diff for unsafe deserialization introduced in this change.",
+      "expected": "cops-appsec-engineer"
+    },
+    {
+      "id": "appsec-engineer-08",
+      "query": "Perform a secure code review of authorization checks in the billing controller.",
+      "expected": "cops-appsec-engineer"
+    },
+    {
+      "id": "appsec-engineer-09",
+      "query": "Validate whether this SAST finding reaches a sensitive filesystem operation.",
+      "expected": "cops-appsec-engineer"
+    },
+    {
+      "id": "appsec-engineer-10",
+      "query": "Explain the security impact found during the application security review of the patch.",
+      "expected": "cops-appsec-engineer"
+    },
+    {
+      "id": "attack-surface-planner-01",
+      "query": "Inventory our external attack surface from the passive DNS export.",
+      "expected": "cops-attack-surface-planner"
+    },
+    {
+      "id": "attack-surface-planner-02",
+      "query": "Investigate internet exposure for the hosts in this public address list.",
+      "expected": "cops-attack-surface-planner"
+    },
+    {
+      "id": "attack-surface-planner-03",
+      "query": "Reconcile public IP exposure with the approved customer-facing inventory.",
+      "expected": "cops-attack-surface-planner"
+    },
+    {
+      "id": "attack-surface-planner-04",
+      "query": "Map DNS exposure for domains acquired with the new subsidiary.",
+      "expected": "cops-attack-surface-planner"
+    },
+    {
+      "id": "attack-surface-planner-05",
+      "query": "Use certificate transparency to find public names absent from our asset register.",
+      "expected": "cops-attack-surface-planner"
+    },
+    {
+      "id": "attack-surface-planner-06",
+      "query": "Look for shadow IT among these externally resolvable services.",
+      "expected": "cops-attack-surface-planner"
+    },
+    {
+      "id": "attack-surface-planner-07",
+      "query": "Prioritize external attack surface gaps shown by DNS and certificate records.",
+      "expected": "cops-attack-surface-planner"
+    },
+    {
+      "id": "attack-surface-planner-08",
+      "query": "Check internet exposure for staging services that should be private.",
+      "expected": "cops-attack-surface-planner"
+    },
+    {
+      "id": "attack-surface-planner-09",
+      "query": "Identify unexplained public IP exposure in the cloud address export.",
+      "expected": "cops-attack-surface-planner"
+    },
+    {
+      "id": "attack-surface-planner-10",
+      "query": "Compare certificate transparency observations with the known perimeter applications.",
+      "expected": "cops-attack-surface-planner"
+    },
+    {
+      "id": "cloud-posture-01",
+      "query": "Assess cloud security posture for the proposed storage and compute changes.",
+      "expected": "cops-cloud-posture-specialist"
+    },
+    {
+      "id": "cloud-posture-02",
+      "query": "Perform a Terraform plan review before these IAM changes are applied.",
+      "expected": "cops-cloud-posture-specialist"
+    },
+    {
+      "id": "cloud-posture-03",
+      "query": "Check public cloud storage for anonymous read access and weak encryption settings.",
+      "expected": "cops-cloud-posture-specialist"
+    },
+    {
+      "id": "cloud-posture-04",
+      "query": "Review cloud workload configuration for privileged containers and broad roles.",
+      "expected": "cops-cloud-posture-specialist"
+    },
+    {
+      "id": "cloud-posture-05",
+      "query": "Inspect cloud IAM configuration for wildcard actions on production resources.",
+      "expected": "cops-cloud-posture-specialist"
+    },
+    {
+      "id": "cloud-posture-06",
+      "query": "Assess Kubernetes workload configuration for unsafe service-account bindings.",
+      "expected": "cops-cloud-posture-specialist"
+    },
+    {
+      "id": "cloud-posture-07",
+      "query": "Use the terraform_plan to identify resources that become publicly reachable.",
+      "expected": "cops-cloud-posture-specialist"
+    },
+    {
+      "id": "cloud-posture-08",
+      "query": "Evaluate cloud security posture across exported storage, identity, and workload settings.",
+      "expected": "cops-cloud-posture-specialist"
+    },
+    {
+      "id": "cloud-posture-09",
+      "query": "Review the helm_rendered_manifest for risky cloud identity annotations.",
+      "expected": "cops-cloud-posture-specialist"
+    },
+    {
+      "id": "cloud-posture-10",
+      "query": "Check public cloud storage controls in the planned infrastructure update.",
+      "expected": "cops-cloud-posture-specialist"
+    },
+    {
+      "id": "compliance-auditor-01",
+      "query": "Complete SOC 2 control mapping for the dated access-review evidence.",
+      "expected": "cops-compliance-auditor"
+    },
+    {
+      "id": "compliance-auditor-02",
+      "query": "Review NIST control mapping for the incident response procedures and records.",
+      "expected": "cops-compliance-auditor"
+    },
+    {
+      "id": "compliance-auditor-03",
+      "query": "Perform a CIS control assessment using the supplied configuration evidence.",
+      "expected": "cops-compliance-auditor"
+    },
+    {
+      "id": "compliance-auditor-04",
+      "query": "Validate ISO 27001 evidence for joiner, mover, and leaver reviews.",
+      "expected": "cops-compliance-auditor"
+    },
+    {
+      "id": "compliance-auditor-05",
+      "query": "Trace PCI DSS evidence to the systems included in the cardholder environment.",
+      "expected": "cops-compliance-auditor"
+    },
+    {
+      "id": "compliance-auditor-06",
+      "query": "Conduct a compliance evidence review and flag claims without dated support.",
+      "expected": "cops-compliance-auditor"
+    },
+    {
+      "id": "compliance-auditor-07",
+      "query": "Reconcile the control_matrix with the current policy documents and test records.",
+      "expected": "cops-compliance-auditor"
+    },
+    {
+      "id": "compliance-auditor-08",
+      "query": "Check SOC 2 control mapping for gaps in quarterly privileged access reviews.",
+      "expected": "cops-compliance-auditor"
+    },
+    {
+      "id": "compliance-auditor-09",
+      "query": "Assess whether this ISO 27001 evidence establishes that the control operated all year.",
+      "expected": "cops-compliance-auditor"
+    },
+    {
+      "id": "compliance-auditor-10",
+      "query": "Review PCI DSS evidence for network access recertification and unresolved exceptions.",
+      "expected": "cops-compliance-auditor"
+    },
+    {
+      "id": "detection-engineer-01",
+      "query": "Handle detection rule authoring for suspicious scheduled task creation.",
+      "expected": "cops-detection-engineer"
+    },
+    {
+      "id": "detection-engineer-02",
+      "query": "Review this detection as code change for missing tests and noisy conditions.",
+      "expected": "cops-detection-engineer"
+    },
+    {
+      "id": "detection-engineer-03",
+      "query": "Add a detection regression test for the encoded PowerShell fixture.",
+      "expected": "cops-detection-engineer"
+    },
+    {
+      "id": "detection-engineer-04",
+      "query": "Perform false positive testing against the known administration scripts.",
+      "expected": "cops-detection-engineer"
+    },
+    {
+      "id": "detection-engineer-05",
+      "query": "Assess telemetry coverage for the credential access behavior in this scenario.",
+      "expected": "cops-detection-engineer"
+    },
+    {
+      "id": "detection-engineer-06",
+      "query": "Evaluate rule quality for the new process ancestry analytic.",
+      "expected": "cops-detection-engineer"
+    },
+    {
+      "id": "detection-engineer-07",
+      "query": "Fix the sigma_rule so it catches the attack sample without matching the benign set.",
+      "expected": "cops-detection-engineer"
+    },
+    {
+      "id": "detection-engineer-08",
+      "query": "Improve detection as code validation for renamed Windows event fields.",
+      "expected": "cops-detection-engineer"
+    },
+    {
+      "id": "detection-engineer-09",
+      "query": "Create a detection regression test that proves the allowlist remains narrow.",
+      "expected": "cops-detection-engineer"
+    },
+    {
+      "id": "detection-engineer-10",
+      "query": "Measure telemetry coverage before implementing this proposed analytic rule.",
+      "expected": "cops-detection-engineer"
+    },
+    {
+      "id": "exposure-analyst-01",
+      "query": "Perform CVE prioritization for vulnerabilities on the internet-facing service.",
+      "expected": "cops-exposure-analyst"
+    },
+    {
+      "id": "exposure-analyst-02",
+      "query": "Use vulnerability prioritization to order remediation across these application teams.",
+      "expected": "cops-exposure-analyst"
+    },
+    {
+      "id": "exposure-analyst-03",
+      "query": "Include the EPSS score when assessing likely exploitation of these packages.",
+      "expected": "cops-exposure-analyst"
+    },
+    {
+      "id": "exposure-analyst-04",
+      "query": "Check CISA KEV status for each finding in the vulnerability export.",
+      "expected": "cops-exposure-analyst"
+    },
+    {
+      "id": "exposure-analyst-05",
+      "query": "Establish SBOM reachability before escalating the library vulnerability.",
+      "expected": "cops-exposure-analyst"
+    },
+    {
+      "id": "exposure-analyst-06",
+      "query": "Estimate exploit likelihood using observed exposure and available exploit evidence.",
+      "expected": "cops-exposure-analyst"
+    },
+    {
+      "id": "exposure-analyst-07",
+      "query": "Review the cve_list and identify which issues need emergency patching.",
+      "expected": "cops-exposure-analyst"
+    },
+    {
+      "id": "exposure-analyst-08",
+      "query": "Combine CVE prioritization with asset criticality and compensating controls.",
+      "expected": "cops-exposure-analyst"
+    },
+    {
+      "id": "exposure-analyst-09",
+      "query": "Validate SBOM reachability for the vulnerable parser in the deployed service.",
+      "expected": "cops-exposure-analyst"
+    },
+    {
+      "id": "exposure-analyst-10",
+      "query": "Explain how CISA KEV status changes the remediation deadline for this scanner finding.",
+      "expected": "cops-exposure-analyst"
+    },
+    {
+      "id": "forensic-collector-01",
+      "query": "Plan forensic acquisition of the laptop while preserving volatile evidence.",
+      "expected": "cops-forensic-collector"
+    },
+    {
+      "id": "forensic-collector-02",
+      "query": "Create a chain of custody for the collected disk image and event logs.",
+      "expected": "cops-forensic-collector"
+    },
+    {
+      "id": "forensic-collector-03",
+      "query": "Sequence evidence collection from the affected server before it is rebuilt.",
+      "expected": "cops-forensic-collector"
+    },
+    {
+      "id": "forensic-collector-04",
+      "query": "Verify tamper-evident evidence packaging for the exported mailbox.",
+      "expected": "cops-forensic-collector"
+    },
+    {
+      "id": "forensic-collector-05",
+      "query": "Review the acquisition receipt and confirm the recorded hashes and timestamps.",
+      "expected": "cops-forensic-collector"
+    },
+    {
+      "id": "forensic-collector-06",
+      "query": "Prepare forensic preservation steps for the memory image and attached media.",
+      "expected": "cops-forensic-collector"
+    },
+    {
+      "id": "forensic-collector-07",
+      "query": "Validate the evidence_manifest before transferring artifacts to the investigation team.",
+      "expected": "cops-forensic-collector"
+    },
+    {
+      "id": "forensic-collector-08",
+      "query": "Document chain of custody for the removable drive received from the branch office.",
+      "expected": "cops-forensic-collector"
+    },
+    {
+      "id": "forensic-collector-09",
+      "query": "Plan evidence collection that captures volatile processes before filesystem data.",
+      "expected": "cops-forensic-collector"
+    },
+    {
+      "id": "forensic-collector-10",
+      "query": "Check the acquisition receipt for missing tool versions and source identifiers.",
+      "expected": "cops-forensic-collector"
+    },
+    {
+      "id": "host-01",
+      "query": "Investigate Linux privilege escalation through the delegated backup command.",
+      "expected": "cops-host-specialist"
+    },
+    {
+      "id": "host-02",
+      "query": "Review Windows privilege escalation risk in these service permissions.",
+      "expected": "cops-host-specialist"
+    },
+    {
+      "id": "host-03",
+      "query": "Assess the host privilege boundary between the application account and root.",
+      "expected": "cops-host-specialist"
+    },
+    {
+      "id": "host-04",
+      "query": "Check the sudo policy for commands that permit an unrestricted shell.",
+      "expected": "cops-host-specialist"
+    },
+    {
+      "id": "host-05",
+      "query": "Review this SUID binary inventory for unsafe custom executables.",
+      "expected": "cops-host-specialist"
+    },
+    {
+      "id": "host-06",
+      "query": "Analyze Windows service permissions for paths writable by standard users.",
+      "expected": "cops-host-specialist"
+    },
+    {
+      "id": "host-07",
+      "query": "Determine whether the sudoers_file exposes a Linux privilege escalation path.",
+      "expected": "cops-host-specialist"
+    },
+    {
+      "id": "host-08",
+      "query": "Explain how the host privilege boundary is weakened by these file capabilities.",
+      "expected": "cops-host-specialist"
+    },
+    {
+      "id": "host-09",
+      "query": "Review Windows privilege escalation through the unquoted service path shown here.",
+      "expected": "cops-host-specialist"
+    },
+    {
+      "id": "host-10",
+      "query": "Assess this SUID binary and its configuration file ownership for local abuse.",
+      "expected": "cops-host-specialist"
+    },
+    {
+      "id": "identity-01",
+      "query": "Review Entra ID entitlement assignments for dormant privileged users.",
+      "expected": "cops-identity-specialist"
+    },
+    {
+      "id": "identity-02",
+      "query": "Assess cloud IAM entitlement grants that cross the production account boundary.",
+      "expected": "cops-identity-specialist"
+    },
+    {
+      "id": "identity-03",
+      "query": "Investigate service principal privilege beyond the application's stated purpose.",
+      "expected": "cops-identity-specialist"
+    },
+    {
+      "id": "identity-04",
+      "query": "Find a toxic privilege combination across deployment and key-management roles.",
+      "expected": "cops-identity-specialist"
+    },
+    {
+      "id": "identity-05",
+      "query": "Improve identity governance for emergency accounts and access reviews.",
+      "expected": "cops-identity-specialist"
+    },
+    {
+      "id": "identity-06",
+      "query": "Analyze a cloud privilege escalation path through role delegation.",
+      "expected": "cops-identity-specialist"
+    },
+    {
+      "id": "identity-07",
+      "query": "Review the role_assignment export for excessive cloud IAM entitlement.",
+      "expected": "cops-identity-specialist"
+    },
+    {
+      "id": "identity-08",
+      "query": "Determine whether service principal privilege permits creation of new credentials.",
+      "expected": "cops-identity-specialist"
+    },
+    {
+      "id": "identity-09",
+      "query": "Prioritize identity governance gaps affecting privileged workload identities.",
+      "expected": "cops-identity-specialist"
+    },
+    {
+      "id": "identity-10",
+      "query": "Validate the suspected toxic privilege combination in this access graph.",
+      "expected": "cops-identity-specialist"
+    },
+    {
+      "id": "incident-responder-01",
+      "query": "Prepare incident containment for the compromised finance account.",
+      "expected": "cops-incident-responder"
+    },
+    {
+      "id": "incident-responder-02",
+      "query": "Build a containment plan for ransomware affecting three file servers.",
+      "expected": "cops-incident-responder"
+    },
+    {
+      "id": "incident-responder-03",
+      "query": "Investigate the compromised account and revoke active sessions safely.",
+      "expected": "cops-incident-responder"
+    },
+    {
+      "id": "incident-responder-04",
+      "query": "Sequence steps to isolate affected host systems without losing evidence.",
+      "expected": "cops-incident-responder"
+    },
+    {
+      "id": "incident-responder-05",
+      "query": "Estimate blast radius after the exposed deployment token was used.",
+      "expected": "cops-incident-responder"
+    },
+    {
+      "id": "incident-responder-06",
+      "query": "Define incident recovery prerequisites for the customer portal outage.",
+      "expected": "cops-incident-responder"
+    },
+    {
+      "id": "incident-responder-07",
+      "query": "Review the incident_timeline and recommend immediate containment actions.",
+      "expected": "cops-incident-responder"
+    },
+    {
+      "id": "incident-responder-08",
+      "query": "Update the containment plan with rollback steps for the network isolation change.",
+      "expected": "cops-incident-responder"
+    },
+    {
+      "id": "incident-responder-09",
+      "query": "Determine blast radius from the malicious administrator login sequence.",
+      "expected": "cops-incident-responder"
+    },
+    {
+      "id": "incident-responder-10",
+      "query": "Coordinate incident recovery after the affected secrets have been replaced.",
+      "expected": "cops-incident-responder"
+    },
+    {
+      "id": "kubernetes-01",
+      "query": "Verify the Kubernetes context before collecting evidence from the approved cluster.",
+      "expected": "cops-kubernetes-specialist"
+    },
+    {
+      "id": "kubernetes-02",
+      "query": "Reconcile cluster identity with the identifier recorded in the engagement scope.",
+      "expected": "cops-kubernetes-specialist"
+    },
+    {
+      "id": "kubernetes-03",
+      "query": "Confirm namespace scope for the assessment of the payments workloads.",
+      "expected": "cops-kubernetes-specialist"
+    },
+    {
+      "id": "kubernetes-04",
+      "query": "Document the managed control plane details needed for the cluster review.",
+      "expected": "cops-kubernetes-specialist"
+    },
+    {
+      "id": "kubernetes-05",
+      "query": "Plan a Kubernetes assessment using only the authorized namespaces.",
+      "expected": "cops-kubernetes-specialist"
+    },
+    {
+      "id": "kubernetes-06",
+      "query": "Validate cluster access scope before any read-only API queries are made.",
+      "expected": "cops-kubernetes-specialist"
+    },
+    {
+      "id": "kubernetes-07",
+      "query": "Review kubeconfig_metadata without exposing embedded credentials.",
+      "expected": "cops-kubernetes-specialist"
+    },
+    {
+      "id": "kubernetes-08",
+      "query": "Resolve a cluster identity mismatch between the inventory and current context.",
+      "expected": "cops-kubernetes-specialist"
+    },
+    {
+      "id": "kubernetes-09",
+      "query": "Check namespace scope against the supplied namespace_export.",
+      "expected": "cops-kubernetes-specialist"
+    },
+    {
+      "id": "kubernetes-10",
+      "query": "Identify missing prerequisites for this managed control plane assessment.",
+      "expected": "cops-kubernetes-specialist"
+    },
+    {
+      "id": "logging-architect-01",
+      "query": "Design security logging for authorization decisions in the billing service.",
+      "expected": "cops-logging-architect"
+    },
+    {
+      "id": "logging-architect-02",
+      "query": "Identify an audit logging gap in the password reset workflow.",
+      "expected": "cops-logging-architect"
+    },
+    {
+      "id": "logging-architect-03",
+      "query": "Review the sample for sensitive data in logs before production rollout.",
+      "expected": "cops-logging-architect"
+    },
+    {
+      "id": "logging-architect-04",
+      "query": "Plan a telemetry pipeline for authentication events across regional services.",
+      "expected": "cops-logging-architect"
+    },
+    {
+      "id": "logging-architect-05",
+      "query": "Assess audit event coverage for privileged configuration changes.",
+      "expected": "cops-logging-architect"
+    },
+    {
+      "id": "logging-architect-06",
+      "query": "Reduce log retention cost while preserving required investigation data.",
+      "expected": "cops-logging-architect"
+    },
+    {
+      "id": "logging-architect-07",
+      "query": "Review logging_config for missing actor and outcome fields.",
+      "expected": "cops-logging-architect"
+    },
+    {
+      "id": "logging-architect-08",
+      "query": "Create a security logging design for administrative API operations.",
+      "expected": "cops-logging-architect"
+    },
+    {
+      "id": "logging-architect-09",
+      "query": "Find sensitive data in logs emitted by the checkout application.",
+      "expected": "cops-logging-architect"
+    },
+    {
+      "id": "logging-architect-10",
+      "query": "Evaluate audit event coverage against the service threat model.",
+      "expected": "cops-logging-architect"
+    },
+    {
+      "id": "malware-analyst-01",
+      "query": "Perform malware triage on this suspicious executable without running it.",
+      "expected": "cops-malware-analyst"
+    },
+    {
+      "id": "malware-analyst-02",
+      "query": "Use static binary analysis to identify imports and embedded network indicators.",
+      "expected": "cops-malware-analyst"
+    },
+    {
+      "id": "malware-analyst-03",
+      "query": "Deobfuscate PowerShell from the attachment and summarize its intended behavior.",
+      "expected": "cops-malware-analyst"
+    },
+    {
+      "id": "malware-analyst-04",
+      "query": "Conduct malicious macro analysis on the submitted office document.",
+      "expected": "cops-malware-analyst"
+    },
+    {
+      "id": "malware-analyst-05",
+      "query": "Complete IOC extraction from the script, strings, and configuration data.",
+      "expected": "cops-malware-analyst"
+    },
+    {
+      "id": "malware-analyst-06",
+      "query": "Perform suspicious script analysis on this encoded login task.",
+      "expected": "cops-malware-analyst"
+    },
+    {
+      "id": "malware-analyst-07",
+      "query": "Inspect the pe_file with static binary analysis and report likely capabilities.",
+      "expected": "cops-malware-analyst"
+    },
+    {
+      "id": "malware-analyst-08",
+      "query": "Use malware triage to compare these two samples by hashes and code traits.",
+      "expected": "cops-malware-analyst"
+    },
+    {
+      "id": "malware-analyst-09",
+      "query": "Deobfuscate PowerShell layers and identify the final download destination.",
+      "expected": "cops-malware-analyst"
+    },
+    {
+      "id": "malware-analyst-10",
+      "query": "Conduct malicious macro analysis for persistence and process-launch behavior.",
+      "expected": "cops-malware-analyst"
+    },
+    {
+      "id": "network-segmentation-01",
+      "query": "Review network segmentation between application and database zones.",
+      "expected": "cops-network-segmentation-specialist"
+    },
+    {
+      "id": "network-segmentation-02",
+      "query": "Assess the firewall policy for paths that bypass the management boundary.",
+      "expected": "cops-network-segmentation-specialist"
+    },
+    {
+      "id": "network-segmentation-03",
+      "query": "Check Kubernetes NetworkPolicy coverage for cross-namespace traffic.",
+      "expected": "cops-network-segmentation-specialist"
+    },
+    {
+      "id": "network-segmentation-04",
+      "query": "Investigate forbidden reachability from the guest network to internal DNS.",
+      "expected": "cops-network-segmentation-specialist"
+    },
+    {
+      "id": "network-segmentation-05",
+      "query": "Validate allowed reachability for the payment service and its dependencies.",
+      "expected": "cops-network-segmentation-specialist"
+    },
+    {
+      "id": "network-segmentation-06",
+      "query": "Analyze east-west traffic that crossed the restricted workload boundary.",
+      "expected": "cops-network-segmentation-specialist"
+    },
+    {
+      "id": "network-segmentation-07",
+      "query": "Compare the firewall_ruleset with the approved reachability matrix.",
+      "expected": "cops-network-segmentation-specialist"
+    },
+    {
+      "id": "network-segmentation-08",
+      "query": "Use the flow_log to explain this unexpected east-west traffic path.",
+      "expected": "cops-network-segmentation-specialist"
+    },
+    {
+      "id": "network-segmentation-09",
+      "query": "Review Kubernetes NetworkPolicy defaults for isolated namespaces.",
+      "expected": "cops-network-segmentation-specialist"
+    },
+    {
+      "id": "network-segmentation-10",
+      "query": "Confirm forbidden reachability remains blocked after the proposed firewall change.",
+      "expected": "cops-network-segmentation-specialist"
+    },
+    {
+      "id": "pentest-01",
+      "query": "Plan an authorized penetration test for the staging customer portal.",
+      "expected": "cops-pentest-specialist"
+    },
+    {
+      "id": "pentest-02",
+      "query": "Scope a penetration test of the approved internal address range.",
+      "expected": "cops-pentest-specialist"
+    },
+    {
+      "id": "pentest-03",
+      "query": "Review the rules of engagement before validating the reported service weakness.",
+      "expected": "cops-pentest-specialist"
+    },
+    {
+      "id": "pentest-04",
+      "query": "Perform exploitability validation for the sanitized deserialization finding.",
+      "expected": "cops-pentest-specialist"
+    },
+    {
+      "id": "pentest-05",
+      "query": "Design a vulnerability assessment for the newly acquired web application.",
+      "expected": "cops-pentest-specialist"
+    },
+    {
+      "id": "pentest-06",
+      "query": "Prepare a scoped security test of the approved authentication endpoints.",
+      "expected": "cops-pentest-specialist"
+    },
+    {
+      "id": "pentest-07",
+      "query": "Use the rules_of_engagement to define safe stop conditions for testing.",
+      "expected": "cops-pentest-specialist"
+    },
+    {
+      "id": "pentest-08",
+      "query": "Plan an authorized penetration test that avoids production customer records.",
+      "expected": "cops-pentest-specialist"
+    },
+    {
+      "id": "pentest-09",
+      "query": "Complete exploitability validation within the supplied target allowlist.",
+      "expected": "cops-pentest-specialist"
+    },
+    {
+      "id": "pentest-10",
+      "query": "Turn this vulnerability assessment into bounded follow-up testing steps.",
+      "expected": "cops-pentest-specialist"
+    },
+    {
+      "id": "purple-team-coordinator-01",
+      "query": "Plan a purple team exercise around credential dumping detection.",
+      "expected": "cops-purple-team-coordinator"
+    },
+    {
+      "id": "purple-team-coordinator-02",
+      "query": "Coordinate red blue validation for the simulated phishing chain.",
+      "expected": "cops-purple-team-coordinator"
+    },
+    {
+      "id": "purple-team-coordinator-03",
+      "query": "Prioritize the detection coverage gap found during last month's exercise.",
+      "expected": "cops-purple-team-coordinator"
+    },
+    {
+      "id": "purple-team-coordinator-04",
+      "query": "Compare attack simulation telemetry with the expected security events.",
+      "expected": "cops-purple-team-coordinator"
+    },
+    {
+      "id": "purple-team-coordinator-05",
+      "query": "Design a control efficacy exercise for endpoint isolation and alerting.",
+      "expected": "cops-purple-team-coordinator"
+    },
+    {
+      "id": "purple-team-coordinator-06",
+      "query": "Run a collaborative security exercise using the approved ATT&CK techniques.",
+      "expected": "cops-purple-team-coordinator"
+    },
+    {
+      "id": "purple-team-coordinator-07",
+      "query": "Review the attack_coverage_matrix and select targets for the purple team exercise.",
+      "expected": "cops-purple-team-coordinator"
+    },
+    {
+      "id": "purple-team-coordinator-08",
+      "query": "Use red blue validation to confirm the corrected analytic now fires.",
+      "expected": "cops-purple-team-coordinator"
+    },
+    {
+      "id": "purple-team-coordinator-09",
+      "query": "Document the detection coverage gap and a safe retest procedure.",
+      "expected": "cops-purple-team-coordinator"
+    },
+    {
+      "id": "purple-team-coordinator-10",
+      "query": "Analyze attack simulation telemetry with both offensive and defensive owners.",
+      "expected": "cops-purple-team-coordinator"
+    },
+    {
+      "id": "redteam-operator-01",
+      "query": "Design an adversary emulation for the approved identity attack scenario.",
+      "expected": "cops-redteam-operator"
+    },
+    {
+      "id": "redteam-operator-02",
+      "query": "Plan an assumed breach exercise beginning from the supplied workstation.",
+      "expected": "cops-redteam-operator"
+    },
+    {
+      "id": "redteam-operator-03",
+      "query": "Model a multi-stage attack path toward the protected finance application.",
+      "expected": "cops-redteam-operator"
+    },
+    {
+      "id": "redteam-operator-04",
+      "query": "Evaluate lateral movement options within the explicitly authorized subnet.",
+      "expected": "cops-redteam-operator"
+    },
+    {
+      "id": "redteam-operator-05",
+      "query": "Test defense evasion controls using the approved benign simulation technique.",
+      "expected": "cops-redteam-operator"
+    },
+    {
+      "id": "redteam-operator-06",
+      "query": "Map this kill chain to evidence the defenders should observe.",
+      "expected": "cops-redteam-operator"
+    },
+    {
+      "id": "redteam-operator-07",
+      "query": "Review the emulation_plan for unsafe expansion beyond the target list.",
+      "expected": "cops-redteam-operator"
+    },
+    {
+      "id": "redteam-operator-08",
+      "query": "Sequence an assumed breach exercise with clear stop and cleanup conditions.",
+      "expected": "cops-redteam-operator"
+    },
+    {
+      "id": "redteam-operator-09",
+      "query": "Document the multi-stage attack path and each required authorization boundary.",
+      "expected": "cops-redteam-operator"
+    },
+    {
+      "id": "redteam-operator-10",
+      "query": "Coordinate a defense evasion simulation that cannot alter production data.",
+      "expected": "cops-redteam-operator"
+    },
+    {
+      "id": "secrets-remediation-01",
+      "query": "Respond to a leaked credential found in a public commit.",
+      "expected": "cops-secrets-remediation-specialist"
+    },
+    {
+      "id": "secrets-remediation-02",
+      "query": "Assess the secret exposure and identify every affected deployment.",
+      "expected": "cops-secrets-remediation-specialist"
+    },
+    {
+      "id": "secrets-remediation-03",
+      "query": "Remove a credential in Git history after revoking the active key.",
+      "expected": "cops-secrets-remediation-specialist"
+    },
+    {
+      "id": "secrets-remediation-04",
+      "query": "Plan credential revocation for the exposed package registry token.",
+      "expected": "cops-secrets-remediation-specialist"
+    },
+    {
+      "id": "secrets-remediation-05",
+      "query": "Sequence credential rotation across services that share this database account.",
+      "expected": "cops-secrets-remediation-specialist"
+    },
+    {
+      "id": "secrets-remediation-06",
+      "query": "Create token exposure remediation steps for the CI runner credential.",
+      "expected": "cops-secrets-remediation-specialist"
+    },
+    {
+      "id": "secrets-remediation-07",
+      "query": "Use the secret_scan_report to prioritize each leaked credential.",
+      "expected": "cops-secrets-remediation-specialist"
+    },
+    {
+      "id": "secrets-remediation-08",
+      "query": "Verify credential revocation using identity logs and safe authentication checks.",
+      "expected": "cops-secrets-remediation-specialist"
+    },
+    {
+      "id": "secrets-remediation-09",
+      "query": "Coordinate credential rotation without leaving old consumers active.",
+      "expected": "cops-secrets-remediation-specialist"
+    },
+    {
+      "id": "secrets-remediation-10",
+      "query": "Investigate secret exposure in repository configuration and release artifacts.",
+      "expected": "cops-secrets-remediation-specialist"
+    },
+    {
+      "id": "sentinel-kql-engineer-01",
+      "query": "Optimize this KQL query that joins sign-in and audit events.",
+      "expected": "cops-sentinel-kql-engineer"
+    },
+    {
+      "id": "sentinel-kql-engineer-02",
+      "query": "Build a Microsoft Sentinel analytic for suspicious mailbox forwarding.",
+      "expected": "cops-sentinel-kql-engineer"
+    },
+    {
+      "id": "sentinel-kql-engineer-03",
+      "query": "Write a Defender Advanced Hunting query for unsigned driver loads.",
+      "expected": "cops-sentinel-kql-engineer"
+    },
+    {
+      "id": "sentinel-kql-engineer-04",
+      "query": "Correct the Kusto query so its time windows align across both tables.",
+      "expected": "cops-sentinel-kql-engineer"
+    },
+    {
+      "id": "sentinel-kql-engineer-05",
+      "query": "Reduce the cost of this Log Analytics query without changing its result.",
+      "expected": "cops-sentinel-kql-engineer"
+    },
+    {
+      "id": "sentinel-kql-engineer-06",
+      "query": "Convert the logic into a Sentinel analytic rule with entity mappings.",
+      "expected": "cops-sentinel-kql-engineer"
+    },
+    {
+      "id": "sentinel-kql-engineer-07",
+      "query": "Review the kql_file for duplicated rows caused by the current join.",
+      "expected": "cops-sentinel-kql-engineer"
+    },
+    {
+      "id": "sentinel-kql-engineer-08",
+      "query": "Use a Kusto query to summarize failed authentication by application.",
+      "expected": "cops-sentinel-kql-engineer"
+    },
+    {
+      "id": "sentinel-kql-engineer-09",
+      "query": "Troubleshoot why this Microsoft Sentinel query misses normalized device names.",
+      "expected": "cops-sentinel-kql-engineer"
+    },
+    {
+      "id": "sentinel-kql-engineer-10",
+      "query": "Add tests for the Sentinel analytic rule using the supplied event samples.",
+      "expected": "cops-sentinel-kql-engineer"
+    },
+    {
+      "id": "soc-analyst-01",
+      "query": "Perform alert triage for this impossible-travel notification.",
+      "expected": "cops-soc-analyst"
+    },
+    {
+      "id": "soc-analyst-02",
+      "query": "Begin a security alert investigation using endpoint and identity evidence.",
+      "expected": "cops-soc-analyst"
+    },
+    {
+      "id": "soc-analyst-03",
+      "query": "Conduct false positive analysis for the service-account sign-in alert.",
+      "expected": "cops-soc-analyst"
+    },
+    {
+      "id": "soc-analyst-04",
+      "query": "Use alert correlation to connect these mailbox and endpoint events.",
+      "expected": "cops-soc-analyst"
+    },
+    {
+      "id": "soc-analyst-05",
+      "query": "Compare competing hypotheses for the unusual administrator activity.",
+      "expected": "cops-soc-analyst"
+    },
+    {
+      "id": "soc-analyst-06",
+      "query": "Complete a SOC case review before the ticket is escalated.",
+      "expected": "cops-soc-analyst"
+    },
+    {
+      "id": "soc-analyst-07",
+      "query": "Read case.json and identify the next evidence needed for alert triage.",
+      "expected": "cops-soc-analyst"
+    },
+    {
+      "id": "soc-analyst-08",
+      "query": "Build a concise timeline for this security alert investigation.",
+      "expected": "cops-soc-analyst"
+    },
+    {
+      "id": "soc-analyst-09",
+      "query": "Use false positive analysis to distinguish automation from account misuse.",
+      "expected": "cops-soc-analyst"
+    },
+    {
+      "id": "soc-analyst-10",
+      "query": "Apply alert correlation to the related cloud and host notifications.",
+      "expected": "cops-soc-analyst"
+    },
+    {
+      "id": "supply-chain-01",
+      "query": "Assess software supply chain risk in the release workflow and package sources.",
+      "expected": "cops-supply-chain-specialist"
+    },
+    {
+      "id": "supply-chain-02",
+      "query": "Investigate a dependency vulnerability introduced by the updated library.",
+      "expected": "cops-supply-chain-specialist"
+    },
+    {
+      "id": "supply-chain-03",
+      "query": "Review build pipeline permission grants in the reusable GitHub Actions job.",
+      "expected": "cops-supply-chain-specialist"
+    },
+    {
+      "id": "supply-chain-04",
+      "query": "Check registry resolution for dependency confusion between public and private packages.",
+      "expected": "cops-supply-chain-specialist"
+    },
+    {
+      "id": "supply-chain-05",
+      "query": "Perform a lockfile review after the package manager changed transitive versions.",
+      "expected": "cops-supply-chain-specialist"
+    },
+    {
+      "id": "supply-chain-06",
+      "query": "Validate SBOM provenance against the artifacts produced by the signed build.",
+      "expected": "cops-supply-chain-specialist"
+    },
+    {
+      "id": "supply-chain-07",
+      "query": "Inspect package-lock.json for unexpected dependency sources and lifecycle scripts.",
+      "expected": "cops-supply-chain-specialist"
+    },
+    {
+      "id": "supply-chain-08",
+      "query": "Analyze the github_actions_workflow for unsafe token and publishing permissions.",
+      "expected": "cops-supply-chain-specialist"
+    },
+    {
+      "id": "supply-chain-09",
+      "query": "Use SBOM provenance to connect each shipped component to its build record.",
+      "expected": "cops-supply-chain-specialist"
+    },
+    {
+      "id": "supply-chain-10",
+      "query": "Review registry resolution before publishing the internal package namespace.",
+      "expected": "cops-supply-chain-specialist"
+    },
+    {
+      "id": "threat-hunter-01",
+      "query": "Create a hypothesis-driven hunt for unusual remote service creation.",
+      "expected": "cops-threat-hunter"
+    },
+    {
+      "id": "threat-hunter-02",
+      "query": "Perform threat hunting across endpoint events for stolen session cookies.",
+      "expected": "cops-threat-hunter"
+    },
+    {
+      "id": "threat-hunter-03",
+      "query": "Build a beaconing hunt using the proxy timing data.",
+      "expected": "cops-threat-hunter"
+    },
+    {
+      "id": "threat-hunter-04",
+      "query": "Run a persistence hunt for newly registered logon scripts.",
+      "expected": "cops-threat-hunter"
+    },
+    {
+      "id": "threat-hunter-05",
+      "query": "Hunt for living off the land behavior involving trusted system tools.",
+      "expected": "cops-threat-hunter"
+    },
+    {
+      "id": "threat-hunter-06",
+      "query": "Plan an adversary behavior hunt around abnormal cloud token use.",
+      "expected": "cops-threat-hunter"
+    },
+    {
+      "id": "threat-hunter-07",
+      "query": "Use the hunt_plan to define evidence that would disprove the hypothesis.",
+      "expected": "cops-threat-hunter"
+    },
+    {
+      "id": "threat-hunter-08",
+      "query": "Create a hypothesis-driven hunt from these unusual authentication sequences.",
+      "expected": "cops-threat-hunter"
+    },
+    {
+      "id": "threat-hunter-09",
+      "query": "Improve the beaconing hunt to account for normal software update traffic.",
+      "expected": "cops-threat-hunter"
+    },
+    {
+      "id": "threat-hunter-10",
+      "query": "Perform a persistence hunt using the supplied service and scheduled-task data.",
+      "expected": "cops-threat-hunter"
+    },
+    {
+      "id": "threat-intel-analyst-01",
+      "query": "Perform threat intelligence analysis on the supplied campaign report.",
+      "expected": "cops-threat-intel-analyst"
+    },
+    {
+      "id": "threat-intel-analyst-02",
+      "query": "Complete IOC enrichment for these domains and file hashes.",
+      "expected": "cops-threat-intel-analyst"
+    },
+    {
+      "id": "threat-intel-analyst-03",
+      "query": "Build a threat actor profile that separates observed facts from assessment.",
+      "expected": "cops-threat-intel-analyst"
+    },
+    {
+      "id": "threat-intel-analyst-04",
+      "query": "Use campaign tracking to connect the reported infrastructure changes.",
+      "expected": "cops-threat-intel-analyst"
+    },
+    {
+      "id": "threat-intel-analyst-05",
+      "query": "Perform STIX correlation across the partner and internal indicator bundles.",
+      "expected": "cops-threat-intel-analyst"
+    },
+    {
+      "id": "threat-intel-analyst-06",
+      "query": "Complete MISP enrichment for indicators relevant to our sector.",
+      "expected": "cops-threat-intel-analyst"
+    },
+    {
+      "id": "threat-intel-analyst-07",
+      "query": "Review the stix_bundle and identify relationships supported by evidence.",
+      "expected": "cops-threat-intel-analyst"
+    },
+    {
+      "id": "threat-intel-analyst-08",
+      "query": "Use IOC enrichment to prioritize indicators for defensive monitoring.",
+      "expected": "cops-threat-intel-analyst"
+    },
+    {
+      "id": "threat-intel-analyst-09",
+      "query": "Update campaign tracking with the new infrastructure timeline.",
+      "expected": "cops-threat-intel-analyst"
+    },
+    {
+      "id": "threat-intel-analyst-10",
+      "query": "Prepare a threat actor profile with explicit confidence for each attribution.",
+      "expected": "cops-threat-intel-analyst"
+    },
+    {
+      "id": "tls-crypto-01",
+      "query": "Validate the TLS certificate chain presented by the customer endpoint.",
+      "expected": "cops-tls-crypto-specialist"
+    },
+    {
+      "id": "tls-crypto-02",
+      "query": "Review mTLS client verification for the partner integration.",
+      "expected": "cops-tls-crypto-specialist"
+    },
+    {
+      "id": "tls-crypto-03",
+      "query": "Check JWT signature verification when the token omits a key identifier.",
+      "expected": "cops-tls-crypto-specialist"
+    },
+    {
+      "id": "tls-crypto-04",
+      "query": "Assess JWKS signing configuration during key rollover.",
+      "expected": "cops-tls-crypto-specialist"
+    },
+    {
+      "id": "tls-crypto-05",
+      "query": "Review TLS protocol configuration for obsolete versions and weak ciphers.",
+      "expected": "cops-tls-crypto-specialist"
+    },
+    {
+      "id": "tls-crypto-06",
+      "query": "Investigate the certificate trust failure after the intermediate CA changed.",
+      "expected": "cops-tls-crypto-specialist"
+    },
+    {
+      "id": "tls-crypto-07",
+      "query": "Use the certificate_chain to explain the browser validation error.",
+      "expected": "cops-tls-crypto-specialist"
+    },
+    {
+      "id": "tls-crypto-08",
+      "query": "Test mTLS client verification against the documented trust anchors.",
+      "expected": "cops-tls-crypto-specialist"
+    },
+    {
+      "id": "tls-crypto-09",
+      "query": "Validate JWT signature verification against the issuer's current keys.",
+      "expected": "cops-tls-crypto-specialist"
+    },
+    {
+      "id": "tls-crypto-10",
+      "query": "Review JWKS signing configuration for stale and unpublished verification keys.",
+      "expected": "cops-tls-crypto-specialist"
+    }
+  ],
+  "ambiguous_or_negative": [
+    {
+      "id": "unclear-001",
+      "query": "Please help us understand a security concern in the quarterly review and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-002",
+      "query": "Please help us understand a security concern from the engineering team and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-003",
+      "query": "Please help us understand a security concern before the next release and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-004",
+      "query": "Please help us understand a security concern in the attached notes and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-005",
+      "query": "Please help us understand a security concern for the production service and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-006",
+      "query": "Please help us understand some unexpected behavior in the quarterly review and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-007",
+      "query": "Please help us understand some unexpected behavior from the engineering team and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-008",
+      "query": "Please help us understand some unexpected behavior before the next release and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-009",
+      "query": "Please help us understand some unexpected behavior in the attached notes and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-010",
+      "query": "Please help us understand some unexpected behavior for the production service and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-011",
+      "query": "Please help us understand a review request in the quarterly review and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-012",
+      "query": "Please help us understand a review request from the engineering team and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-013",
+      "query": "Please help us understand a review request before the next release and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-014",
+      "query": "Please help us understand a review request in the attached notes and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-015",
+      "query": "Please help us understand a review request for the production service and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-016",
+      "query": "Please help us understand an unresolved question in the quarterly review and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-017",
+      "query": "Please help us understand an unresolved question from the engineering team and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-018",
+      "query": "Please help us understand an unresolved question before the next release and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-019",
+      "query": "Please help us understand an unresolved question in the attached notes and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-020",
+      "query": "Please help us understand an unresolved question for the production service and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-021",
+      "query": "Please help us understand a possible weakness in the quarterly review and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-022",
+      "query": "Please help us understand a possible weakness from the engineering team and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-023",
+      "query": "Please help us understand a possible weakness before the next release and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-024",
+      "query": "Please help us understand a possible weakness in the attached notes and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-025",
+      "query": "Please help us understand a possible weakness for the production service and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-026",
+      "query": "Please help us understand a risk observation in the quarterly review and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-027",
+      "query": "Please help us understand a risk observation from the engineering team and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-028",
+      "query": "Please help us understand a risk observation before the next release and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-029",
+      "query": "Please help us understand a risk observation in the attached notes and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-030",
+      "query": "Please help us understand a risk observation for the production service and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-031",
+      "query": "Please help us understand a technical concern in the quarterly review and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-032",
+      "query": "Please help us understand a technical concern from the engineering team and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-033",
+      "query": "Please help us understand a technical concern before the next release and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-034",
+      "query": "Please help us understand a technical concern in the attached notes and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-035",
+      "query": "Please help us understand a technical concern for the production service and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-036",
+      "query": "Please help us understand an evidence gap in the quarterly review and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-037",
+      "query": "Please help us understand an evidence gap from the engineering team and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-038",
+      "query": "Please help us understand an evidence gap before the next release and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-039",
+      "query": "Please help us understand an evidence gap in the attached notes and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-040",
+      "query": "Please help us understand an evidence gap for the production service and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-041",
+      "query": "Please help us understand a configuration question in the quarterly review and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-042",
+      "query": "Please help us understand a configuration question from the engineering team and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-043",
+      "query": "Please help us understand a configuration question before the next release and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-044",
+      "query": "Please help us understand a configuration question in the attached notes and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-045",
+      "query": "Please help us understand a configuration question for the production service and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-046",
+      "query": "Please help us understand an unusual result in the quarterly review and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-047",
+      "query": "Please help us understand an unusual result from the engineering team and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-048",
+      "query": "Please help us understand an unusual result before the next release and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-049",
+      "query": "Please help us understand an unusual result in the attached notes and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-050",
+      "query": "Please help us understand an unusual result for the production service and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-051",
+      "query": "Please help us understand a reported problem in the quarterly review and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-052",
+      "query": "Please help us understand a reported problem from the engineering team and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-053",
+      "query": "Please help us understand a reported problem before the next release and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-054",
+      "query": "Please help us understand a reported problem in the attached notes and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-055",
+      "query": "Please help us understand a reported problem for the production service and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-056",
+      "query": "Please help us understand a review finding in the quarterly review and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-057",
+      "query": "Please help us understand a review finding from the engineering team and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-058",
+      "query": "Please help us understand a review finding before the next release and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-059",
+      "query": "Please help us understand a review finding in the attached notes and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-060",
+      "query": "Please help us understand a review finding for the production service and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-061",
+      "query": "Please help us understand a security task in the quarterly review and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-062",
+      "query": "Please help us understand a security task from the engineering team and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-063",
+      "query": "Please help us understand a security task before the next release and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-064",
+      "query": "Please help us understand a security task in the attached notes and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-065",
+      "query": "Please help us understand a security task for the production service and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-066",
+      "query": "Please help us understand a control concern in the quarterly review and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-067",
+      "query": "Please help us understand a control concern from the engineering team and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-068",
+      "query": "Please help us understand a control concern before the next release and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-069",
+      "query": "Please help us understand a control concern in the attached notes and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-070",
+      "query": "Please help us understand a control concern for the production service and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-071",
+      "query": "Please help us understand an open investigation in the quarterly review and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-072",
+      "query": "Please help us understand an open investigation from the engineering team and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-073",
+      "query": "Please help us understand an open investigation before the next release and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-074",
+      "query": "Please help us understand an open investigation in the attached notes and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-075",
+      "query": "Please help us understand an open investigation for the production service and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-076",
+      "query": "Please help us understand a design question in the quarterly review and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-077",
+      "query": "Please help us understand a design question from the engineering team and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-078",
+      "query": "Please help us understand a design question before the next release and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-079",
+      "query": "Please help us understand a design question in the attached notes and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-080",
+      "query": "Please help us understand a design question for the production service and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-081",
+      "query": "Please help us understand a test result in the quarterly review and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-082",
+      "query": "Please help us understand a test result from the engineering team and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-083",
+      "query": "Please help us understand a test result before the next release and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-084",
+      "query": "Please help us understand a test result in the attached notes and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-085",
+      "query": "Please help us understand a test result for the production service and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-086",
+      "query": "Please help us understand an operational issue in the quarterly review and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-087",
+      "query": "Please help us understand an operational issue from the engineering team and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-088",
+      "query": "Please help us understand an operational issue before the next release and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-089",
+      "query": "Please help us understand an operational issue in the attached notes and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-090",
+      "query": "Please help us understand an operational issue for the production service and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-091",
+      "query": "Please help us understand a potential exposure in the quarterly review and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-092",
+      "query": "Please help us understand a potential exposure from the engineering team and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-093",
+      "query": "Please help us understand a potential exposure before the next release and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-094",
+      "query": "Please help us understand a potential exposure in the attached notes and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-095",
+      "query": "Please help us understand a potential exposure for the production service and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-096",
+      "query": "Please help us understand a follow-up item in the quarterly review and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-097",
+      "query": "Please help us understand a follow-up item from the engineering team and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-098",
+      "query": "Please help us understand a follow-up item before the next release and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-099",
+      "query": "Please help us understand a follow-up item in the attached notes and suggest what information is needed next."
+    },
+    {
+      "id": "unclear-100",
+      "query": "Please help us understand a follow-up item for the production service and suggest what information is needed next."
+    }
+  ]
+}

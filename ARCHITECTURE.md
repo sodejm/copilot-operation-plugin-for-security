@@ -91,6 +91,18 @@ The AI agent interacts with tools through structured command-line interfaces and
 
 ---
 
+The host-assessment Windows collector queries local service DACLs with
+`READ_CONTROL`, a 64 KiB descriptor limit and a 256-ACE analysis limit. It reports
+broad configuration-mutation grants and broad-owner implicit `WRITE_DAC` separately
+from token effective access. Owner and DACL evidence are queried together;
+`OWNER RIGHTS` ACEs suppress implicit owner rights. The collector
+leaves unsupported or ambiguous descriptors unassessed. Service mutation APIs
+are confined to the disposable acceptance fixture, which owns its randomly named,
+stopped services and verifies deletion after success and failure. Status-query
+failures cannot skip deletion or absence verification; original and cleanup
+errors are retained together. The wider
+Windows privilege-boundary capability remains partial.
+
 ## Shared Evidence SDK (`cops.evidence`, `cops.connectors`)
 
 For tools that need to collect or store evidence from cloud APIs (such as Azure Resource Graph or Microsoft Graph), the repository includes an opt-in **Evidence SDK**:
@@ -104,9 +116,10 @@ See the **[Shared Evidence SDK Guide](docs/EVIDENCE_SDK.md)** for detailed imple
 
 ## Specialist Agent Profiles & Dynamic Routing (`cops.routing`, `agents/`)
 
-COPS centralizes **18 specialist cybersecurity agent profiles** in `agents/` and provides a deterministic, zero-token routing engine:
+COPS centralizes **21 specialist cybersecurity agent profiles** in `agents/` and provides a deterministic, zero-token routing engine:
 - **Centralized Profiles Inventory**: `agents/registry.json` and `agents/profiles/*.agent.md` govern callable personas across offensive security, defensive detection, incident response, digital forensics, cloud identity, and compliance.
 - **Dynamic Selection Engine (`cops.routing`)**: Fast local Python classifier that maps natural language requests and artifact types to the most qualified specialist profile and recommended skills without model hallucinations.
+- **Model Advisor (`cops.routing.model_advisor`)**: Opt-in offline task classification and model/effort ranking against a bounded, fresh operator-supplied catalog. Exact availability, access, capabilities, tier, and supported efforts determine eligibility. Output is advisory and cannot change host settings or authorize execution. The workbench plugin ships the skill and guide; commands require the separate COPS checkout runtime. See [model routing](docs/model-effort-routing.md).
 - **Triad Orchestration Topology**: For critical tasks (e.g. penetration testing, adversary emulation, active containment, or privilege escalation audits), the engine automatically assembles a three-agent team:
   1. *Primary Specialist*: Conducts the core assessment or planning.
   2. *Domain Skeptic*: Challenges assumptions, identifies benign alternatives, and stress-tests transition constraints.
@@ -115,12 +128,69 @@ COPS centralizes **18 specialist cybersecurity agent profiles** in `agents/` and
 
 ---
 
+## Detection Quality request coordinator
+
+The [offline fixture coordinator](docs/detection-quality-pilot.md) binds a complete request to a registered specialist and skill, verifies each packaged suite and persists its accepted report in a local transaction. Copilot and the CLI use the same registry-backed selection and evaluator. The local `cops/request` MCP tool first returns an opaque run ID after creating the checkpoint. Copilot immediately continues with that ID, so the conversation already holds the recovery reference when evaluation starts. On resume the coordinator revalidates each accepted suite before returning its report.
+
+## Delegation authorization laboratory
+
+The separate agent/MCP execution contract requires registered, versioned local
+JSONL and MCP stdio fixture adapters through a worker, with exact approval, plan,
+profile, and stdio-envelope bindings. Inventory and evaluation are data-only and
+do not grant execution authority. Versioned scenario and trace contracts separate
+model text, attempted calls, denied calls, and observed effects; unsupported
+protocol behavior must be rejected explicitly. Worker isolation and independent
+observation require their own evidence, as does cleanup; they cannot be inferred
+from a plan or response. This path supplies no general live execution CLI or
+provider-backed qualification.
+
+The worker accepts a typed envelope for one unmixed operation and requires the
+production `LinuxBubblewrapSandbox` with no egress or destination scope. A
+one-shot mediator binds the registered stdio-only dispatcher to the plan,
+consumed approval, and envelope. Its fixed disposable canary fixture reports
+bounded status and digests rather than raw model text, arguments, canary values,
+or state. The mediator emits a completed receipt only when the bounded dispatcher
+receipt has exact `completed` status and reports independently observed cleanup as
+verified. A malformed, failed, unverified-cleanup, or unacknowledged dispatch is
+uncertain and cannot be automatically repeated. Local fixture or macOS results do
+not establish actual Linux isolation or hosted acceptance.
+
+The Foundry Agent Harness `auth-plan` command compiles a versioned Action Plan
+binding the selected synthetic cases, fixture identities, source digests, and
+aggregate limits. `auth-lab` verifies and atomically consumes one signed COPS
+assessment receipt, then launches fixed stdio peer and target processes from a
+private snapshot of the approved source bytes. The target independently checks
+its synthetic grant; a COPS receipt cannot grant target-service authority.
+
+Correlated requests, decisions, and a directly observed disclosure and write
+ledger establish the local result. The observer child retains an ephemeral
+Ed25519 private key while the runner verifies challenge-bound readiness,
+session, sequence, and effects with the public key only. This provides
+process-level key separation inside the same runner-controlled host and source
+snapshot, not independently administered external attestation.
+`evidence_complete`, `expectation_met`, and
+`security_pass` distinguish complete observations from an expected inconclusive
+test. Admission, response and ledger byte limits, cancellation, and observed
+cleanup bound the batch. A later exception preserves completed results and usage,
+reports uncertain effects, and stops admission. Snapshot failures and ordered
+recovery actions remain visible together. The report goes to stdout; accounting
+covers received fixture responses and new ledger bytes. This fixture provides
+neither provider evidence nor durable crash recovery. See the [laboratory specification](specs/agent-mcp-laboratories.spec.md)
+and [operator playbook](plugins/offensive-security/foundry-agent-harness/docs/PLAYBOOK.md).
+
 ## Contributor & Quality Assurance Spine
 
 The repository maintains strict quality guardrails:
 - **`AGENTS.md`**: Canonical instructions for contributors and automated agents.
 - **`Makefile` & `scripts/agent/check.py`**: Runs pre-commit validation, including syntax checks, contract verification, adapter synchronization, and pytest-bdd scenarios.
 - **`make check`**: The universal gate that must pass before any change is merged.
+- **Catalog playback acceptance**: The portable operator scenario reads the
+  canonical plugin catalog and runs every manifest-backed demo through `cops demo`
+  twice, then runs exported playbacks with an isolated copy of `cops/` and
+  `catalog/`. Package runners verify domain results and failure cases; the shared
+  runner checks public entry points and exported runtime completeness. Documentation validation requires each
+  README to link its runnable playbook and checks local documentation links.
+  See [Runnable Plugin Workflows](docs/plugin-playbacks.md).
 
 To get started with development, explore the **[Contributing Guide](CONTRIBUTING.md)** and **[Repository Layout](docs/REPOSITORY_LAYOUT.md)**.
 
@@ -133,3 +203,93 @@ not a distributed product package or telemetry service. The adapter exports only
 normalized request metadata on opt-in; ledgers stay outside Git. See its
 [accounting contract](.agents/skills/plugin-run-cost/references/accounting.md) for
 privacy, missing evidence, pricing expiry and forecast limitations.
+
+## Operator gateway assessment boundary
+
+The optional provider assessment has a separately versioned live plan and
+bounded, text-only request envelopes for OpenAI, Azure OpenAI, Bedrock, and
+Vertex. Its local emulator path reserves a shared budget, verifies a signed
+one-use gateway dispatch grant against the exact request and provider scope,
+and records normalized, redacted evidence. Provider usage remains an estimate
+until an independent billing reconciliation exists.
+
+The versioned egress broker permits a bounded `POST` only to a configured
+operator gateway origin, path, and authenticated SPIFFE identity. The gateway
+owns provider credentials and independently verifies each dispatch grant.
+The repository does not wire this route into a production worker or provision
+a gateway, provider credentials, or a paid canary. The remaining operational
+gate is recorded in [the execution audit](docs/EXECUTION_GATE_AUDIT.md) and
+[gateway operator guidance](docs/PROVIDER_GATEWAY.md).
+
+## Raw forensic file boundary
+
+The registered `raw-forensic-image/v1` adapter streams supplied disk/memory copies
+into `cops.forensic-import/v1` integrity results. Shared descriptor-relative helpers
+in `cops/evidence/files.py` also protect disposable acquisition. Manifest and
+image reads reject symlink ancestors, special files, identity replacement, and
+budget overruns. Metadata is validated separately from bytes; output distinguishes
+verified integrity from unperformed analysis and caller-asserted authority.
+See [the contract](specs/forensic-import.spec.md).
+
+## Kubernetes laboratory boundary
+
+Service laboratories share a loopback-only HTTP client with disabled proxies and
+redirects, bounded responses, and socket timeouts. Container inspection and
+IPv4/IPv6 egress probes independently establish isolation for acceptance.
+
+`isolated-k3s-containment/v1` is a fixed acceptance adapter beside the unprivileged
+service-container adapter. Its privileged, network-disconnected K3s node imports
+only pinned images and owns its namespaces and volumes. Typed stages use the
+existing workflow runner, ActionPlan validator and single-use approval store;
+namespace UID, pod IP, policy and prior observations bind each plan. Observed
+connectivity, correlated HTTP and API audit records, and restoration determine
+acceptance. The composite gate requires all thirteen named cases. This fixture
+does not add a production cluster connector or privilege-isolation claim. See
+[the runbook](docs/KUBERNETES_LABORATORY.md).
+
+## CVE component evidence
+
+The integrated workflow shares `cops.workflows.cve_evidence` across offline
+playback and actual service observations. Exact component identities connect the
+pinned advisory, complete inventory, invocation records and compensating controls.
+The source laboratory records calls at the query boundary; missing provenance
+cannot establish reachability. See [integrated workflows](docs/INTEGRATED_WORKFLOWS.md).
+
+## Consent identity binding
+
+`cops.workflows.consent_evidence` supplies the same bounded assessment to offline
+and active workflows. Complete, in-window exports bind tenant and grant identity
+through service-principal object IDs to sign-in application IDs. The resulting
+target and evidence references enter the existing ActionPlan configuration and
+prior-output digests. The synthetic identity service validates the exact tuple
+before changing grant state; token-to-grant bindings separate unrelated access.
+
+## Exposure endpoint binding
+
+`cops.workflows.exposure_evidence` correlates exact scheme, host, port and route
+identities across DNS, connection and authentication observations. Timestamped
+references and explicit completeness constrain negative results. The service lab
+uses the same assessor after a fixed, non-forwarding loopback DNS exchange and
+actual HTTP requests. Endpoint, resolver port, profiles and prior observations
+bind existing ActionPlans; validation failure stops later stages and runs cleanup.
+
+## Report export conformance
+
+Runtime exporters validate assessment semantics and GitHub's SARIF subset before
+rendering. The portable test gate additionally validates vulnerable, corrected
+and inconclusive exports against the bundled official SARIF 2.1.0 schema. Its
+original bytes are hash-pinned, all references must be local, and retrieval is
+disabled. Development validation does not add a parser dependency to the runtime
+exporter or authenticate source evidence. See [report exports](docs/REPORT_EXPORTS.md).
+
+## Synthetic dependency installation
+
+The registered `synthetic-wheel-installation@1` laboratory adapter builds two
+deterministic pure-Python wheels from reviewed query fixtures. A pinned pip
+installs only the generated local wheel with hashes required, indexes and
+dependencies disabled, and source builds forbidden. The adapter verifies the
+installed module digest before a fixed subprocess serves actual SQLite-backed
+HTTP requests. Nonce-bound observations, advisory results, tamper rejection and
+cleanup enter `service_activity.supply_chain`. Process execution has finite time
+and output limits; the enclosing container supplies verified network isolation.
+See [the laboratory contract](specs/service-laboratory.spec.md).

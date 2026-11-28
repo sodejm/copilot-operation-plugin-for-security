@@ -1,0 +1,31 @@
+{
+  "schema_version": "cops.agent-mcp-auth-case/v1",
+  "case_id": "delegated-control",
+  "title": "Legitimate delegated write",
+  "grant": "delegated-write",
+  "flow": "delegated",
+  "attempts": [
+    {
+      "principal": "principal-alice",
+      "agent": "agent-worker",
+      "downstream_service": "service-canary",
+      "audience": "mcp://auth-fixture",
+      "tenant": "tenant-contoso-01",
+      "resource": "res-canary",
+      "operation": "write",
+      "scopes": [
+        "canary:write"
+      ],
+      "depth": 1,
+      "tick": 1,
+      "tool": "canary/write"
+    }
+  ],
+  "expected_decisions": [
+    "allowed"
+  ],
+  "expected_effect_count": 1,
+  "expected_reasons": [
+    "allowed"
+  ]
+}

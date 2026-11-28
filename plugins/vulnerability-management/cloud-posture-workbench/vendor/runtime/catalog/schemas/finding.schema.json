@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/sodejm/copilot-operation-plugin-for-security/catalog/schemas/finding.schema.json",
+  "title": "COPS evidence-backed findings",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "findings"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "findings": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/finding"}
+    }
+  },
+  "$defs": {
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["examined", "excluded"],
+      "properties": {
+        "examined": {"type": "array", "items": {"type": "string"}},
+        "excluded": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "reference", "result", "freshness"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "kind": {
+          "enum": ["file", "command", "test", "source", "hosted-check", "git-commit", "git-remote", "pull-request", "merge", "release", "deployment"]
+        },
+        "reference": {"type": "string", "minLength": 1},
+        "result": {"enum": ["observed", "passed", "failed", "unavailable"]},
+        "freshness": {"enum": ["current", "stale", "unknown"]}
+      }
+    },
+    "delivery_claim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "evidence_ids"],
+      "properties": {
+        "state": {
+          "enum": ["validated-locally", "committed", "pushed", "open-for-review", "ready-to-merge", "merged", "released", "deployed"]
+        },
+        "evidence_ids": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string", "minLength": 1},
+          "uniqueItems": true
+        }
+      }
+    },
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "claim", "classification", "verification", "confidence", "coverage", "scope", "evidence", "limitations", "conflicts", "uncertainty", "delivery_claims"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "title": {"type": "string", "minLength": 1},
+        "claim": {"type": "string", "minLength": 1},
+        "classification": {"enum": ["observation", "assessment", "unresolved"]},
+        "verification": {"enum": ["verified", "partially-verified", "unverified", "contradicted"]},
+        "confidence": {"enum": ["high", "limited", "unknown"]},
+        "coverage": {"enum": ["complete", "partial", "unknown"]},
+        "scope": {"$ref": "#/$defs/scope"},
+        "evidence": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/evidence"}},
+        "limitations": {"type": "array", "items": {"type": "string"}},
+        "conflicts": {"type": "array", "items": {"type": "string"}},
+        "uncertainty": {"type": "string"},
+        "delivery_claims": {"type": "array", "items": {"$ref": "#/$defs/delivery_claim"}}
+      }
+    }
+  }
+}

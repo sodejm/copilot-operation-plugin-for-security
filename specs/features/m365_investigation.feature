@@ -18,3 +18,13 @@ Feature: Bounded Microsoft 365 investigation acquisition
     Given synthetic Defender security alert and sign-in evidence
     When the analyst correlates the endpoint alert evidence
     Then the report identifies matching entity leads while preserving alert severity
+
+  Scenario Outline: Correlate a complete tenant-bound investigation fixture
+    Given a complete "<case>" Microsoft 365 fixture
+    When the analyst acquires and correlates every fixture source twice
+    Then one tenant-bound lead links identity, activity, and audit records with stable provenance
+    Examples:
+      | case           |
+      | endpoint-alert |
+      | oauth-consent  |
+      | mail-activity  |

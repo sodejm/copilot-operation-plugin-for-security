@@ -1,0 +1,28 @@
+{
+  "schema_version": "1.0",
+  "id": "ad-assessment-workbench",
+  "display_name": "COPS AD Assessment Workbench",
+  "maturity": "experimental",
+  "summary": "Offline scoped Active Directory inventory and evidence-linked candidate privilege-path analysis.",
+  "support": {
+    "structural_validation": "validated",
+    "offline_workflow": "validated",
+    "host_installation": "unverified",
+    "live_integration": "unverified"
+  },
+  "limitations": [
+    "Only accepts an approved, opaque, local JSON export; does not collect from AD, hosts, LDAP, or Kerberos.",
+    "Observed relationships and candidate paths do not prove the privilege can be exercised or that exploitation is possible.",
+    "Missing paths and incomplete collection never establish environmental absence or safety; host installation and live integration are unverified."
+  ],
+  "demo": {
+    "description": "Analyze a synthetic two-forest AD graph with a protected identity, trust boundary, and partial host collection.",
+    "command": ["$PYTHON", "plugins/identity-access/ad-assessment-workbench/scripts/run_demo.py"],
+    "timeout_seconds": 60
+  },
+  "validation": [{
+    "name": "offline-package-gate",
+    "command": ["$PYTHON", "plugins/identity-access/ad-assessment-workbench/scripts/validate_package.py"],
+    "timeout_seconds": 60
+  }]
+}

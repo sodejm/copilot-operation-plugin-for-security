@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal
 
 
 @dataclass(frozen=True)
@@ -22,6 +22,13 @@ class SpecialistProfile:
     contract_file: str
     intent_keywords: tuple[str, ...]
     triad_defaults: dict[str, str] | None = None
+    symptom_triggers: tuple[str, ...] = ()
+    artifact_triggers: tuple[str, ...] = ()
+    anti_triggers: tuple[str, ...] = ()
+    example_prompts: tuple[str, ...] = ()
+    purpose: str | None = None
+    required_permissions: tuple[str, ...] = ()
+    capabilities: tuple[str, ...] = ()
 
     @property
     def is_critical(self) -> bool:
@@ -39,8 +46,16 @@ class SpecialistProfile:
             "skills": list(self.skills),
             "tools": list(self.tools),
             "contract_file": self.contract_file,
-            "intent_keywords": list(self.intent_keywords),
+            "symptom_triggers": list(self.symptom_triggers),
+            "artifact_triggers": list(self.artifact_triggers),
+            "anti_triggers": list(self.anti_triggers),
+            "example_prompts": list(self.example_prompts),
+            "purpose": self.purpose or self.description,
+            "required_permissions": list(self.required_permissions),
+            "capabilities": list(self.capabilities),
         }
+        if self.intent_keywords:
+            data["intent_keywords"] = list(self.intent_keywords)
         if self.triad_defaults is not None:
             data["triad_defaults"] = dict(self.triad_defaults)
         return data
@@ -93,22 +108,52 @@ class RoutingDecision:
     """The result of routing an operator request to specialist agent profiles."""
 
     query: str
-    primary_profile: SpecialistProfile
+    primary_profile: SpecialistProfile | None
     confidence: float
     match_reasons: tuple[str, ...]
     criticality: str
     interactive_authorization_required: bool
     recommended_skills: tuple[str, ...]
     triad_plan: TriadExecutionPlan | None = None
+    version: str = "cops.routing-decision/v2"
+    status: Literal["routed", "clarification_required"] = "routed"
+    ranked_candidates: tuple[RoutingCandidate, ...] = ()
+    clarification: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
+            "version": self.version,
+            "status": self.status,
             "query": self.query,
-            "primary_profile": self.primary_profile.to_dict(),
+            "primary_profile": self.primary_profile.to_dict() if self.primary_profile is not None else None,
             "confidence": round(self.confidence, 3),
             "match_reasons": list(self.match_reasons),
             "criticality": self.criticality,
             "interactive_authorization_required": self.interactive_authorization_required,
             "recommended_skills": list(self.recommended_skills),
             "triad_plan": self.triad_plan.to_dict() if self.triad_plan is not None else None,
+            "ranked_candidates": [candidate.to_dict() for candidate in self.ranked_candidates],
+            "clarification": self.clarification,
+        }
+
+
+@dataclass(frozen=True)
+class RoutingCandidate:
+    """One ranked specialist candidate with reviewable routing evidence."""
+
+    profile: SpecialistProfile
+    confidence: float
+    score: float
+    reasons: tuple[str, ...]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "specialist_id": self.profile.id,
+            "display_name": self.profile.display_name,
+            "purpose": self.profile.purpose or self.profile.description,
+            "confidence": round(self.confidence, 3),
+            "score": round(self.score, 3),
+            "reasons": list(self.reasons),
+            "required_permissions": list(self.profile.required_permissions),
+            "interactive_authorization_required": self.profile.interactive_authorization_required,
         }

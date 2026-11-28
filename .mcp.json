@@ -1,0 +1,35 @@
+{
+  "mcpServers": {
+    "squad_state": {
+      "command": "npx",
+      "args": [
+        "--ignore-scripts",
+        "-y",
+        "@bradygaster/squad-cli@2.0.0",
+        "state-mcp"
+      ],
+      "env": {},
+      "tools": [
+        "*"
+      ],
+      "x-squad": {
+        "managed": true,
+        "version": "2.0.0",
+        "machineSpecific": false,
+        "source": "pinned"
+      }
+    },
+    "cops": {
+      "type": "local",
+      "command": "python3",
+      "args": [
+        "-m",
+        "cops.copilot"
+      ],
+      "cwd": ".",
+      "tools": [
+        "request"
+      ]
+    }
+  }
+}

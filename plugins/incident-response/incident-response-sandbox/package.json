@@ -17,8 +17,8 @@
     "Host installation and live incident response behavior have not been verified."
   ],
   "demo": {
-    "description": "Dry run a synthetic host isolation plan without changing the fixture.",
-    "command": ["$PYTHON", "plugins/incident-response/incident-response-sandbox/scripts/ir.py", "dry-run", "plugins/incident-response/incident-response-sandbox/fixtures/synthetic/plan.json", "plugins/incident-response/incident-response-sandbox/fixtures/synthetic/fixture.json"],
+    "description": "Exercise fresh-clock plan, dry-run, execution, replay and expiry rejection, and rollback against disposable synthetic state.",
+    "command": ["$PYTHON", "plugins/incident-response/incident-response-sandbox/scripts/run_demo.py"],
     "timeout_seconds": 30
   },
   "validation": [{

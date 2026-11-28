@@ -1,0 +1,102 @@
+{
+  "schema_version": "1.0",
+  "source_kind": "synthetic_lab",
+  "source_id": "disposable-ubuntu-positive",
+  "host": {
+    "kernel_release": "6.8.0",
+    "distribution_id": "ubuntu",
+    "distribution_version": "24.04",
+    "namespace": "host",
+    "protections": {
+      "selinux": "disabled",
+      "apparmor": "enforcing",
+      "no_new_privs": "enabled",
+      "seccomp": "enabled",
+      "user_namespaces": "enabled"
+    }
+  },
+  "coverage": {
+    "permissions": "assessed",
+    "services": "assessed",
+    "scheduled_tasks": "assessed",
+    "capabilities": "assessed",
+    "sudo": "assessed",
+    "suid": "assessed",
+    "credential_exposure": "assessed",
+    "container_context": "assessed"
+  },
+  "observations": [
+    {
+      "id": "permissions-canary",
+      "surface": "permissions",
+      "configuration": "interesting",
+      "evidence_ids": ["mode-summary-1"],
+      "requirements": {
+        "kernel_release": "6.8.0",
+        "distribution_id": "ubuntu",
+        "distribution_version": "24.04",
+        "namespace": "host",
+        "protections": {"apparmor": "enforcing"}
+      },
+      "canary": {
+        "case": "positive",
+        "resource_id": "owned-canary-1",
+        "disposable_host": true,
+        "assessment_owned": true,
+        "before_access": "denied",
+        "after_access": "granted",
+        "evidence_ids": ["canary-before-1", "canary-after-1", "cleanup-receipt-1"],
+        "cleanup_verified": true
+      }
+    },
+    {
+      "id": "service-candidate",
+      "surface": "services",
+      "configuration": "interesting",
+      "evidence_ids": ["service-config-1"],
+      "requirements": {"kernel_release": "6.8.0", "distribution_id": "ubuntu", "distribution_version": "24.04", "namespace": "host", "protections": {} }
+    },
+    {
+      "id": "schedule-candidate",
+      "surface": "scheduled_tasks",
+      "configuration": "interesting",
+      "evidence_ids": ["schedule-config-1"],
+      "requirements": {"kernel_release": "6.8.0", "distribution_id": "ubuntu", "distribution_version": "24.04", "namespace": "host", "protections": {} }
+    },
+    {
+      "id": "capability-candidate",
+      "surface": "capabilities",
+      "configuration": "interesting",
+      "evidence_ids": ["capability-config-1"],
+      "requirements": {"kernel_release": "6.8.0", "distribution_id": "ubuntu", "distribution_version": "24.04", "namespace": "host", "protections": {} }
+    },
+    {
+      "id": "sudo-candidate",
+      "surface": "sudo",
+      "configuration": "interesting",
+      "evidence_ids": ["sudo-policy-1"],
+      "requirements": {"kernel_release": "6.8.0", "distribution_id": "ubuntu", "distribution_version": "24.04", "namespace": "host", "protections": {} }
+    },
+    {
+      "id": "suid-candidate",
+      "surface": "suid",
+      "configuration": "interesting",
+      "evidence_ids": ["suid-mode-1"],
+      "requirements": {"kernel_release": "6.8.0", "distribution_id": "ubuntu", "distribution_version": "24.04", "namespace": "host", "protections": {} }
+    },
+    {
+      "id": "credential-reference-candidate",
+      "surface": "credential_exposure",
+      "configuration": "interesting",
+      "evidence_ids": ["credential-reference-1"],
+      "requirements": {"kernel_release": "6.8.0", "distribution_id": "ubuntu", "distribution_version": "24.04", "namespace": "host", "protections": {} }
+    },
+    {
+      "id": "container-boundary",
+      "surface": "container_context",
+      "configuration": "ordinary",
+      "evidence_ids": ["namespace-context-1"],
+      "requirements": {"kernel_release": "6.8.0", "distribution_id": "ubuntu", "distribution_version": "24.04", "namespace": "host", "protections": {} }
+    }
+  ]
+}

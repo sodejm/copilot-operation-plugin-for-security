@@ -1,6 +1,6 @@
 ---
 name: test-sentinel-hunt
-description: Stress-test an offline Sentinel hunt with curated, generated, mutation, metamorphic, scale-boundary, and hostile-content cases.
+description: "Use for requests such as \"test this hunt with sample events.\" Stress-test an offline Sentinel hunt with curated, generated, mutation, metamorphic, scale-boundary, and hostile-content cases."
 ---
 
 # Test Sentinel Hunt

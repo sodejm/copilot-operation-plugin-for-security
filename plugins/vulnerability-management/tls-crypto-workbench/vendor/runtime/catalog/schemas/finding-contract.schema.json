@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/sodejm/copilot-operation-plugin-for-security/catalog/schemas/finding-contract.schema.json",
+  "title": "COPS Finding Contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "finding_id",
+    "engagement_id",
+    "result_id",
+    "scenario_id",
+    "title",
+    "severity",
+    "classification",
+    "verification",
+    "confidence",
+    "claim",
+    "evidence_references",
+    "mitre_attack",
+    "remediation",
+    "uncertainty",
+    "created_at"
+  ],
+  "properties": {
+    "schema_version": {"const": "cops.finding/v1"},
+    "finding_id": {
+      "type": "string",
+      "pattern": "^find-[a-z0-9_-]{4,64}$"
+    },
+    "engagement_id": {
+      "type": "string",
+      "pattern": "^eng-[a-z0-9_-]{4,64}$"
+    },
+    "result_id": {
+      "type": "string",
+      "pattern": "^res-[a-z0-9_-]{4,64}$"
+    },
+    "scenario_id": {
+      "type": "string",
+      "pattern": "^(scen-[a-z0-9_-]{4,64}|COPS-[A-Z0-9_.-]+)$"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "severity": {
+      "enum": ["critical", "high", "medium", "low", "informational"]
+    },
+    "classification": {
+      "enum": ["observation", "assessment", "unresolved"]
+    },
+    "verification": {
+      "enum": ["verified", "partially-verified", "unverified", "contradicted"]
+    },
+    "confidence": {
+      "enum": ["high", "limited", "unknown"]
+    },
+    "claim": {
+      "type": "string",
+      "minLength": 1
+    },
+    "evidence_references": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "mitre_attack": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^T[0-9]{4}(?:\\.[0-9]{3})?$"
+      }
+    },
+    "remediation": {
+      "type": "string"
+    },
+    "uncertainty": {
+      "type": "string"
+    },
+    "created_at": {"type": "string", "format": "date-time"}
+  }
+}

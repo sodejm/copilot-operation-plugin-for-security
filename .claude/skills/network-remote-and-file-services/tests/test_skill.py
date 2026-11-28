@@ -1,32 +1,32 @@
+# Repository path setup precedes standalone entry point imports.
+# ruff: noqa: E402
 """Tests for network-remote-and-file-services contributor skill."""
 
 from __future__ import annotations
 
 import json
-from pathlib import Path
 import sys
 import tempfile
 import unittest
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[4]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+import argparse
+
 from cops.discovery import (
-    CleanupReceipt,
-    HostPrivilegeCandidate,
     LateralMovementImpact,
     OfflineSyntheticRemoteCollector,
     RemoteAuthPrerequisite,
     RemoteExposureStatus,
-    RemoteServiceAssessment,
-    RemoteServiceCategory,
     RemoteServicesReport,
-    RemoteServiceType,
     assess_remote_services,
 )
-from cops.discovery.cli import command_remote_discovery
-import argparse
+from cops.discovery.cli import (
+    command_remote_discovery,
+)
 
 
 class TestNetworkRemoteAndFileServicesSkill(unittest.TestCase):

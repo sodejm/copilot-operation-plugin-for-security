@@ -8,10 +8,10 @@ description: Pass structured tasks and evidence between planner, specialist, ske
 Coordinate structured task and evidence handoffs between Planner, Specialist, Skeptic, and Auditor in Triad workflows:
 
 - **Structured Handoff Contracts**: Emits and validates `SpecialistHandoff` (`cops.specialist-handoff/v1`) contracts with traceable lifecycle transitions (`proposed` -> `accepted` -> `in_review` -> `completed` / `rejected`).
-- **Capability Coverage Assurance**: Verifies that the routed specialist profile declared in `agents/registry.json` possesses all required capabilities, skills, and tools before accepting a handoff.
+- **Capability Coverage Assurance**: Verifies the recipient's declared skills and required capabilities, resolves the selected workflow to a local `.agents/skills/<id>/SKILL.md` and a specialist capability in `catalog/capabilities.json`, and records the implementation digest at acceptance. Acceptance, skeptic review, and audit reject missing, mismatched, or changed targets.
 - **Skeptic Evidence Verification**: Audits candidate evidence envelopes and findings for contradictory observations, invalid digests, or unsubstantiated claims.
 - **Auditor Invariance Enforcement**: Compares candidate handoffs against the approved `ActionPlan`, requiring fresh operator approval whenever targets, operations, tools, effects, or material plan digests diverge.
-- **Proposal vs Execution Distinction**: Isolates inert task proposals from accepted specialist handoffs and live execution results.
+- **Proposal vs Execution Distinction**: A proposal is inert, acceptance records a resolved workflow target, and `completed` means the handoff passed the skeptic and auditor checks. These transitions do not invoke a skill or prove an execution result.
 
 ## CLI Usage
 
@@ -21,9 +21,11 @@ Coordinate structured task and evidence handoffs between Planner, Specialist, Sk
 python3 -m cops engagement handoff propose \
   --engagement engagement.json \
   --plan action_plan.json \
-  --task "Audit perimeter TLS configuration and exposed service banners" \
+  --task "Review the authorized network discovery plan" \
   --planner "secops-lead" \
   --specialist "cops-pentest-specialist" \
+  --workflow-skill "network-active-discovery" \
+  --capability "cops-pentest-specialist" \
   --output handoff_proposed.json
 ```
 
@@ -62,8 +64,11 @@ python3 -m cops engagement handoff audit \
 python3 -m cops engagement handoff workflow \
   --engagement engagement.json \
   --plan action_plan.json \
-  --task "Execute Kubernetes cluster configuration and RBAC assessment" \
+  --task "Review the authorized network discovery plan" \
   --planner "secops-lead" \
+  --specialist "cops-pentest-specialist" \
+  --workflow-skill "network-active-discovery" \
+  --capability "cops-pentest-specialist" \
   --output handoff_completed.json
 ```
 
@@ -82,9 +87,11 @@ from cops.routing.handoff import (
 handoff = propose_specialist_handoff(
     engagement=engagement_doc,
     action_plan=plan_doc,
-    task_description="Inspect container security context",
+    task_description="Review the authorized network discovery plan",
     sender_id="secops-lead",
     specialist_id="cops-pentest-specialist",
+    workflow_skill_id="network-active-discovery",
+    capability_id="cops-pentest-specialist",
 )
 
 # 2. Specialist validates capability match and accepts

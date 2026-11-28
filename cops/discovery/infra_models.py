@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import asdict, dataclass, field
 from enum import Enum
-import hashlib
-import json
 from pathlib import Path
 from typing import Any
 
 from cops.evidence.canonical import canonical, utc_now
+
 from .models import EvidenceProvenance
 
 
@@ -80,7 +80,7 @@ class IdentityAttackPathCandidate:
     def __post_init__(self) -> None:
         if not self.evidence_hash:
             h = hashlib.sha256(
-                f"{self.candidate_id}:{self.target_host}:{self.port}:{self.attack_path_type}:{self.auth_prerequisites}".encode("utf-8")
+                f"{self.candidate_id}:{self.target_host}:{self.port}:{self.attack_path_type}:{self.auth_prerequisites}".encode()
             ).hexdigest()
             self.evidence_hash = h
         if not self.remediation_guidance:

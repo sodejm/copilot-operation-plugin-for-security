@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -22,6 +23,7 @@ def build_action_plan(
     engagement: Engagement | dict[str, Any],
     scenario: Scenario | dict[str, Any] | str,
     target: str,
+    tool_versions: Mapping[str, str],
     specialist_id: str = "cops-pentest-specialist",
     mode: str | None = None,
     plan_id: str | None = None,
@@ -55,9 +57,7 @@ def build_action_plan(
             f"Target '{target_clean}' is not present in engagement included_targets: {validated_eng['scope']['included_targets']}"
         )
     if target_lower in excluded:
-        raise ScopeAmbiguityError(
-            f"Target '{target_clean}' is explicitly listed in engagement excluded_targets"
-        )
+        raise ScopeAmbiguityError(f"Target '{target_clean}' is explicitly listed in engagement excluded_targets")
 
     # 3. Mode determination and live request guard
     resolved_mode = mode or validated_eng.get("mode", "planning")
@@ -105,6 +105,10 @@ def build_action_plan(
     max_output = budget.get("max_output_bytes", 10485760)
 
     operation_tool = tools[0] if tools else "cops"
+    operation_tool_version = tool_versions.get(operation_tool)
+    if not isinstance(operation_tool_version, str) or not operation_tool_version.strip():
+        raise EngagementIntakeError(f"Exact tool version required for scenario tool '{operation_tool}'")
+    operation_tool_version = operation_tool_version.strip()
     tactics = mitre.get("tactics", ["discovery"])
     action_name = tactics[0] if tactics else "discovery"
 
@@ -112,6 +116,7 @@ def build_action_plan(
         {
             "step_id": "step-01-execute",
             "tool": operation_tool,
+            "tool_version": operation_tool_version,
             "action": action_name,
             "arguments": {
                 "target": target_clean,
@@ -147,12 +152,6 @@ def build_action_plan(
     cred_refs = validated_eng.get("credential_references", [])
 
     # 9. Build ActionPlan
-    if plan_id is None:
-        import hashlib
-        seed = f"{eng_id}:{scen_id}:{target_clean}"
-        digest_hex = hashlib.sha256(seed.encode("utf-8")).hexdigest()[:8]
-        plan_id = f"plan-cops-{digest_hex}"
-
     if created_at is None:
         created_at = validated_eng.get("created_at") or datetime.now(UTC).isoformat().replace("+00:00", "Z")
 

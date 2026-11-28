@@ -1,0 +1,32 @@
+{
+  "schema_version": "cops.agent-mcp-auth-case/v1",
+  "case_id": "delegated-control-fabrikam",
+  "title": "Authorized delegated write in the second tenant",
+  "grant": "delegated-write-fabrikam",
+  "flow": "delegated",
+  "attempts": [
+    {
+      "principal": "principal-bob",
+      "agent": "agent-worker",
+      "downstream_service": "service-canary",
+      "audience": "mcp://auth-fixture",
+      "tenant": "tenant-fabrikam-02",
+      "resource": "res-canary",
+      "operation": "write",
+      "scopes": [
+        "canary:write"
+      ],
+      "depth": 1,
+      "tick": 1,
+      "tool": "canary/write"
+    }
+  ],
+  "expected_decisions": [
+    "allowed"
+  ],
+  "expected_effect_count": 1,
+  "expected_reasons": [
+    "allowed"
+  ],
+  "expected_outcome": "pass"
+}

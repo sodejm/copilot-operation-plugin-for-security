@@ -1,11 +1,12 @@
 """Malformed metadata fails closed and permission modes remain distinct."""
 import unittest
+
+from attackpath.azure.identity import directory
 from attackpath.azure.input import scenario_contract
 from attackpath.azure.model import AzureError, Graph
 from attackpath.azure.normalize import validate_projection
 from attackpath.azure.permissions import evaluate
-from attackpath.azure.identity import directory
-from test_azure_paths import base, role, SECRET, VAULT, T, NOW
+from test_azure_paths import NOW, SECRET, VAULT, T, base, role
 
 
 class ContractTests(unittest.TestCase):

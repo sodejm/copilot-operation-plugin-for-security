@@ -1,0 +1,16 @@
+{
+  "author": {
+    "name": "Sentinel Hunt Workbench contributors"
+  },
+  "description": "Offline, defensive Microsoft Sentinel hunt authoring and adversarial qualification.",
+  "keywords": [
+    "sentinel",
+    "kql",
+    "threat-hunting",
+    "defensive-security"
+  ],
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "name": "sentinel-hunt-workbench",
+  "repository": "https://github.com/sodejm/copilot-operation-plugin-for-security",
+  "version": "1.0.0"
+}

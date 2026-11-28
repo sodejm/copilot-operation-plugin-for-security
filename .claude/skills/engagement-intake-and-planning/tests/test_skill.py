@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 import unittest
 
 from cops.catalog import ROOT
 from cops.engagement import (
     build_action_plan,
     create_engagement_contract,
-    validate_engagement_intake,
 )
 
 
@@ -34,6 +32,7 @@ class TestEngagementIntakeAndPlanningSkill(unittest.TestCase):
             scenario="COPS-E03.01-S01",
             target="10.0.0.10",
             specialist_id="cops-pentest-specialist",
+            tool_versions={"python3": "3.11.9"},
             root=ROOT,
         )
         self.assertEqual(plan.target, "10.0.0.10")

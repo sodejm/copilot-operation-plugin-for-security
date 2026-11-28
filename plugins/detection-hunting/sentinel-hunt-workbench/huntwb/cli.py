@@ -13,7 +13,7 @@ from .contracts import validate_target
 from .errors import ContentError, HuntWorkbenchError
 from .evaluator import run_target
 from .parameters import load_parameter_file
-from .paths import load_bounded_json, load_json
+from .paths import load_bounded_json
 from .rendering import compatibility_report, explain_hunt, list_hunts, render_hunt
 from .reports import release_report
 
@@ -82,7 +82,9 @@ def main(argv: list[str] | None = None) -> int:
             _emit(release_report(args.seed, _load_external_evidence(args.evidence)))
         return 0
     except HuntWorkbenchError as error:
-        print(json.dumps({"status": "failed", "error": str(error), "error_type": type(error).__name__}), file=sys.stderr)
+        print(
+            json.dumps({"status": "failed", "error": str(error), "error_type": type(error).__name__}), file=sys.stderr
+        )
         return error.exit_code
     except Exception as error:  # pragma: no cover - defensive CLI boundary
         print(json.dumps({"status": "failed", "error": str(error), "error_type": "InternalError"}), file=sys.stderr)

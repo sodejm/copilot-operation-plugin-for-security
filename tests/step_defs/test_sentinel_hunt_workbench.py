@@ -3,17 +3,19 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 from pytest_bdd import given, parsers, scenarios, then, when
 
-
 ROOT = Path(__file__).resolve().parents[2]
 PLUGIN = ROOT / "plugins/detection-hunting/sentinel-hunt-workbench"
 CLI = PLUGIN / "scripts/huntwb.py"
+if str(PLUGIN) not in sys.path:
+    sys.path.insert(0, str(PLUGIN))
+from huntwb.catalog import _reference_record  # noqa: E402 - package path is bootstrapped above
 
 scenarios("../../specs/features/sentinel_hunt_workbench.feature")
 
@@ -64,6 +66,18 @@ def test_sentinel_contract_schemas_are_canonical_and_parseable():
 @given("the Sentinel Hunt Workbench package")
 def sentinel_package(context):
     assert CLI.is_file()
+
+
+@when("I classify a reference URL that embeds an authoritative hostname")
+def classify_embedded_authoritative_hostname(context):
+    context["reference"] = _reference_record(
+        "https://untrusted.example/path?next=learn.microsoft.com"
+    )
+
+
+@then("the reference is classified as a vendor framework")
+def reference_is_vendor_framework(context):
+    assert context["reference"]["kind"] == "vendor_framework"
 
 
 @when("I validate the Sentinel hunt library")

@@ -1,0 +1,1012 @@
+"""Engagement-scoped admission ledger for assessment attempts.
+
+The caller owns the policy, ledger path, and dispatch boundary. This module does
+not wrap provider clients. The opt-in provider emulator uses this shared ledger.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import re
+import sqlite3
+import stat
+import time
+from collections.abc import Callable, Iterator, Mapping
+from contextlib import contextmanager
+from dataclasses import asdict, dataclass
+from datetime import UTC, date, datetime
+from pathlib import Path
+from urllib.parse import quote
+
+from cops.execution.filesystem import open_directory_no_symlinks, same_directory_identity
+
+_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
+_ACTIVE = frozenset({"reserved", "dispatched", "uncertain"})
+_CHARGED = _ACTIVE | {"usage_unknown", "settled"}
+_OUTCOMES = frozenset({"completed", "target_denied", "runner_stopped", "failed", "cancelled"})
+_LIMIT_FIELDS = (
+    "max_attempts",
+    "max_estimated_tokens",
+    "max_estimated_cost_microunits",
+    "max_elapsed_ms",
+    "max_concurrency",
+    "max_retained_output_bytes",
+    "max_depth",
+    "max_children_per_parent",
+)
+_MAX_DISPATCH_INTENT_BYTES = 64 * 1024
+
+
+class BudgetDenied(ValueError):
+    """The requested operation would violate the trusted budget contract."""
+
+
+class BudgetStoreError(RuntimeError):
+    """The ledger cannot establish safe, durable admission state."""
+
+
+def _identifier(value: str, field: str) -> None:
+    if not isinstance(value, str) or _ID.fullmatch(value) is None:
+        raise ValueError(f"invalid {field}")
+
+
+def _integer(value: int, field: str, *, positive: bool = False) -> None:
+    if type(value) is not int or value < (1 if positive else 0) or value > 2**63 - 1:
+        raise ValueError(f"invalid {field}")
+
+
+def _canonical(value: object) -> str:
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+
+
+def _timestamp_ms(value: object, field: str) -> int:
+    if not isinstance(value, str):
+        raise ValueError(f"invalid {field}")
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValueError(f"invalid {field}") from exc
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise ValueError(f"invalid {field}")
+    milliseconds = int(parsed.astimezone(UTC).timestamp() * 1000)
+    if milliseconds < 0 or milliseconds > 2**63 - 1:
+        raise ValueError(f"invalid {field}")
+    return milliseconds
+
+
+@dataclass(frozen=True)
+class BudgetLimits:
+    max_attempts: int
+    max_estimated_tokens: int
+    max_estimated_cost_microunits: int
+    max_elapsed_ms: int
+    max_concurrency: int
+    max_retained_output_bytes: int
+    max_depth: int
+    max_children_per_parent: int
+
+    def __post_init__(self) -> None:
+        for field in _LIMIT_FIELDS:
+            _integer(getattr(self, field), field, positive=field != "max_depth")
+
+    def is_within(self, parent: BudgetLimits) -> bool:
+        return all(getattr(self, field) <= getattr(parent, field) for field in _LIMIT_FIELDS)
+
+
+@dataclass(frozen=True)
+class BudgetPolicy:
+    engagement_id: str
+    limits: BudgetLimits
+    currency: str
+    price_source: str
+    price_version: str
+    price_effective_date: str
+    schema_version: str = "cops.assessment-budget/v1"
+    price_error_policy: str = "deny"
+
+    def __post_init__(self) -> None:
+        _identifier(self.engagement_id, "engagement_id")
+        if not isinstance(self.limits, BudgetLimits):
+            raise ValueError("invalid limits")
+        if not isinstance(self.currency, str) or re.fullmatch(r"[A-Z]{3}", self.currency) is None:
+            raise ValueError("invalid currency")
+        for field in ("price_source", "price_version"):
+            _identifier(getattr(self, field), field)
+        if (
+            not isinstance(self.price_effective_date, str)
+            or re.fullmatch(r"\d{4}-\d{2}-\d{2}", self.price_effective_date) is None
+        ):
+            raise ValueError("invalid price_effective_date")
+        try:
+            date.fromisoformat(self.price_effective_date)
+        except ValueError as exc:
+            raise ValueError("invalid price_effective_date") from exc
+        if self.schema_version != "cops.assessment-budget/v1" or self.price_error_policy != "deny":
+            raise ValueError("unsupported budget policy version or price error policy")
+
+
+@dataclass(frozen=True)
+class AttemptRequest:
+    attempt_id: str
+    parent_id: str | None
+    estimated_tokens: int
+    estimated_cost_microunits: int
+    reserved_output_bytes: int
+
+    def __post_init__(self) -> None:
+        _identifier(self.attempt_id, "attempt_id")
+        if self.parent_id is not None:
+            _identifier(self.parent_id, "parent_id")
+            if self.parent_id == self.attempt_id:
+                raise ValueError("attempt cannot be its own parent")
+        for field in ("estimated_tokens", "estimated_cost_microunits", "reserved_output_bytes"):
+            _integer(getattr(self, field), field)
+
+
+@dataclass(frozen=True)
+class Receipt:
+    receipt_id: str
+    attempt_id: str
+    outcome: str
+    tokens: int | None
+    cost_microunits: int | None
+    retained_output_bytes: int | None
+
+    def __post_init__(self) -> None:
+        _identifier(self.receipt_id, "receipt_id")
+        _identifier(self.attempt_id, "attempt_id")
+        if not isinstance(self.outcome, str) or self.outcome not in _OUTCOMES:
+            raise ValueError("invalid receipt outcome")
+        for field in ("tokens", "cost_microunits", "retained_output_bytes"):
+            value = getattr(self, field)
+            if value is not None:
+                _integer(value, field)
+
+
+@dataclass(frozen=True)
+class Attempt:
+    attempt_id: str
+    parent_id: str | None
+    state: str
+    depth: int
+
+
+@dataclass(frozen=True)
+class BudgetSnapshot:
+    charged_attempts: int
+    charged_tokens: int
+    charged_cost_microunits: int
+    charged_output_bytes: int
+    active_concurrency: int
+    over_budget: bool
+
+
+@dataclass(frozen=True)
+class CancellationReport:
+    attempt_id: str
+    requested: bool
+    stop_confirmed: bool
+    pending: bool
+    final_consumption_known: bool
+    outcome: str | None
+
+
+_SCHEMA = """
+CREATE TABLE IF NOT EXISTS engagement (
+    singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+    policy_json TEXT NOT NULL,
+    started_at_ms INTEGER NOT NULL,
+    last_seen_ms INTEGER NOT NULL,
+    cancelled INTEGER NOT NULL DEFAULT 0 CHECK (cancelled IN (0, 1))
+);
+CREATE TABLE IF NOT EXISTS attempts (
+    attempt_id TEXT PRIMARY KEY,
+    parent_id TEXT REFERENCES attempts(attempt_id),
+    request_json TEXT NOT NULL,
+    limits_json TEXT NOT NULL,
+    depth INTEGER NOT NULL,
+    state TEXT NOT NULL CHECK (state IN ('reserved','dispatched','uncertain','usage_unknown','settled','released')),
+    estimated_tokens INTEGER NOT NULL,
+    estimated_cost_microunits INTEGER NOT NULL,
+    reserved_output_bytes INTEGER NOT NULL,
+    actual_tokens INTEGER,
+    actual_cost_microunits INTEGER,
+    actual_output_bytes INTEGER,
+    outcome TEXT,
+    cancel_requested INTEGER NOT NULL DEFAULT 0 CHECK (cancel_requested IN (0, 1))
+);
+CREATE INDEX IF NOT EXISTS attempts_parent ON attempts(parent_id);
+CREATE TABLE IF NOT EXISTS receipts (
+    receipt_id TEXT PRIMARY KEY,
+    attempt_id TEXT NOT NULL REFERENCES attempts(attempt_id),
+    payload_json TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS validation_prerequisites (
+    receipt_id TEXT PRIMARY KEY,
+    source_attempt_id TEXT NOT NULL REFERENCES attempts(attempt_id),
+    payload_json TEXT NOT NULL,
+    consumed_by_attempt_id TEXT REFERENCES attempts(attempt_id)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS validation_prerequisites_source_attempt
+ON validation_prerequisites(source_attempt_id);
+CREATE TABLE IF NOT EXISTS dispatch_approval_receipts (
+    receipt_id TEXT PRIMARY KEY,
+    attempt_id TEXT NOT NULL UNIQUE REFERENCES attempts(attempt_id)
+);
+CREATE TABLE IF NOT EXISTS validation_dispatch_intents (
+    attempt_id TEXT PRIMARY KEY REFERENCES attempts(attempt_id),
+    payload_json TEXT NOT NULL
+);
+"""
+
+
+class AssessmentBudgetLedger:
+    """SQLite ledger with one immediate transaction per state transition."""
+
+    def __init__(
+        self,
+        db_path: Path | str,
+        policy: BudgetPolicy,
+        *,
+        clock: Callable[[], int] | None = None,
+        directory_fd: int | None = None,
+    ) -> None:
+        if not isinstance(policy, BudgetPolicy):
+            raise ValueError("policy must be a BudgetPolicy")
+        source = Path(db_path).expanduser()
+        self.db_path = source if source.is_absolute() else Path.cwd() / source
+        self.policy = policy
+        self._clock = clock or (lambda: time.time_ns() // 1_000_000)
+        self._directory_fd = directory_fd
+        self._prepare_store()
+        try:
+            with self._connect() as db:
+                db.executescript(_SCHEMA)
+                db.execute("BEGIN IMMEDIATE")
+                row = db.execute("SELECT * FROM engagement WHERE singleton = 1").fetchone()
+                now = self._now()
+                if row is None:
+                    db.execute(
+                        "INSERT INTO engagement(singleton,policy_json,started_at_ms,last_seen_ms) VALUES(1,?,?,?)",
+                        (_canonical(asdict(policy)), now, now),
+                    )
+                elif row["policy_json"] != _canonical(asdict(policy)):
+                    raise BudgetStoreError("ledger policy mismatch")
+                elif now < row["last_seen_ms"]:
+                    raise BudgetStoreError("clock moved backward")
+                else:
+                    db.execute("UPDATE engagement SET last_seen_ms = ? WHERE singleton = 1", (now,))
+                    # A process can die after durable dispatch intent but before a receipt.
+                    db.execute("UPDATE attempts SET state = 'uncertain' WHERE state = 'dispatched'")
+                db.commit()
+        except sqlite3.Error as exc:
+            raise BudgetStoreError("budget storage unavailable") from exc
+
+    def _now(self) -> int:
+        try:
+            value = self._clock()
+        except Exception as exc:
+            raise BudgetStoreError("clock unavailable") from exc
+        if type(value) is not int or value < 0 or value > 2**63 - 1:
+            raise BudgetStoreError("clock returned an invalid millisecond timestamp")
+        return value
+
+    def _prepare_store(self) -> None:
+        parent = self.db_path.parent
+        try:
+            if self._directory_fd is not None:
+                self._check_parent_identity()
+                info = os.fstat(self._directory_fd)
+            else:
+                if not parent.exists():
+                    parent.mkdir(parents=True, mode=0o700)
+                info = parent.lstat()
+            if not stat.S_ISDIR(info.st_mode) or stat.S_IMODE(info.st_mode) != 0o700:
+                raise BudgetStoreError("budget directory must be owner-only")
+            if os.name == "posix" and info.st_uid != os.geteuid():
+                raise BudgetStoreError("budget directory must be owned by the current account")
+            try:
+                if self._directory_fd is None:
+                    os.lstat(self.db_path)
+                else:
+                    os.stat(self.db_path.name, dir_fd=self._directory_fd, follow_symlinks=False)
+            except FileNotFoundError:
+                flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+                if hasattr(os, "O_NOFOLLOW"):
+                    flags |= os.O_NOFOLLOW
+                if self._directory_fd is None:
+                    fd = os.open(self.db_path, flags, 0o600)
+                else:
+                    fd = os.open(self.db_path.name, flags, 0o600, dir_fd=self._directory_fd)
+                os.close(fd)
+            self._check_file()
+        except OSError as exc:
+            raise BudgetStoreError("budget storage unavailable") from exc
+
+    def _check_parent_identity(self) -> None:
+        if self._directory_fd is None:
+            return
+        reopened = -1
+        try:
+            reopened = open_directory_no_symlinks(self.db_path.parent)
+            if not same_directory_identity(reopened, self._directory_fd):
+                raise BudgetStoreError("budget directory identity changed")
+        except BudgetStoreError:
+            raise
+        except OSError as exc:
+            raise BudgetStoreError("budget directory identity changed") from exc
+        finally:
+            if reopened >= 0:
+                os.close(reopened)
+
+    def _check_file(self) -> os.stat_result:
+        try:
+            self._check_parent_identity()
+            if self._directory_fd is None:
+                info = self.db_path.lstat()
+            else:
+                info = os.stat(self.db_path.name, dir_fd=self._directory_fd, follow_symlinks=False)
+        except OSError as exc:
+            raise BudgetStoreError("budget storage unavailable") from exc
+        if not stat.S_ISREG(info.st_mode) or stat.S_IMODE(info.st_mode) != 0o600:
+            raise BudgetStoreError("budget file must be owner-only and regular")
+        if os.name == "posix" and info.st_uid != os.geteuid():
+            raise BudgetStoreError("budget file must be owned by the current account")
+        return info
+
+    def _open_database(self, *, read_only: bool) -> sqlite3.Connection:
+        expected = self._check_file()
+        descriptor = -1
+        db: sqlite3.Connection | None = None
+        try:
+            flags = (os.O_RDONLY if read_only else os.O_RDWR) | getattr(os, "O_CLOEXEC", 0)
+            if hasattr(os, "O_NOFOLLOW"):
+                flags |= os.O_NOFOLLOW
+            if self._directory_fd is None:
+                descriptor = os.open(self.db_path, flags)
+            else:
+                descriptor = os.open(self.db_path.name, flags, dir_fd=self._directory_fd)
+            opened = os.fstat(descriptor)
+            if (opened.st_dev, opened.st_ino) != (expected.st_dev, expected.st_ino):
+                raise BudgetStoreError("budget file identity changed")
+            database_uri = (
+                f"file:{quote(os.fspath(self.db_path), safe='/')}?mode={'ro' if read_only else 'rw'}&nofollow=1"
+            )
+            db = sqlite3.connect(database_uri, uri=True, timeout=30, isolation_level=None)
+            current = self._check_file()
+            if (current.st_dev, current.st_ino) != (opened.st_dev, opened.st_ino):
+                raise BudgetStoreError("budget file identity changed while opening")
+            return db
+        except BudgetStoreError:
+            if db is not None:
+                db.close()
+            raise
+        except (OSError, sqlite3.Error) as exc:
+            if db is not None:
+                db.close()
+            raise BudgetStoreError("budget storage unavailable") from exc
+        finally:
+            if descriptor >= 0:
+                os.close(descriptor)
+
+    @contextmanager
+    def _connect(self) -> Iterator[sqlite3.Connection]:
+        db: sqlite3.Connection | None = None
+        try:
+            db = self._open_database(read_only=False)
+            db.row_factory = sqlite3.Row
+            db.execute("PRAGMA foreign_keys = ON")
+            db.execute("PRAGMA journal_mode = DELETE")
+            db.execute("PRAGMA synchronous = FULL")
+        except sqlite3.Error as exc:
+            raise BudgetStoreError("budget storage unavailable") from exc
+        try:
+            yield db
+        finally:
+            if db is not None:
+                db.close()
+
+    @contextmanager
+    def _read_connect(self) -> Iterator[sqlite3.Connection]:
+        """Open a coherent read-only snapshot without advancing ledger state."""
+        db: sqlite3.Connection | None = None
+        try:
+            db = self._open_database(read_only=True)
+            db.row_factory = sqlite3.Row
+            db.execute("PRAGMA query_only = ON")
+            db.execute("BEGIN")
+        except sqlite3.Error as exc:
+            if db is not None:
+                db.close()
+            raise BudgetStoreError("budget storage unavailable") from exc
+        try:
+            yield db
+        finally:
+            try:
+                if db is not None and db.in_transaction:
+                    db.rollback()
+            finally:
+                if db is not None:
+                    db.close()
+
+    @contextmanager
+    def _transaction(self) -> Iterator[tuple[sqlite3.Connection, sqlite3.Row, int]]:
+        try:
+            with self._connect() as db:
+                db.execute("BEGIN IMMEDIATE")
+                engagement = db.execute("SELECT * FROM engagement WHERE singleton = 1").fetchone()
+                if engagement is None or engagement["policy_json"] != _canonical(asdict(self.policy)):
+                    raise BudgetStoreError("budget policy or engagement missing")
+                now = self._now()
+                if now < engagement["last_seen_ms"]:
+                    raise BudgetStoreError("clock moved backward")
+                db.execute("UPDATE engagement SET last_seen_ms = ? WHERE singleton = 1", (now,))
+                db.execute("SAVEPOINT action")
+                try:
+                    yield db, engagement, now
+                except BaseException:
+                    db.execute("ROLLBACK TO SAVEPOINT action")
+                    db.execute("RELEASE SAVEPOINT action")
+                    # A rejected action cannot erase an observed clock high-water mark.
+                    db.commit()
+                    raise
+                else:
+                    db.execute("RELEASE SAVEPOINT action")
+                    db.commit()
+        except sqlite3.Error as exc:
+            raise BudgetStoreError("budget storage unavailable") from exc
+
+    @staticmethod
+    def _attempt(row: sqlite3.Row) -> Attempt:
+        return Attempt(row["attempt_id"], row["parent_id"], row["state"], row["depth"])
+
+    @staticmethod
+    def _charged(rows: list[sqlite3.Row]) -> BudgetSnapshot:
+        charged = [row for row in rows if row["state"] in _CHARGED]
+
+        def usage(row: sqlite3.Row, actual: str, estimated: str) -> int:
+            reported = row[actual]
+            reserved = row[estimated]
+            if row["state"] == "settled":
+                return reported
+            return max(reserved, reported) if reported is not None else reserved
+
+        return BudgetSnapshot(
+            charged_attempts=len(charged),
+            charged_tokens=sum(usage(row, "actual_tokens", "estimated_tokens") for row in charged),
+            charged_cost_microunits=sum(
+                usage(row, "actual_cost_microunits", "estimated_cost_microunits") for row in charged
+            ),
+            charged_output_bytes=sum(usage(row, "actual_output_bytes", "reserved_output_bytes") for row in charged),
+            active_concurrency=sum(row["state"] in _ACTIVE for row in rows),
+            over_budget=False,
+        )
+
+    @staticmethod
+    def _within(snapshot: BudgetSnapshot, limits: BudgetLimits) -> bool:
+        return (
+            snapshot.charged_attempts <= limits.max_attempts
+            and snapshot.charged_tokens <= limits.max_estimated_tokens
+            and snapshot.charged_cost_microunits <= limits.max_estimated_cost_microunits
+            and snapshot.charged_output_bytes <= limits.max_retained_output_bytes
+            and snapshot.active_concurrency <= limits.max_concurrency
+        )
+
+    def reserve(self, request: AttemptRequest, *, child_limits: BudgetLimits | None = None) -> Attempt:
+        if not isinstance(request, AttemptRequest):
+            raise ValueError("request must be an AttemptRequest")
+        if child_limits is not None and not isinstance(child_limits, BudgetLimits):
+            raise ValueError("child_limits must be BudgetLimits")
+        with self._transaction() as (db, engagement, now):
+            existing = db.execute("SELECT * FROM attempts WHERE attempt_id = ?", (request.attempt_id,)).fetchone()
+            if existing is not None:
+                if existing["parent_id"] is None:
+                    inherited = self.policy.limits
+                else:
+                    parent_row = db.execute(
+                        "SELECT limits_json FROM attempts WHERE attempt_id = ?", (existing["parent_id"],)
+                    ).fetchone()
+                    if parent_row is None:
+                        raise BudgetStoreError("attempt parent missing")
+                    inherited = BudgetLimits(**json.loads(parent_row["limits_json"]))
+                if existing["request_json"] != _canonical(asdict(request)) or existing["limits_json"] != _canonical(
+                    asdict(child_limits or inherited)
+                ):
+                    raise BudgetDenied("conflicting attempt id reuse")
+                return self._attempt(existing)
+            if engagement["cancelled"]:
+                raise BudgetDenied("engagement cancelled")
+            if now - engagement["started_at_ms"] > self.policy.limits.max_elapsed_ms:
+                raise BudgetDenied("budget deadline expired")
+            parent = None
+            ancestors: list[sqlite3.Row] = []
+            if request.parent_id is not None:
+                parent = db.execute("SELECT * FROM attempts WHERE attempt_id = ?", (request.parent_id,)).fetchone()
+                if parent is None or parent["state"] == "released":
+                    raise BudgetDenied("parent attempt unavailable")
+                current = parent
+                while current is not None:
+                    if current["state"] == "released":
+                        raise BudgetDenied("parent attempt unavailable")
+                    ancestors.append(current)
+                    current = (
+                        db.execute("SELECT * FROM attempts WHERE attempt_id = ?", (current["parent_id"],)).fetchone()
+                        if current["parent_id"] is not None
+                        else None
+                    )
+                parent_limits = BudgetLimits(**json.loads(parent["limits_json"]))
+            else:
+                parent_limits = self.policy.limits
+            effective = child_limits or parent_limits
+            if not effective.is_within(parent_limits):
+                raise BudgetDenied("child limits widen parent")
+            if request.parent_id is not None:
+                sibling_count = db.execute(
+                    "SELECT COUNT(*) FROM attempts WHERE parent_id = ?", (request.parent_id,)
+                ).fetchone()[0]
+                if sibling_count >= parent_limits.max_children_per_parent:
+                    raise BudgetDenied("child fanout limit reached")
+            depth = parent["depth"] + 1 if parent is not None else 0
+            if depth > self.policy.limits.max_depth or any(
+                depth - ancestor["depth"] > BudgetLimits(**json.loads(ancestor["limits_json"])).max_depth
+                for ancestor in ancestors
+            ):
+                raise BudgetDenied("child depth limit reached")
+            for ancestor in ancestors:
+                limits = BudgetLimits(**json.loads(ancestor["limits_json"]))
+                if now - engagement["started_at_ms"] > limits.max_elapsed_ms:
+                    raise BudgetDenied("subtree deadline expired")
+            db.execute(
+                """INSERT INTO attempts(attempt_id,parent_id,request_json,limits_json,depth,state,
+                   estimated_tokens,estimated_cost_microunits,reserved_output_bytes)
+                   VALUES(?,?,?,?,?,'reserved',?,?,?)""",
+                (
+                    request.attempt_id,
+                    request.parent_id,
+                    _canonical(asdict(request)),
+                    _canonical(asdict(effective)),
+                    depth,
+                    request.estimated_tokens,
+                    request.estimated_cost_microunits,
+                    request.reserved_output_bytes,
+                ),
+            )
+            rows = list(db.execute("SELECT * FROM attempts"))
+            if not self._within(self._charged(rows), self.policy.limits):
+                raise BudgetDenied("aggregate budget exceeded")
+            by_id = {row["attempt_id"]: row for row in rows}
+            for ancestor in ancestors:
+                subtree = [row for row in rows if self._descends_from(row, ancestor["attempt_id"], by_id)]
+                if not self._within(self._charged(subtree), BudgetLimits(**json.loads(ancestor["limits_json"]))):
+                    raise BudgetDenied("subtree budget exceeded")
+            own = self._charged([by_id[request.attempt_id]])
+            if not self._within(own, effective):
+                raise BudgetDenied("attempt exceeds child budget")
+            return Attempt(request.attempt_id, request.parent_id, "reserved", depth)
+
+    @staticmethod
+    def _descends_from(row: sqlite3.Row, ancestor_id: str, by_id: dict[str, sqlite3.Row]) -> bool:
+        current = row
+        while current is not None:
+            if current["attempt_id"] == ancestor_id:
+                return True
+            current = by_id.get(current["parent_id"])
+        return False
+
+    def get_attempt(self, attempt_id: str) -> Attempt:
+        _identifier(attempt_id, "attempt_id")
+        with self._transaction() as (db, _, _now):
+            row = db.execute("SELECT * FROM attempts WHERE attempt_id = ?", (attempt_id,)).fetchone()
+            if row is None:
+                raise BudgetDenied("attempt not found")
+            return self._attempt(row)
+
+    def get_dispatch_intent(self, attempt_id: str) -> dict[str, object]:
+        _identifier(attempt_id, "attempt_id")
+        with self._transaction() as (db, _, _now):
+            row = db.execute(
+                "SELECT payload_json FROM validation_dispatch_intents WHERE attempt_id = ?",
+                (attempt_id,),
+            ).fetchone()
+            if row is None:
+                raise BudgetDenied("dispatch intent not found")
+            try:
+                payload = json.loads(row["payload_json"])
+            except (TypeError, ValueError) as exc:
+                raise BudgetStoreError("dispatch intent is malformed") from exc
+            if not isinstance(payload, dict):
+                raise BudgetStoreError("dispatch intent is malformed")
+            return payload
+
+    def mark_dispatched(
+        self,
+        attempt_id: str,
+        *,
+        approval_receipt_id: str | None = None,
+        dispatch_intent: Mapping[str, object] | None = None,
+        prerequisite_receipt_id: str | None = None,
+        expected_prerequisite: Mapping[str, object] | None = None,
+    ) -> Attempt:
+        _identifier(attempt_id, "attempt_id")
+        if approval_receipt_id is not None:
+            _identifier(approval_receipt_id, "approval_receipt_id")
+        if (approval_receipt_id is None) != (dispatch_intent is None):
+            raise ValueError("approval receipt and dispatch intent must be supplied together")
+        if dispatch_intent is not None:
+            if not isinstance(dispatch_intent, Mapping):
+                raise ValueError("dispatch intent must be a mapping")
+            dispatch_data = dict(dispatch_intent)
+            approval_issued_at_ms = _timestamp_ms(dispatch_data.get("approval_issued_at"), "approval_issued_at")
+            approval_expires_at_ms = _timestamp_ms(dispatch_data.get("approval_expires_at"), "approval_expires_at")
+            if approval_issued_at_ms >= approval_expires_at_ms:
+                raise ValueError("invalid dispatch approval window")
+            dispatch_payload = _canonical(dispatch_data)
+            if len(dispatch_payload.encode("utf-8")) > _MAX_DISPATCH_INTENT_BYTES:
+                raise ValueError("dispatch intent exceeds size limit")
+        else:
+            approval_issued_at_ms = None
+            approval_expires_at_ms = None
+            dispatch_payload = None
+        if (prerequisite_receipt_id is None) != (expected_prerequisite is None):
+            raise ValueError("prerequisite receipt and payload must be supplied together")
+        if prerequisite_receipt_id is not None:
+            _identifier(prerequisite_receipt_id, "prerequisite_receipt_id")
+            if not isinstance(expected_prerequisite, Mapping):
+                raise ValueError("expected prerequisite must be a mapping")
+            expected_payload = _canonical(dict(expected_prerequisite))
+        else:
+            expected_payload = None
+        with self._transaction() as (db, engagement, now):
+            row = db.execute("SELECT * FROM attempts WHERE attempt_id = ?", (attempt_id,)).fetchone()
+            if row is None:
+                raise BudgetDenied("attempt not found")
+            if engagement["cancelled"]:
+                raise BudgetDenied("engagement cancelled")
+            if now - engagement["started_at_ms"] > self.policy.limits.max_elapsed_ms:
+                raise BudgetDenied("budget deadline expired")
+            if row["state"] != "reserved":
+                raise BudgetDenied("attempt is not reserved")
+            current = row
+            while current is not None:
+                if current["state"] == "released":
+                    raise BudgetDenied("ancestor attempt unavailable")
+                limits = BudgetLimits(**json.loads(current["limits_json"]))
+                if now - engagement["started_at_ms"] > limits.max_elapsed_ms:
+                    raise BudgetDenied("subtree deadline expired")
+                current = (
+                    db.execute("SELECT * FROM attempts WHERE attempt_id = ?", (current["parent_id"],)).fetchone()
+                    if current["parent_id"] is not None
+                    else None
+                )
+            if (
+                approval_issued_at_ms is not None
+                and approval_expires_at_ms is not None
+                and not approval_issued_at_ms <= now < approval_expires_at_ms
+            ):
+                raise BudgetDenied("dispatch approval is not currently valid")
+            if prerequisite_receipt_id is not None:
+                prerequisite = db.execute(
+                    "SELECT * FROM validation_prerequisites WHERE receipt_id = ?",
+                    (prerequisite_receipt_id,),
+                ).fetchone()
+                if prerequisite is None or prerequisite["payload_json"] != expected_payload:
+                    raise BudgetDenied("validation prerequisite is missing or does not match")
+                if prerequisite["consumed_by_attempt_id"] is not None:
+                    raise BudgetDenied("validation prerequisite was already consumed")
+                consumed = db.execute(
+                    """UPDATE validation_prerequisites SET consumed_by_attempt_id = ?
+                       WHERE receipt_id = ? AND consumed_by_attempt_id IS NULL""",
+                    (attempt_id, prerequisite_receipt_id),
+                )
+                if consumed.rowcount != 1:
+                    raise BudgetDenied("validation prerequisite could not be consumed")
+            if approval_receipt_id is not None:
+                reused = db.execute(
+                    "SELECT attempt_id FROM dispatch_approval_receipts WHERE receipt_id = ?",
+                    (approval_receipt_id,),
+                ).fetchone()
+                if reused is not None:
+                    raise BudgetDenied("approval receipt was already consumed")
+                db.execute(
+                    "INSERT INTO dispatch_approval_receipts(receipt_id,attempt_id) VALUES(?,?)",
+                    (approval_receipt_id, attempt_id),
+                )
+            if dispatch_payload is not None:
+                db.execute(
+                    "INSERT INTO validation_dispatch_intents(attempt_id,payload_json) VALUES(?,?)",
+                    (attempt_id, dispatch_payload),
+                )
+            db.execute("UPDATE attempts SET state = 'dispatched' WHERE attempt_id = ?", (attempt_id,))
+            return Attempt(attempt_id, row["parent_id"], "dispatched", row["depth"])
+
+    def mark_uncertain(self, attempt_id: str) -> Attempt:
+        _identifier(attempt_id, "attempt_id")
+        with self._transaction() as (db, _, _now):
+            row = db.execute("SELECT * FROM attempts WHERE attempt_id = ?", (attempt_id,)).fetchone()
+            if row is None or row["state"] not in {"dispatched", "uncertain"}:
+                raise BudgetDenied("no dispatch intent to mark uncertain")
+            db.execute("UPDATE attempts SET state = 'uncertain' WHERE attempt_id = ?", (attempt_id,))
+            return Attempt(attempt_id, row["parent_id"], "uncertain", row["depth"])
+
+    def release_undispatched(self, attempt_id: str) -> Attempt:
+        """Release an attempt only when no dispatch intent was ever recorded."""
+        _identifier(attempt_id, "attempt_id")
+        with self._transaction() as (db, _, _now):
+            row = db.execute("SELECT * FROM attempts WHERE attempt_id = ?", (attempt_id,)).fetchone()
+            if row is None or row["state"] not in {"reserved", "released"}:
+                raise BudgetDenied("attempt may be in flight")
+            rows = list(db.execute("SELECT attempt_id,parent_id,state FROM attempts"))
+            by_id = {candidate["attempt_id"]: candidate for candidate in rows}
+            if any(
+                candidate["attempt_id"] != attempt_id
+                and candidate["state"] != "released"
+                and self._descends_from(candidate, attempt_id, by_id)
+                for candidate in rows
+            ):
+                raise BudgetDenied("attempt has live descendants")
+            db.execute("UPDATE attempts SET state = 'released' WHERE attempt_id = ?", (attempt_id,))
+            return Attempt(attempt_id, row["parent_id"], "released", row["depth"])
+
+    def reconcile(
+        self,
+        receipt: Receipt,
+        *,
+        validation_prerequisite_id: str | None = None,
+        validation_prerequisite: Mapping[str, object] | None = None,
+    ) -> Attempt:
+        if not isinstance(receipt, Receipt):
+            raise ValueError("receipt must be a Receipt")
+        if (validation_prerequisite_id is None) != (validation_prerequisite is None):
+            raise ValueError("validation prerequisite id and payload must be supplied together")
+        if validation_prerequisite_id is not None:
+            _identifier(validation_prerequisite_id, "validation_prerequisite_id")
+            if not isinstance(validation_prerequisite, Mapping):
+                raise ValueError("validation prerequisite must be a mapping")
+            prerequisite_payload = _canonical(dict(validation_prerequisite))
+            if receipt.outcome != "completed":
+                raise ValueError("only a completed attempt can establish a validation prerequisite")
+        else:
+            prerequisite_payload = None
+        with self._transaction() as (db, _, _now):
+            payload = _canonical(asdict(receipt))
+            duplicate = db.execute("SELECT * FROM receipts WHERE receipt_id = ?", (receipt.receipt_id,)).fetchone()
+            if duplicate is not None and duplicate["payload_json"] != payload:
+                raise BudgetDenied("conflicting receipt id reuse")
+            row = db.execute("SELECT * FROM attempts WHERE attempt_id = ?", (receipt.attempt_id,)).fetchone()
+            if row is None:
+                raise BudgetDenied("attempt not found")
+            if duplicate is not None:
+                if validation_prerequisite_id is not None:
+                    existing = db.execute(
+                        "SELECT * FROM validation_prerequisites WHERE receipt_id = ?",
+                        (validation_prerequisite_id,),
+                    ).fetchone()
+                    if existing is None or (
+                        existing["source_attempt_id"] != receipt.attempt_id
+                        or existing["payload_json"] != prerequisite_payload
+                    ):
+                        raise BudgetDenied("duplicate receipt cannot establish a validation prerequisite")
+                return self._attempt(row)
+            if row["state"] not in {"dispatched", "uncertain", "usage_unknown"}:
+                raise BudgetDenied("conflicting terminal receipt")
+            if row["state"] == "usage_unknown" and (
+                receipt.outcome != row["outcome"]
+                or any(
+                    row[column] is not None and row[column] != getattr(receipt, field)
+                    for column, field in (
+                        ("actual_tokens", "tokens"),
+                        ("actual_cost_microunits", "cost_microunits"),
+                        ("actual_output_bytes", "retained_output_bytes"),
+                    )
+                )
+            ):
+                raise BudgetDenied("conflicting receipt revision")
+            if (
+                receipt.retained_output_bytes is not None
+                and receipt.retained_output_bytes > row["reserved_output_bytes"]
+            ):
+                raise BudgetDenied("retained output exceeds reservation")
+            if validation_prerequisite_id is not None:
+                existing = db.execute(
+                    "SELECT * FROM validation_prerequisites WHERE receipt_id = ?",
+                    (validation_prerequisite_id,),
+                ).fetchone()
+                if existing is not None and (
+                    existing["source_attempt_id"] != receipt.attempt_id
+                    or existing["payload_json"] != prerequisite_payload
+                ):
+                    raise BudgetDenied("conflicting validation prerequisite")
+                if existing is None:
+                    by_source = db.execute(
+                        "SELECT receipt_id FROM validation_prerequisites WHERE source_attempt_id = ?",
+                        (receipt.attempt_id,),
+                    ).fetchone()
+                    if by_source is not None:
+                        raise BudgetDenied("attempt already established a validation prerequisite")
+                    db.execute(
+                        """INSERT INTO validation_prerequisites(
+                               receipt_id,source_attempt_id,payload_json,consumed_by_attempt_id
+                           ) VALUES(?,?,?,NULL)""",
+                        (validation_prerequisite_id, receipt.attempt_id, prerequisite_payload),
+                    )
+            known = all(
+                value is not None for value in (receipt.tokens, receipt.cost_microunits, receipt.retained_output_bytes)
+            )
+            state = "settled" if known else "usage_unknown"
+            db.execute(
+                """UPDATE attempts SET state = ?, actual_tokens = ?, actual_cost_microunits = ?,
+                   actual_output_bytes = ?, outcome = ? WHERE attempt_id = ?""",
+                (
+                    state,
+                    receipt.tokens,
+                    receipt.cost_microunits,
+                    receipt.retained_output_bytes,
+                    receipt.outcome,
+                    receipt.attempt_id,
+                ),
+            )
+            db.execute(
+                "INSERT INTO receipts(receipt_id,attempt_id,payload_json) VALUES(?,?,?)",
+                (receipt.receipt_id, receipt.attempt_id, payload),
+            )
+            return Attempt(receipt.attempt_id, row["parent_id"], state, row["depth"])
+
+    def reconciliation_is_durable(
+        self,
+        receipt: Receipt,
+        *,
+        validation_prerequisite_id: str | None = None,
+        validation_prerequisite: Mapping[str, object] | None = None,
+    ) -> bool:
+        """Return whether an exact reconciliation is present in durable storage."""
+        if not isinstance(receipt, Receipt):
+            raise ValueError("receipt must be a Receipt")
+        if (validation_prerequisite_id is None) != (validation_prerequisite is None):
+            raise ValueError("validation prerequisite id and payload must be supplied together")
+        if validation_prerequisite_id is not None:
+            _identifier(validation_prerequisite_id, "validation_prerequisite_id")
+            if not isinstance(validation_prerequisite, Mapping):
+                raise ValueError("validation prerequisite must be a mapping")
+            prerequisite_payload = _canonical(dict(validation_prerequisite))
+            if receipt.outcome != "completed":
+                raise ValueError("only a completed attempt can establish a validation prerequisite")
+        else:
+            prerequisite_payload = None
+
+        receipt_payload = _canonical(asdict(receipt))
+        expected_state = (
+            "settled"
+            if all(
+                value is not None for value in (receipt.tokens, receipt.cost_microunits, receipt.retained_output_bytes)
+            )
+            else "usage_unknown"
+        )
+        with self._read_connect() as db:
+            engagement = db.execute("SELECT policy_json FROM engagement WHERE singleton = 1").fetchone()
+            if engagement is None or engagement["policy_json"] != _canonical(asdict(self.policy)):
+                raise BudgetStoreError("budget policy or engagement missing")
+
+            stored_receipt = db.execute(
+                "SELECT attempt_id,payload_json FROM receipts WHERE receipt_id = ?",
+                (receipt.receipt_id,),
+            ).fetchone()
+            if stored_receipt is None or (
+                stored_receipt["attempt_id"] != receipt.attempt_id or stored_receipt["payload_json"] != receipt_payload
+            ):
+                return False
+
+            attempt = db.execute(
+                """SELECT state,actual_tokens,actual_cost_microunits,actual_output_bytes,outcome
+                   FROM attempts WHERE attempt_id = ?""",
+                (receipt.attempt_id,),
+            ).fetchone()
+            if attempt is None or (
+                attempt["state"] != expected_state
+                or attempt["actual_tokens"] != receipt.tokens
+                or attempt["actual_cost_microunits"] != receipt.cost_microunits
+                or attempt["actual_output_bytes"] != receipt.retained_output_bytes
+                or attempt["outcome"] != receipt.outcome
+            ):
+                return False
+
+            if validation_prerequisite_id is not None:
+                prerequisite = db.execute(
+                    """SELECT source_attempt_id,payload_json,consumed_by_attempt_id FROM validation_prerequisites
+                       WHERE receipt_id = ?""",
+                    (validation_prerequisite_id,),
+                ).fetchone()
+                return prerequisite is not None and (
+                    prerequisite["source_attempt_id"] == receipt.attempt_id
+                    and prerequisite["payload_json"] == prerequisite_payload
+                    and prerequisite["consumed_by_attempt_id"] is None
+                )
+
+            unexpected_prerequisite = db.execute(
+                "SELECT receipt_id FROM validation_prerequisites WHERE source_attempt_id = ?",
+                (receipt.attempt_id,),
+            ).fetchone()
+            return unexpected_prerequisite is None
+
+    def cancel(self) -> None:
+        with self._transaction() as (db, _, _now):
+            db.execute("UPDATE engagement SET cancelled = 1 WHERE singleton = 1")
+            # Every active descendant shares this ledger and receives the request.
+            db.execute(
+                "UPDATE attempts SET cancel_requested = 1 WHERE state IN ('reserved', 'dispatched', 'uncertain')"
+            )
+            db.execute("UPDATE attempts SET state = 'released' WHERE state = 'reserved'")
+
+    def cancellation_report(self, attempt_id: str) -> CancellationReport:
+        """Report request, observed stop, and final usage separately."""
+        _identifier(attempt_id, "attempt_id")
+        with self._transaction() as (db, _, _now):
+            row = db.execute("SELECT * FROM attempts WHERE attempt_id = ?", (attempt_id,)).fetchone()
+            if row is None:
+                raise BudgetDenied("attempt not found")
+            requested = bool(row["cancel_requested"])
+            final = row["state"] in {"released", "settled"}
+            confirmed = requested and (row["state"] == "released" or row["outcome"] in {"runner_stopped", "cancelled"})
+            return CancellationReport(
+                attempt_id=attempt_id,
+                requested=requested,
+                stop_confirmed=confirmed,
+                pending=requested and not final,
+                final_consumption_known=final,
+                outcome=row["outcome"],
+            )
+
+    def snapshot(self) -> BudgetSnapshot:
+        with self._transaction() as (db, _, _now):
+            snapshot = self._charged(list(db.execute("SELECT * FROM attempts")))
+            return BudgetSnapshot(**{**asdict(snapshot), "over_budget": not self._within(snapshot, self.policy.limits)})
+
+    def remaining_elapsed_ms(self, attempt_id: str | None = None) -> int:
+        """Return the shortest remaining engagement or inherited attempt deadline."""
+        if attempt_id is not None:
+            _identifier(attempt_id, "attempt_id")
+        with self._transaction() as (db, engagement, now):
+            elapsed = now - engagement["started_at_ms"]
+            remaining = self.policy.limits.max_elapsed_ms - elapsed
+            if attempt_id is not None:
+                current = db.execute("SELECT * FROM attempts WHERE attempt_id = ?", (attempt_id,)).fetchone()
+                if current is None:
+                    raise BudgetDenied("attempt not found")
+                while current is not None:
+                    limits = BudgetLimits(**json.loads(current["limits_json"]))
+                    remaining = min(remaining, limits.max_elapsed_ms - elapsed)
+                    current = (
+                        db.execute("SELECT * FROM attempts WHERE attempt_id = ?", (current["parent_id"],)).fetchone()
+                        if current["parent_id"] is not None
+                        else None
+                    )
+            return max(0, remaining)
+
+
+@dataclass(frozen=True)
+class CancellationSignal:
+    """Durable, cross-process cancellation signal for a synthetic callback."""
+
+    ledger: AssessmentBudgetLedger
+    attempt_id: str
+
+    def requested(self) -> bool:
+        return self.ledger.cancellation_report(self.attempt_id).requested
+
+
+def dispatch_fixture(
+    ledger: AssessmentBudgetLedger,
+    request: AttemptRequest,
+    callback: Callable[[AttemptRequest, CancellationSignal], Receipt],
+) -> Attempt:
+    """Run one synthetic callback after durable reservation and dispatch intent."""
+    ledger.reserve(request)
+    ledger.mark_dispatched(request.attempt_id)
+    try:
+        receipt = callback(request, CancellationSignal(ledger, request.attempt_id))
+        if not isinstance(receipt, Receipt) or receipt.attempt_id != request.attempt_id:
+            raise BudgetDenied("receipt attempt mismatch")
+        return ledger.reconcile(receipt)
+    except BaseException:
+        ledger.mark_uncertain(request.attempt_id)
+        raise

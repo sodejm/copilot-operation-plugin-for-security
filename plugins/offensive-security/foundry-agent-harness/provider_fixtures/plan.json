@@ -1,0 +1,114 @@
+{
+  "budget": {
+    "currency": "USD",
+    "limits": {
+      "max_attempts": 7,
+      "max_children_per_parent": 1,
+      "max_concurrency": 1,
+      "max_depth": 0,
+      "max_elapsed_ms": 60000,
+      "max_estimated_cost_microunits": 7000,
+      "max_estimated_tokens": 700,
+      "max_retained_output_bytes": 7000
+    },
+    "price_effective_date": "2026-10-13",
+    "price_source": "synthetic-fixture",
+    "price_version": "v1"
+  },
+  "engagement_id": "synthetic-provider-review",
+  "environments": [
+    {
+      "allowed_tools": [
+        "read_fixture"
+      ],
+      "approved_requests": {
+        "budget-denied": "886dd1e31c45027d9f17378c9b123f5db99e2535b8fe5c347c865477262add94",
+        "canary-denied": "54ba70e75c8475c8311480803533d8ac3f41706f66bb26f1c83e2906b6b71d9c",
+        "endpoint-denied": "65dc56fbb97f18505cf2438ac78e4c508ca8d095cae9fcb81d9307fed15fb613",
+        "endpoint-remediated": "86b115a66d2014cfd3916426efad890488ad250c0341b4d5b583c562766b7392",
+        "model-denied": "b7a85ecaec1e5d1f275c2dbd49d6820cc79a97919907f280bf0d1423742161b9",
+        "openai-completed": "c9ce723a51c377daa025e113ebfe0ef79634ac50b1125ff65cc2782ca0ac8272",
+        "openai-partial": "1400ee0765b42470c151c4b26da7620e329e7173556b4a676bb5c54b6eed812b",
+        "request-denied": "c9ce723a51c377daa025e113ebfe0ef79634ac50b1125ff65cc2782ca0ac8272",
+        "tenant-denied": "326fd91ab5ef6ac159f2e79958e77ecfed97ef70055779fa9caa8712295e35fb",
+        "tool-denied": "d6ff1eaa1901baeb26e9a15114a06c9fd9faf280d955ca5f73951def7ab17481"
+      },
+      "canary_ids": [
+        "CANARY_SYNTHETIC"
+      ],
+      "environment_id": "synthetic-openai",
+      "provider": "openai",
+      "scope": {
+        "account_id": "synthetic-openai-account",
+        "endpoint": "https://api.openai.invalid/v1/responses",
+        "model": "fixture-responses",
+        "project_id": "synthetic-openai-project",
+        "region": "us-east-1"
+      }
+    },
+    {
+      "allowed_tools": [
+        "read_fixture"
+      ],
+      "approved_requests": {
+        "azure-completed": "6e1b2a868b7cd74e92b01d700c327a900d4496f8ae2b03965fc8239dedbfa1d3"
+      },
+      "canary_ids": [
+        "CANARY_SYNTHETIC"
+      ],
+      "environment_id": "synthetic-azure",
+      "provider": "azure",
+      "scope": {
+        "account_id": "synthetic-azure-tenant",
+        "endpoint": "https://azure.openai.invalid/openai/responses",
+        "model": "fixture-azure-responses",
+        "project_id": "synthetic-azure-subscription",
+        "region": "eastus"
+      }
+    },
+    {
+      "allowed_tools": [
+        "read_fixture"
+      ],
+      "approved_requests": {
+        "aws-completed": "73cb2f4cc650efc78da5cfd45a4f89423be7f952d0ef7f7cc7f0c1707767a63f",
+        "aws-tool-proposal": "70d24325b02afc6de9dffa2d9cb595ca387022a5031ffc3fde19f95790a9a1d5"
+      },
+      "canary_ids": [
+        "CANARY_SYNTHETIC"
+      ],
+      "environment_id": "synthetic-aws",
+      "provider": "aws",
+      "scope": {
+        "account_id": "synthetic-aws-account",
+        "endpoint": "https://bedrock.aws.invalid/model/converse",
+        "model": "fixture-bedrock",
+        "project_id": "synthetic-aws-project",
+        "region": "us-east-1"
+      }
+    },
+    {
+      "allowed_tools": [
+        "read_fixture"
+      ],
+      "approved_requests": {
+        "gcp-completed": "fc301a109523727ea021d46c14e2aa7bae51c2807f2268d02cc0c7d67b2269cc"
+      },
+      "canary_ids": [
+        "CANARY_SYNTHETIC"
+      ],
+      "environment_id": "synthetic-gcp",
+      "provider": "gcp",
+      "scope": {
+        "account_id": "synthetic-gcp-account",
+        "endpoint": "https://vertex.gcp.invalid/generateContent",
+        "model": "fixture-vertex",
+        "project_id": "synthetic-gcp-project",
+        "region": "us-central1"
+      }
+    }
+  ],
+  "mode": "offline_fixture",
+  "paid_execution_opt_in": false,
+  "schema_version": "cops.ai-provider-assessment-plan/v1"
+}

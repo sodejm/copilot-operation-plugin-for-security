@@ -7,7 +7,11 @@
     "license": "GPL-3.0",
     "pinned_revision": "9.4"
   },
-  "supported_environments": ["linux", "darwin"],
+  "execution": {
+    "version_args": ["--version"],
+    "version_pattern": "echo \\(GNU coreutils\\) (?P<version>[0-9.]+)"
+  },
+  "supported_environments": ["linux"],
   "actions": {
     "print_status": {
       "description": "Echo a status message",

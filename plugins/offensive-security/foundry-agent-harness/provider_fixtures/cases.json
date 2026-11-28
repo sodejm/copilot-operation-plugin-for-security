@@ -1,0 +1,645 @@
+{
+  "cases": [
+    {
+      "case_id": "openai-completed",
+      "environment_id": "synthetic-openai",
+      "estimate": {
+        "cost_microunits": 1000,
+        "output_bytes": 1000,
+        "tokens": 100
+      },
+      "expected": {
+        "decision": "approved",
+        "ledger_state": "settled",
+        "outcome": "completed",
+        "response_state": "completed",
+        "usage_state": "known_synthetic"
+      },
+      "provider": "openai",
+      "request": {
+        "canary_id": "CANARY_SYNTHETIC",
+        "max_output_tokens": 32,
+        "prompt_id": "synthetic-openai-completed"
+      },
+      "requested_tools": [],
+      "response": {
+        "output": [
+          {
+            "content": [
+              {
+                "text": "SYNTHETIC_SECRET_DO_NOT_REPORT"
+              }
+            ]
+          }
+        ],
+        "status": "completed",
+        "usage": {
+          "input_tokens": 10,
+          "output_tokens": 5,
+          "total_tokens": 15
+        }
+      },
+      "scope": {
+        "account_id": "synthetic-openai-account",
+        "endpoint": "https://api.openai.invalid/v1/responses",
+        "model": "fixture-responses",
+        "project_id": "synthetic-openai-project",
+        "region": "us-east-1"
+      }
+    },
+    {
+      "case_id": "azure-completed",
+      "environment_id": "synthetic-azure",
+      "estimate": {
+        "cost_microunits": 1000,
+        "output_bytes": 1000,
+        "tokens": 100
+      },
+      "expected": {
+        "decision": "approved",
+        "ledger_state": "settled",
+        "outcome": "completed",
+        "response_state": "completed",
+        "usage_state": "known_synthetic"
+      },
+      "provider": "azure",
+      "request": {
+        "canary_id": "CANARY_SYNTHETIC",
+        "max_output_tokens": 32,
+        "prompt_id": "synthetic-azure-completed"
+      },
+      "requested_tools": [],
+      "response": {
+        "output": [],
+        "status": "completed",
+        "usage": {
+          "input_tokens": 8,
+          "output_tokens": 7,
+          "total_tokens": 15
+        }
+      },
+      "scope": {
+        "account_id": "synthetic-azure-tenant",
+        "endpoint": "https://azure.openai.invalid/openai/responses",
+        "model": "fixture-azure-responses",
+        "project_id": "synthetic-azure-subscription",
+        "region": "eastus"
+      }
+    },
+    {
+      "case_id": "aws-completed",
+      "environment_id": "synthetic-aws",
+      "estimate": {
+        "cost_microunits": 1000,
+        "output_bytes": 1000,
+        "tokens": 100
+      },
+      "expected": {
+        "decision": "approved",
+        "ledger_state": "settled",
+        "outcome": "completed",
+        "response_state": "completed",
+        "usage_state": "known_synthetic"
+      },
+      "provider": "aws",
+      "request": {
+        "canary_id": "CANARY_SYNTHETIC",
+        "max_output_tokens": 32,
+        "prompt_id": "synthetic-aws-completed"
+      },
+      "requested_tools": [],
+      "response": {
+        "output": {
+          "message": {
+            "content": [
+              {
+                "text": "synthetic"
+              }
+            ]
+          }
+        },
+        "stopReason": "end_turn",
+        "usage": {
+          "inputTokens": 9,
+          "outputTokens": 6,
+          "totalTokens": 15
+        }
+      },
+      "scope": {
+        "account_id": "synthetic-aws-account",
+        "endpoint": "https://bedrock.aws.invalid/model/converse",
+        "model": "fixture-bedrock",
+        "project_id": "synthetic-aws-project",
+        "region": "us-east-1"
+      }
+    },
+    {
+      "case_id": "gcp-completed",
+      "environment_id": "synthetic-gcp",
+      "estimate": {
+        "cost_microunits": 1000,
+        "output_bytes": 1000,
+        "tokens": 100
+      },
+      "expected": {
+        "decision": "approved",
+        "ledger_state": "settled",
+        "outcome": "completed",
+        "response_state": "completed",
+        "usage_state": "known_synthetic"
+      },
+      "provider": "gcp",
+      "request": {
+        "canary_id": "CANARY_SYNTHETIC",
+        "max_output_tokens": 32,
+        "prompt_id": "synthetic-gcp-completed"
+      },
+      "requested_tools": [],
+      "response": {
+        "candidates": [
+          {
+            "content": {
+              "parts": [
+                {
+                  "text": "synthetic"
+                }
+              ]
+            },
+            "finishReason": "STOP"
+          }
+        ],
+        "usageMetadata": {
+          "candidatesTokenCount": 4,
+          "promptTokenCount": 11,
+          "totalTokenCount": 15
+        }
+      },
+      "scope": {
+        "account_id": "synthetic-gcp-account",
+        "endpoint": "https://vertex.gcp.invalid/generateContent",
+        "model": "fixture-vertex",
+        "project_id": "synthetic-gcp-project",
+        "region": "us-central1"
+      }
+    },
+    {
+      "case_id": "endpoint-denied",
+      "environment_id": "synthetic-openai",
+      "estimate": {
+        "cost_microunits": 1000,
+        "output_bytes": 1000,
+        "tokens": 100
+      },
+      "expected": {
+        "decision": "denied",
+        "ledger_state": "none",
+        "outcome": "no_effect",
+        "response_state": "not_processed",
+        "usage_state": "not_charged"
+      },
+      "provider": "openai",
+      "request": {
+        "canary_id": "CANARY_SYNTHETIC",
+        "max_output_tokens": 32,
+        "prompt_id": "synthetic-endpoint-denied"
+      },
+      "requested_tools": [],
+      "response": {
+        "invalid": [
+          "SYNTHETIC_SECRET_DO_NOT_REPORT"
+        ]
+      },
+      "scope": {
+        "account_id": "synthetic-openai-account",
+        "endpoint": "https://other.openai.invalid/v1/responses",
+        "model": "fixture-responses",
+        "project_id": "synthetic-openai-project",
+        "region": "us-east-1"
+      }
+    },
+    {
+      "case_id": "endpoint-remediated",
+      "environment_id": "synthetic-openai",
+      "estimate": {
+        "cost_microunits": 1000,
+        "output_bytes": 1000,
+        "tokens": 100
+      },
+      "expected": {
+        "decision": "approved",
+        "ledger_state": "settled",
+        "outcome": "completed",
+        "response_state": "completed",
+        "usage_state": "known_synthetic"
+      },
+      "provider": "openai",
+      "request": {
+        "canary_id": "CANARY_SYNTHETIC",
+        "max_output_tokens": 32,
+        "prompt_id": "synthetic-endpoint-remediated"
+      },
+      "requested_tools": [],
+      "response": {
+        "output": [
+          {
+            "content": [
+              {
+                "text": "SYNTHETIC_SECRET_DO_NOT_REPORT"
+              }
+            ]
+          }
+        ],
+        "status": "completed",
+        "usage": {
+          "input_tokens": 10,
+          "output_tokens": 5,
+          "total_tokens": 15
+        }
+      },
+      "scope": {
+        "account_id": "synthetic-openai-account",
+        "endpoint": "https://api.openai.invalid/v1/responses",
+        "model": "fixture-responses",
+        "project_id": "synthetic-openai-project",
+        "region": "us-east-1"
+      }
+    },
+    {
+      "case_id": "tenant-denied",
+      "environment_id": "synthetic-openai",
+      "estimate": {
+        "cost_microunits": 1000,
+        "output_bytes": 1000,
+        "tokens": 100
+      },
+      "expected": {
+        "decision": "denied",
+        "ledger_state": "none",
+        "outcome": "no_effect",
+        "response_state": "not_processed",
+        "usage_state": "not_charged"
+      },
+      "provider": "openai",
+      "request": {
+        "canary_id": "CANARY_SYNTHETIC",
+        "max_output_tokens": 32,
+        "prompt_id": "synthetic-tenant-denied"
+      },
+      "requested_tools": [],
+      "response": {
+        "output": [
+          {
+            "content": [
+              {
+                "text": "SYNTHETIC_SECRET_DO_NOT_REPORT"
+              }
+            ]
+          }
+        ],
+        "status": "completed",
+        "usage": {
+          "input_tokens": 10,
+          "output_tokens": 5,
+          "total_tokens": 15
+        }
+      },
+      "scope": {
+        "account_id": "synthetic-other-tenant",
+        "endpoint": "https://api.openai.invalid/v1/responses",
+        "model": "fixture-responses",
+        "project_id": "synthetic-openai-project",
+        "region": "us-east-1"
+      }
+    },
+    {
+      "case_id": "model-denied",
+      "environment_id": "synthetic-openai",
+      "estimate": {
+        "cost_microunits": 1000,
+        "output_bytes": 1000,
+        "tokens": 100
+      },
+      "expected": {
+        "decision": "denied",
+        "ledger_state": "none",
+        "outcome": "no_effect",
+        "response_state": "not_processed",
+        "usage_state": "not_charged"
+      },
+      "provider": "openai",
+      "request": {
+        "canary_id": "CANARY_SYNTHETIC",
+        "max_output_tokens": 32,
+        "prompt_id": "synthetic-model-denied"
+      },
+      "requested_tools": [],
+      "response": {
+        "output": [
+          {
+            "content": [
+              {
+                "text": "SYNTHETIC_SECRET_DO_NOT_REPORT"
+              }
+            ]
+          }
+        ],
+        "status": "completed",
+        "usage": {
+          "input_tokens": 10,
+          "output_tokens": 5,
+          "total_tokens": 15
+        }
+      },
+      "scope": {
+        "account_id": "synthetic-openai-account",
+        "endpoint": "https://api.openai.invalid/v1/responses",
+        "model": "fixture-other-model",
+        "project_id": "synthetic-openai-project",
+        "region": "us-east-1"
+      }
+    },
+    {
+      "case_id": "tool-denied",
+      "environment_id": "synthetic-openai",
+      "estimate": {
+        "cost_microunits": 1000,
+        "output_bytes": 1000,
+        "tokens": 100
+      },
+      "expected": {
+        "decision": "denied",
+        "ledger_state": "none",
+        "outcome": "no_effect",
+        "response_state": "not_processed",
+        "usage_state": "not_charged"
+      },
+      "provider": "openai",
+      "request": {
+        "canary_id": "CANARY_SYNTHETIC",
+        "max_output_tokens": 32,
+        "prompt_id": "synthetic-tool-denied"
+      },
+      "requested_tools": [
+        "write_fixture"
+      ],
+      "response": {
+        "output": [
+          {
+            "content": [
+              {
+                "text": "SYNTHETIC_SECRET_DO_NOT_REPORT"
+              }
+            ]
+          }
+        ],
+        "status": "completed",
+        "usage": {
+          "input_tokens": 10,
+          "output_tokens": 5,
+          "total_tokens": 15
+        }
+      },
+      "scope": {
+        "account_id": "synthetic-openai-account",
+        "endpoint": "https://api.openai.invalid/v1/responses",
+        "model": "fixture-responses",
+        "project_id": "synthetic-openai-project",
+        "region": "us-east-1"
+      }
+    },
+    {
+      "case_id": "canary-denied",
+      "environment_id": "synthetic-openai",
+      "estimate": {
+        "cost_microunits": 1000,
+        "output_bytes": 1000,
+        "tokens": 100
+      },
+      "expected": {
+        "decision": "denied",
+        "ledger_state": "none",
+        "outcome": "no_effect",
+        "response_state": "not_processed",
+        "usage_state": "not_charged"
+      },
+      "provider": "openai",
+      "request": {
+        "canary_id": "CANARY_OTHER",
+        "max_output_tokens": 32,
+        "prompt_id": "synthetic-canary-denied"
+      },
+      "requested_tools": [],
+      "response": {
+        "output": [
+          {
+            "content": [
+              {
+                "text": "SYNTHETIC_SECRET_DO_NOT_REPORT"
+              }
+            ]
+          }
+        ],
+        "status": "completed",
+        "usage": {
+          "input_tokens": 10,
+          "output_tokens": 5,
+          "total_tokens": 15
+        }
+      },
+      "scope": {
+        "account_id": "synthetic-openai-account",
+        "endpoint": "https://api.openai.invalid/v1/responses",
+        "model": "fixture-responses",
+        "project_id": "synthetic-openai-project",
+        "region": "us-east-1"
+      }
+    },
+    {
+      "case_id": "request-denied",
+      "environment_id": "synthetic-openai",
+      "estimate": {
+        "cost_microunits": 1000,
+        "output_bytes": 1000,
+        "tokens": 100
+      },
+      "expected": {
+        "decision": "denied",
+        "ledger_state": "none",
+        "outcome": "no_effect",
+        "response_state": "not_processed",
+        "usage_state": "not_charged"
+      },
+      "provider": "openai",
+      "request": {
+        "canary_id": "CANARY_SYNTHETIC",
+        "max_output_tokens": 64,
+        "prompt_id": "synthetic-request-denied"
+      },
+      "requested_tools": [],
+      "response": {
+        "output": [
+          {
+            "content": [
+              {
+                "text": "SYNTHETIC_SECRET_DO_NOT_REPORT"
+              }
+            ]
+          }
+        ],
+        "status": "completed",
+        "usage": {
+          "input_tokens": 10,
+          "output_tokens": 5,
+          "total_tokens": 15
+        }
+      },
+      "scope": {
+        "account_id": "synthetic-openai-account",
+        "endpoint": "https://api.openai.invalid/v1/responses",
+        "model": "fixture-responses",
+        "project_id": "synthetic-openai-project",
+        "region": "us-east-1"
+      }
+    },
+    {
+      "case_id": "aws-tool-proposal",
+      "environment_id": "synthetic-aws",
+      "estimate": {
+        "cost_microunits": 1000,
+        "output_bytes": 1000,
+        "tokens": 100
+      },
+      "expected": {
+        "decision": "approved",
+        "ledger_state": "settled",
+        "outcome": "tool_proposal",
+        "response_state": "tool_proposal",
+        "usage_state": "known_synthetic"
+      },
+      "provider": "aws",
+      "request": {
+        "canary_id": "CANARY_SYNTHETIC",
+        "max_output_tokens": 32,
+        "prompt_id": "synthetic-aws-tool-proposal"
+      },
+      "requested_tools": [
+        "read_fixture"
+      ],
+      "response": {
+        "output": {
+          "message": {
+            "content": [
+              {
+                "toolUse": {
+                  "name": "read_fixture"
+                }
+              }
+            ]
+          }
+        },
+        "stopReason": "tool_use",
+        "usage": {
+          "inputTokens": 9,
+          "outputTokens": 6,
+          "totalTokens": 15
+        }
+      },
+      "scope": {
+        "account_id": "synthetic-aws-account",
+        "endpoint": "https://bedrock.aws.invalid/model/converse",
+        "model": "fixture-bedrock",
+        "project_id": "synthetic-aws-project",
+        "region": "us-east-1"
+      }
+    },
+    {
+      "case_id": "openai-partial",
+      "environment_id": "synthetic-openai",
+      "estimate": {
+        "cost_microunits": 1000,
+        "output_bytes": 1000,
+        "tokens": 100
+      },
+      "expected": {
+        "decision": "approved",
+        "ledger_state": "usage_unknown",
+        "outcome": "no_effect",
+        "response_state": "partial",
+        "usage_state": "unknown"
+      },
+      "provider": "openai",
+      "request": {
+        "canary_id": "CANARY_SYNTHETIC",
+        "max_output_tokens": 32,
+        "prompt_id": "synthetic-openai-partial"
+      },
+      "requested_tools": [],
+      "response": {
+        "incomplete_details": {
+          "reason": "max_output_tokens"
+        },
+        "output": [
+          {
+            "text": "SYNTHETIC_SECRET_DO_NOT_REPORT"
+          }
+        ],
+        "status": "incomplete"
+      },
+      "scope": {
+        "account_id": "synthetic-openai-account",
+        "endpoint": "https://api.openai.invalid/v1/responses",
+        "model": "fixture-responses",
+        "project_id": "synthetic-openai-project",
+        "region": "us-east-1"
+      }
+    },
+    {
+      "case_id": "budget-denied",
+      "environment_id": "synthetic-openai",
+      "estimate": {
+        "cost_microunits": 1000,
+        "output_bytes": 1000,
+        "tokens": 100
+      },
+      "expected": {
+        "decision": "budget_denied",
+        "ledger_state": "none",
+        "outcome": "no_effect",
+        "response_state": "not_processed",
+        "usage_state": "not_charged"
+      },
+      "provider": "openai",
+      "request": {
+        "canary_id": "CANARY_SYNTHETIC",
+        "max_output_tokens": 32,
+        "prompt_id": "synthetic-budget-denied"
+      },
+      "requested_tools": [],
+      "response": {
+        "output": [
+          {
+            "content": [
+              {
+                "text": "SYNTHETIC_SECRET_DO_NOT_REPORT"
+              }
+            ]
+          }
+        ],
+        "status": "completed",
+        "usage": {
+          "input_tokens": 10,
+          "output_tokens": 5,
+          "total_tokens": 15
+        }
+      },
+      "scope": {
+        "account_id": "synthetic-openai-account",
+        "endpoint": "https://api.openai.invalid/v1/responses",
+        "model": "fixture-responses",
+        "project_id": "synthetic-openai-project",
+        "region": "us-east-1"
+      }
+    }
+  ],
+  "schema_version": "cops.ai-provider-assessment-cases/v1"
+}

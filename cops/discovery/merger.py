@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Any
+from datetime import UTC, datetime
 
 from .models import DiscoveredAsset, DiscoveryInventory, EvidenceProvenance
 
@@ -102,7 +101,7 @@ def merge_inventories(
         },
     }
 
-    now_iso = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    now_iso = datetime.now(UTC).isoformat().replace("+00:00", "Z")
     return DiscoveryInventory(
         timestamp=now_iso,
         assets=merged_assets,

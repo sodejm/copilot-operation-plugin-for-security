@@ -1,6 +1,6 @@
 ---
 name: soc-investigation-review
-description: Review a SOC investigation case for unsupported conclusions, contradictory evidence, missing telemetry, scope drift, and useful next steps. Use at investigation checkpoints or when handing an evidence-backed summary to an analyst. This reviews case reasoning and does not qualify hunts or rewrite Sentinel query flows.
+description: "Use for requests to review the evidence behind this alert investigation. Review a SOC investigation case for unsupported conclusions, contradictory evidence, missing telemetry, scope drift, and useful next steps. Use at investigation checkpoints or when handing an evidence-backed summary to an analyst. This reviews case reasoning and does not qualify hunts or rewrite Sentinel query flows."
 ---
 
 # SOC investigation review

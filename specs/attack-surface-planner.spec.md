@@ -37,6 +37,10 @@ labels and are never fetched.
   later implementation needs an explicit allowlist, rate budget, dry run, and audit log.
 - ASP-07: Document rules of engagement, provenance, privacy, limitations, and
   operator review. Fixture validation is not live Azure or host installation evidence.
+- ASP-08: The manifest playback copies all four pinned passive export kinds into a
+  private temporary directory, runs the real offline planner twice, verifies exact
+  deterministic output and expected in-scope, excluded, and unresolved counts,
+  and proves that active mode is rejected before planning.
 
 ## Abuse cases
 

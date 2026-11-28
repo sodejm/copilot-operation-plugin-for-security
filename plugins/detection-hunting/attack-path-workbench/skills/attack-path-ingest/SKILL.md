@@ -1,6 +1,6 @@
 ---
 name: attack-path-ingest
-description: Register and validate local attack-path export files with immutable hashes, scope, provenance, and quarantine accounting.
+description: "Use for requests to import these local security exports. Register and validate local attack-path export files with immutable hashes, scope, provenance, and quarantine accounting."
 ---
 
 # Offline intake

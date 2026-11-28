@@ -1,0 +1,14 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "ad-assessment-workbench",
+  "version": "0.1.0",
+  "description": "Analyze scoped Active Directory inventory, provenance, and candidate privilege paths offline.",
+  "author": {"name": "Justin Soderberg", "url": "https://github.com/sodejm"},
+  "repository": "https://github.com/sodejm/copilot-operation-plugin-for-security",
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "keywords": ["active-directory", "ad", "cybersecurity", "identity", "offline-analysis", "privilege-paths"],
+  "extensions": {
+    "com.openai": {"displayName": "COPS AD Assessment Workbench", "category": "Developer Tools"},
+    "org.cops": {}
+  }
+}

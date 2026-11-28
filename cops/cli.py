@@ -8,10 +8,13 @@ import json
 import platform
 import shlex
 import shutil
+import signal
 import subprocess
 import sys
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Sequence
+from threading import Event
+from typing import Any
 
 from .catalog import ROOT, CatalogError, PluginRecord, find_plugin, plugin_records, validate_declared_command
 from .coverage import (
@@ -24,6 +27,7 @@ from .coverage import (
     render_gap_report_markdown,
     review_coverage_freshness,
 )
+from .reporting.assessment import ReportError
 from .validation import ValidationError, generate_marketplaces, validate_repository
 
 
@@ -98,8 +102,8 @@ def command_doctor(*, contributor: bool, root: Path = ROOT) -> int:
     missing: list[str] = []
     print(f"COPS root: {root}")
     print(f"Python: {platform.python_version()} ({sys.executable})")
-    if sys.version_info < (3, 11):
-        missing.append("Python 3.11 or newer")
+    if sys.version_info < (3, 14):  # noqa: UP036 - diagnose unsupported Python runtimes
+        missing.append("Python 3.14 or newer")
     try:
         records = validate_repository(root)
         print(f"Catalog: {len(records)} package(s), generated indexes current")
@@ -254,20 +258,40 @@ def command_coverage(
     return 0
 
 
-def command_contract_validate(file_path: Path, contract_type: str | None = None) -> int:
+def command_contract_validate(
+    file_path: Path, contract_type: str | None = None, source_input: Path | None = None
+) -> int:
     from .contracts import ContractError, validate_contract
+    from .evidence.canonical import EvidenceError, decode_json
+    from .reporting.retest import verify_retest_report_derivation
+
     try:
         data = json.loads(file_path.read_text(encoding="utf-8"))
-        validate_contract(data, contract_type)
-        print(f"Contract valid ({data.get('schema_version')}): {file_path}")
+        is_retest_report = contract_type == "retest_report" or (
+            contract_type is None and isinstance(data, dict) and data.get("schema_version") == "cops.retest-report/v1"
+        )
+        max_bytes = 4 * 1024 * 1024 if source_input is not None or is_retest_report else 1024 * 1024
+        validate_contract(data, contract_type, max_bytes=max_bytes)
+        if source_input is not None:
+            if data.get("schema_version") != "cops.retest-report/v1":
+                raise ReportError("--source-input requires a retest report")
+            with source_input.open("rb") as source_file:
+                source = decode_json(source_file.read(4 * 1024 * 1024 + 1))
+            verify_retest_report_derivation(data, source)
+            print(f"Contract and supplied-source derivation valid ({data.get('schema_version')}): {file_path}")
+        else:
+            print(f"Contract structurally valid ({data.get('schema_version')}): {file_path}")
+        if data.get("schema_version") == "cops.retest-report/v1":
+            print("Source authenticity, observation time, ownership, cleanup, and authority remain unverified.")
         return 0
-    except (json.JSONDecodeError, ContractError, OSError) as err:
+    except (json.JSONDecodeError, ContractError, EvidenceError, ReportError, OSError) as err:
         print(f"error: {err}", file=sys.stderr)
         return 1
 
 
 def command_contract_transition(current: str, target: str, contract_type: str) -> int:
     from .contracts import ContractError, validate_transition
+
     try:
         validate_transition(current, target, contract_type)
         print(f"Valid transition for {contract_type}: {current} -> {target}")
@@ -277,8 +301,15 @@ def command_contract_transition(current: str, target: str, contract_type: str) -
         return 1
 
 
-def command_scenario_list(family_id: str | None = None, tactic: str | None = None, coverage_mode: str | None = None, as_json: bool = False, root: Path = ROOT) -> int:
+def command_scenario_list(
+    family_id: str | None = None,
+    tactic: str | None = None,
+    coverage_mode: str | None = None,
+    as_json: bool = False,
+    root: Path = ROOT,
+) -> int:
     from .scenarios import list_scenarios
+
     scenarios = list_scenarios(root, family_id=family_id, tactic=tactic, coverage_mode=coverage_mode)
     if as_json:
         print(json.dumps(scenarios, indent=2))
@@ -286,12 +317,15 @@ def command_scenario_list(family_id: str | None = None, tactic: str | None = Non
     print(f"Registered Scenarios ({len(scenarios)}):")
     for s in scenarios:
         techs = ", ".join(s.get("mitre_attack", {}).get("techniques", []))
-        print(f"  {s['scenario_id']:<20} | {s.get('family_id', ''):<15} | [{s.get('coverage_mode', '')}] {s['title']} ({techs})")
+        print(
+            f"  {s['scenario_id']:<20} | {s.get('family_id', ''):<15} | [{s.get('coverage_mode', '')}] {s['title']} ({techs})"
+        )
     return 0
 
 
 def command_scenario_info(scenario_id: str, as_json: bool = False, root: Path = ROOT) -> int:
     from .scenarios import RegistryError, get_scenario
+
     try:
         scen = get_scenario(scenario_id, root)
     except RegistryError as err:
@@ -310,9 +344,13 @@ def command_scenario_info(scenario_id: str, as_json: bool = False, root: Path = 
     print(f"Provenance: {prov.get('source_id', '')} ({prov.get('source_reference', '')})")
     print(f"License: {prov.get('license', '')} (version bound: {prov.get('version_bound', '')})")
     safety = scen.get("safety_profile", {})
-    print(f"Safety: impact={safety.get('impact')}, safe_for_production={safety.get('safe_for_production')}, reversible={safety.get('reversible')}")
+    print(
+        f"Safety: impact={safety.get('impact')}, safe_for_production={safety.get('safe_for_production')}, reversible={safety.get('reversible')}"
+    )
     env = scen.get("environment", {})
-    print(f"Environment: os={env.get('os', [])}, tools={env.get('required_tools', [])}, isolated_worker={env.get('isolated_worker_required')}")
+    print(
+        f"Environment: os={env.get('os', [])}, tools={env.get('required_tools', [])}, isolated_worker={env.get('isolated_worker_required')}"
+    )
     prereqs = scen.get("prerequisites", [])
     if prereqs:
         print("Prerequisites:")
@@ -323,6 +361,7 @@ def command_scenario_info(scenario_id: str, as_json: bool = False, root: Path = 
 
 def command_scenario_validate(root: Path = ROOT) -> int:
     from .scenarios import RegistryError, validate_scenario_and_provenance_integrity
+
     try:
         res = validate_scenario_and_provenance_integrity(root)
         print("Scenario and Provenance Registry valid:")
@@ -337,6 +376,7 @@ def command_scenario_validate(root: Path = ROOT) -> int:
 
 def command_scenario_provenance(source_id: str | None = None, as_json: bool = False, root: Path = ROOT) -> int:
     from .scenarios import RegistryError, get_provenance_source, list_provenance_sources
+
     if source_id:
         try:
             src = get_provenance_source(source_id, root)
@@ -362,12 +402,17 @@ def command_scenario_provenance(source_id: str | None = None, as_json: bool = Fa
         return 0
     print(f"Registered Provenance Sources ({len(sources)}):")
     for s in sources:
-        print(f"  {s['source_id']:<6} | {s.get('category', ''):<22} | {len(s.get('inventory', [])):>3} items | {s['name']}")
+        print(
+            f"  {s['source_id']:<6} | {s.get('category', ''):<22} | {len(s.get('inventory', [])):>3} items | {s['name']}"
+        )
     return 0
 
 
-def command_capabilities_list(mode: str | None = None, kind: str | None = None, as_json: bool = False, root: Path = ROOT) -> int:
+def command_capabilities_list(
+    mode: str | None = None, kind: str | None = None, as_json: bool = False, root: Path = ROOT
+) -> int:
     from .capabilities import build_capability_registry
+
     reg = build_capability_registry(root)
     caps = reg["capabilities"]
     if mode:
@@ -385,6 +430,7 @@ def command_capabilities_list(mode: str | None = None, kind: str | None = None, 
 
 def command_capabilities_audit(check: bool = False, root: Path = ROOT) -> int:
     from .capabilities import CapabilityTruthError, audit_capabilities, build_capability_registry
+
     try:
         reg = build_capability_registry(root)
         summary = audit_capabilities(root, registry_data=reg)
@@ -404,6 +450,7 @@ def command_capabilities_audit(check: bool = False, root: Path = ROOT) -> int:
 
 def command_capabilities_matrix(output: Path | None = None, root: Path = ROOT) -> int:
     from .capabilities import build_capability_registry, generate_capability_matrix_markdown
+
     reg = build_capability_registry(root)
     text = generate_capability_matrix_markdown(reg)
     if output:
@@ -416,16 +463,25 @@ def command_capabilities_matrix(output: Path | None = None, root: Path = ROOT) -
 
 
 def command_worker_status(args: argparse.Namespace) -> int:
-    from .execution import IsolatedWorker, WorkerConfig
+    from .execution import WorkerCapabilityInventory, WorkerConfig
+
     try:
-        worker = IsolatedWorker(WorkerConfig(worker_id=getattr(args, "worker_id", None) or "worker-local-01"))
+        inventory = WorkerCapabilityInventory.from_file(
+            args.worker_inventory,
+            expected_worker_identity=getattr(args, "worker_id", None),
+        )
+        config = WorkerConfig.from_inventory(inventory)
         info = {
-            "worker_id": worker.config.worker_id,
-            "status": "ready",
-            "enforce_unprivileged": worker.config.enforce_unprivileged,
-            "allowed_tools": list(worker.config.allowed_tools),
-            "max_wall_time_seconds": worker.config.max_wall_time_seconds,
-            "max_output_bytes": worker.config.max_output_bytes,
+            "worker_id": config.worker_id,
+            "status": "inventory_loaded",
+            "enforce_unprivileged": config.enforce_unprivileged,
+            "allowed_tools": list(config.allowed_tools),
+            "tool_versions": dict(config.tool_versions),
+            "platform_capabilities": list(config.platform_capabilities),
+            "measured_at": inventory.measured_at,
+            "measurement_source": inventory.measurement_source,
+            "max_wall_time_seconds": config.max_wall_time_seconds,
+            "max_output_bytes": config.max_output_bytes,
         }
         if getattr(args, "json", False):
             print(json.dumps(info, indent=2))
@@ -443,6 +499,7 @@ def command_worker_status(args: argparse.Namespace) -> int:
 
 def command_worker_store_list(args: argparse.Namespace) -> int:
     from .execution import ApprovalStore
+
     db_path = getattr(args, "db", None) or (Path.home() / ".cops" / "approvals.sqlite3")
     try:
         store = ApprovalStore(db_path)
@@ -452,7 +509,9 @@ def command_worker_store_list(args: argparse.Namespace) -> int:
         else:
             print(f"Approvals Store ({len(approvals)} records at {db_path}):")
             for a in approvals:
-                print(f"  {a.authorization_id:<28} | plan: {a.action_plan_id:<20} | [{a.status:<8}] operator: {a.operator}")
+                print(
+                    f"  {a.authorization_id:<28} | plan: {a.action_plan_id:<20} | [{a.status:<8}] operator: {a.operator}"
+                )
         return 0
     except Exception as err:
         print(f"error: {err}", file=sys.stderr)
@@ -460,45 +519,53 @@ def command_worker_store_list(args: argparse.Namespace) -> int:
 
 
 def command_worker_execute(args: argparse.Namespace) -> int:
-    from .contracts.models import ActionPlan, ExecutionAuthorization
-    from .execution import ApprovalStore, IsolatedWorker, WorkerConfig, ScopeGuard
+    from .contracts import ActionPlan
+    from .expansion_cli import load_bounded_json
+
     plan_path = Path(args.plan)
     if not plan_path.is_file():
         print(f"error: plan file not found: {plan_path}", file=sys.stderr)
         return 1
 
-    db_path = getattr(args, "db", None) or (Path.home() / ".cops" / "approvals.sqlite3")
     try:
-        store = ApprovalStore(db_path)
-        worker_id = getattr(args, "worker_id", None) or "worker-local-01"
+        plan = ActionPlan.from_dict(load_bounded_json(plan_path))
+        if getattr(args, "explain", False):
+            from .preview import preview_action_plan, render_preview
 
-        # Load engagement and scope guard if provided
-        scope_guard = None
-        eng_path = getattr(args, "engagement", None)
-        if eng_path and Path(eng_path).is_file():
-            eng_doc = json.loads(Path(eng_path).read_text(encoding="utf-8"))
-            scope_guard = ScopeGuard.from_engagement(eng_doc)
+            preview = preview_action_plan(plan)
+            print(json.dumps(preview, indent=2) if args.json else render_preview(preview))
+            return 0
+        if not all((args.authorization, args.worker_id, args.ssh_endpoint_inventory)):
+            raise ValueError("execution requires --authorization, --worker-id and --ssh-endpoint-inventory")
+        from .execution import SSHExecutionDispatcher, SSHRemoteEndpointInventory
 
-        worker = IsolatedWorker(WorkerConfig(worker_id=worker_id), store=store, scope_guard=scope_guard)
-        plan_doc = json.loads(plan_path.read_text(encoding="utf-8"))
-
-        auth_val: str
-        auth_path = Path(args.authorization)
-        if auth_path.is_file():
-            auth_doc = json.loads(auth_path.read_text(encoding="utf-8"))
-            auth_model = ExecutionAuthorization.from_dict(auth_doc)
-            store.store_authorization(auth_model)
-            auth_val = auth_model.authorization_id
-        else:
-            auth_val = args.authorization
-
-        result = worker.execute_plan(plan_doc, authorization=auth_val)
+        endpoint_inventory = SSHRemoteEndpointInventory.from_file(args.ssh_endpoint_inventory)
+        dispatcher = SSHExecutionDispatcher(endpoint_inventory)
+        cancellation_event = Event() if getattr(args, "cancel_on_interrupt", False) else None
+        previous_handler = None
+        if cancellation_event is not None:
+            previous_handler = signal.signal(signal.SIGINT, lambda _signum, _frame: cancellation_event.set())
+        try:
+            authorized_run = dispatcher.execute(
+                approved_worker_identity=args.worker_id,
+                authorization_id=args.authorization,
+                action_plan=plan,
+                timeout_seconds=float(plan.limits["max_duration_seconds"]),
+                max_output_bytes=int(plan.limits["max_output_bytes"]),
+                **({"cancellation_event": cancellation_event} if cancellation_event is not None else {}),
+            )
+        finally:
+            if previous_handler is not None:
+                signal.signal(signal.SIGINT, previous_handler)
+        result = authorized_run.result
         if getattr(args, "json", False):
             print(json.dumps(result.to_dict(), indent=2))
         else:
             print(f"Execution complete: {result.result_id} ({result.status})")
             if result.status != "success":
                 print(f"Reason: {result.status_details.get('reason')}")
+        if cancellation_event is not None and result.status == "cancelled":
+            return 130
         return 0 if result.is_successful() else 1
     except Exception as err:
         print(f"error: {err}", file=sys.stderr)
@@ -525,15 +592,39 @@ def build_parser() -> argparse.ArgumentParser:
     generate = subparsers.add_parser("generate", help="generate host indexes from the catalog")
     generate.add_argument("--check", action="store_true", help="fail instead of writing when indexes are stale")
 
+    service_notices = subparsers.add_parser(
+        "service-notices",
+        help="validate and assess the offline service attack notice registry",
+    )
+    service_notices_sub = service_notices.add_subparsers(dest="service_notices_command", required=True)
+    service_notices_validate = service_notices_sub.add_parser("validate", help="validate the local notice registry")
+    service_notices_validate.add_argument("--json", action="store_true", help="output structured JSON")
+    service_notices_list = service_notices_sub.add_parser("list", help="list local service attack notices")
+    service_notices_list.add_argument("--json", action="store_true", help="output structured JSON")
+    service_notices_assess = service_notices_sub.add_parser(
+        "assess", help="assess one bounded local asset context against every notice"
+    )
+    service_notices_assess.add_argument("--input", required=True, type=Path, help="bounded local asset JSON")
+    service_notices_assess.add_argument("--json", action="store_true", help="output structured JSON")
+
     cov_parser = subparsers.add_parser("coverage", help="inspect ATT&CK coverage, gap analysis, and Attack Flow")
     cov_parser.add_argument("--matrix", action="store_true", help="render the Markdown coverage matrix")
     cov_parser.add_argument("--output", type=Path, help="write coverage matrix to file")
     cov_parser.add_argument("--check", action="store_true", help="validate mappings and check matrix freshness")
     cov_parser.add_argument("--gaps", action="store_true", help="run telemetry and analytics gap analysis")
     cov_parser.add_argument("--profile", type=Path, help="environment profile for gap analysis")
-    cov_parser.add_argument("--export-flow", choices=["azure-identity", "m365-compromise"], help="export STIX 2.1 Attack Flow bundle")
+    cov_parser.add_argument(
+        "--export-flow", choices=["azure-identity", "m365-compromise"], help="export STIX 2.1 Attack Flow bundle"
+    )
     cov_parser.add_argument("--output-flow", type=Path, help="write Attack Flow bundle to file")
     cov_parser.add_argument("--json", action="store_true", help="output structured JSON")
+
+    ask = subparsers.add_parser("ask", help="complete a bundled Detection Quality fixture review")
+    selection = ask.add_mutually_exclusive_group(required=True)
+    selection.add_argument("query", nargs="?", help="plain-language request for the bundled fixture review")
+    selection.add_argument("--resume", type=Path, metavar="RUN_DIR", help="continue from a saved review")
+    ask.add_argument("--run-dir", type=Path, help="create the review in this new directory")
+    ask.add_argument("--json", action="store_true", help="emit the verified result as JSON")
 
     route_p = subparsers.add_parser("route", help="route a security task to the optimal specialist profile")
     route_p.add_argument("query", help="natural language task description or request")
@@ -542,6 +633,9 @@ def build_parser() -> argparse.ArgumentParser:
     route_p.add_argument("--scope", nargs="+", help="target scope identifiers for authorization")
     route_p.add_argument("--action", help="action name for authorization")
     route_p.add_argument("--json", action="store_true", help="output structured JSON")
+    from cops.routing.cli import add_model_arguments
+
+    add_model_arguments(route_p)
 
     spec_p = subparsers.add_parser("specialists", help="list all specialist cybersecurity agent profiles")
     spec_p.add_argument("--json", action="store_true", help="output structured JSON")
@@ -550,19 +644,55 @@ def build_parser() -> argparse.ArgumentParser:
     contract_sub = contract_p.add_subparsers(dest="contract_command", required=True)
     c_val = contract_sub.add_parser("validate", help="validate an operational contract file")
     c_val.add_argument("file", type=Path, help="path to contract JSON file")
-    c_val.add_argument("--type", choices=["engagement", "scenario", "action_plan", "run_result", "finding", "execution_authorization", "specialist_handoff", "laboratory_environment"], help="explicit contract type")
+    c_val.add_argument("--source-input", type=Path, help="recompute an offline retest report from its supplied input")
+    c_val.add_argument(
+        "--type",
+        choices=[
+            "engagement",
+            "scenario",
+            "action_plan",
+            "run_result",
+            "finding",
+            "assessment_input",
+            "assessment_report",
+            "detection_validation_input",
+            "detection_validation_report",
+            "retest_input",
+            "retest_report",
+            "execution_authorization",
+            "specialist_handoff",
+            "laboratory_environment",
+        ],
+        help="explicit contract type",
+    )
 
     c_trans = contract_sub.add_parser("transition", help="validate a lifecycle transition")
     c_trans.add_argument("current", help="current lifecycle state")
     c_trans.add_argument("target", help="target lifecycle state")
-    c_trans.add_argument("--type", choices=["engagement", "action_plan", "execution_authorization", "specialist_handoff", "laboratory_environment"], default="engagement", help="contract type")
+    c_trans.add_argument(
+        "--type",
+        choices=[
+            "engagement",
+            "action_plan",
+            "execution_authorization",
+            "specialist_handoff",
+            "laboratory_environment",
+        ],
+        default="engagement",
+        help="contract type",
+    )
 
     scen_p = subparsers.add_parser("scenario", help="inspect and validate scenario and provenance registries")
     scen_sub = scen_p.add_subparsers(dest="scenario_command", required=True)
     scen_list = scen_sub.add_parser("list", help="list registered scenarios")
     scen_list.add_argument("--family", dest="family_id", help="filter by scenario family ID")
     scen_list.add_argument("--tactic", help="filter by MITRE ATT&CK tactic")
-    scen_list.add_argument("--mode", dest="coverage_mode", choices=["planned", "implemented", "unsupported"], help="filter by coverage mode")
+    scen_list.add_argument(
+        "--mode",
+        dest="coverage_mode",
+        choices=["planned", "implemented", "unsupported"],
+        help="filter by coverage mode",
+    )
     scen_list.add_argument("--json", action="store_true", help="output structured JSON")
 
     scen_info = scen_sub.add_parser("info", help="display details for a specific scenario")
@@ -575,10 +705,14 @@ def build_parser() -> argparse.ArgumentParser:
     scen_prov.add_argument("--source", dest="source_id", help="specific source ID to inspect")
     scen_prov.add_argument("--json", action="store_true", help="output structured JSON")
 
-    cap_p = subparsers.add_parser("capabilities", help="inspect, audit, and render capability truth-in-advertising matrices")
+    cap_p = subparsers.add_parser(
+        "capabilities", help="inspect, audit, and render capability truth-in-advertising matrices"
+    )
     cap_sub = cap_p.add_subparsers(dest="capabilities_command", required=True)
     cap_l = cap_sub.add_parser("list", help="list reconciled capabilities")
-    cap_l.add_argument("--mode", choices=["planned", "import", "laboratory", "live-validated"], help="filter by operational mode")
+    cap_l.add_argument(
+        "--mode", choices=["planned", "import", "laboratory", "live-validated"], help="filter by operational mode"
+    )
     cap_l.add_argument("--kind", choices=["plugin", "specialist", "scenario"], help="filter by capability kind")
     cap_l.add_argument("--json", action="store_true", help="output structured JSON")
 
@@ -591,7 +725,13 @@ def build_parser() -> argparse.ArgumentParser:
     worker_p = subparsers.add_parser("worker", help="isolated execution worker and approval store operations")
     worker_sub = worker_p.add_subparsers(dest="worker_command", required=True)
     w_status = worker_sub.add_parser("status", help="display worker readiness and configuration")
-    w_status.add_argument("--worker-id", help="override worker identity")
+    w_status.add_argument(
+        "--worker-inventory",
+        type=Path,
+        required=True,
+        help="owner-only independently provisioned worker capability inventory",
+    )
+    w_status.add_argument("--worker-id", help="assert the expected inventory worker identity")
     w_status.add_argument("--json", action="store_true", help="output structured JSON")
 
     w_store = worker_sub.add_parser("store", help="inspect approvals in the approval store")
@@ -599,15 +739,29 @@ def build_parser() -> argparse.ArgumentParser:
     w_store.add_argument("--status", choices=["approved", "consumed", "revoked", "expired"], help="filter by status")
     w_store.add_argument("--json", action="store_true", help="output structured JSON")
 
-    w_exec = worker_sub.add_parser("execute", help="execute an authorized action plan")
-    w_exec.add_argument("plan", help="path to ActionPlan JSON file")
-    w_exec.add_argument("--authorization", required=True, help="authorization ID or path to authorization JSON file")
-    w_exec.add_argument("--worker-id", default="worker-local-01", help="override worker identity")
-    w_exec.add_argument("--engagement", type=Path, help="path to engagement JSON file for scope enforcement")
-    w_exec.add_argument("--db", type=Path, help="path to sqlite approval store")
+    w_exec = worker_sub.add_parser("execute", help="dispatch an authorized action plan to a remote worker")
+    w_exec.add_argument("plan", type=Path, help="path to ActionPlan JSON file")
+    w_exec.add_argument("--authorization", help="opaque authorization ID registered with the remote approval authority")
+    w_exec.add_argument(
+        "--worker-id",
+        help="approved worker identity resolved through the trusted SSH endpoint inventory",
+    )
+    w_exec.add_argument("--ssh-endpoint-inventory", type=Path, help="owner-only SSH endpoint inventory")
+    w_exec.add_argument(
+        "--explain",
+        "--dry-run",
+        dest="explain",
+        action="store_true",
+        help="preview without execution or approval consumption",
+    )
+    w_exec.add_argument(
+        "--cancel-on-interrupt", action="store_true", help="request cancellation and await offline worker cleanup"
+    )
     w_exec.add_argument("--json", action="store_true", help="output structured JSON")
 
-    eng_p = subparsers.add_parser("engagement", help="authorized engagement intake, scope validation, and action planning")
+    eng_p = subparsers.add_parser(
+        "engagement", help="authorized engagement intake, scope validation, and action planning"
+    )
     eng_sub = eng_p.add_subparsers(dest="engagement_command", required=True)
 
     e_create = eng_sub.add_parser("create", help="create and validate a new engagement intake contract")
@@ -617,11 +771,17 @@ def build_parser() -> argparse.ArgumentParser:
     e_create.add_argument("--exclusions", default="", help="comma-separated excluded targets")
     e_create.add_argument("--start", required=True, help="window started_at (ISO-8601)")
     e_create.add_argument("--until", required=True, help="window authorized_until_utc (ISO-8601)")
-    e_create.add_argument("--allowed-effects", "--allowed-actions", dest="allowed_effects", help="comma-separated allowed effects/actions")
-    e_create.add_argument("--max-intensity", choices=["low", "medium", "high"], default="low", help="maximum execution intensity")
+    e_create.add_argument(
+        "--allowed-effects", "--allowed-actions", dest="allowed_effects", help="comma-separated allowed effects/actions"
+    )
+    e_create.add_argument(
+        "--max-intensity", choices=["low", "medium", "high"], default="low", help="maximum execution intensity"
+    )
     e_create.add_argument("--emergency-contact", default="security-ops@internal.net", help="emergency contact")
     e_create.add_argument("--no-safe-mode", action="store_true", help="disable safe mode (default is enabled)")
-    e_create.add_argument("--mode", choices=["planning", "import", "laboratory", "live"], default="planning", help="execution mode")
+    e_create.add_argument(
+        "--mode", choices=["planning", "import", "laboratory", "live"], default="planning", help="execution mode"
+    )
     e_create.add_argument("--budget-duration", type=int, help="max duration in seconds")
     e_create.add_argument("--budget-output-bytes", type=int, help="max output in bytes")
     e_create.add_argument("--credentials", help="comma-separated credential references")
@@ -636,14 +796,47 @@ def build_parser() -> argparse.ArgumentParser:
     e_plan.add_argument("--engagement", required=True, help="path to engagement contract JSON file")
     e_plan.add_argument("--scenario", required=True, help="scenario ID (e.g. COPS-E03.01-S01) or path to scenario JSON")
     e_plan.add_argument("--target", required=True, help="target from engagement included_targets")
+    e_plan.add_argument(
+        "--tool-version",
+        dest="tool_versions",
+        action="append",
+        required=True,
+        metavar="TOOL=VERSION",
+        help="exact independently measured version for a scenario-required tool; repeat as needed",
+    )
     e_plan.add_argument("--specialist", default="cops-pentest-specialist", help="specialist profile ID")
     e_plan.add_argument("--mode", choices=["planning", "import", "laboratory", "live"], help="override execution mode")
     e_plan.add_argument("--output", help="path to save ActionPlan JSON file")
     e_plan.add_argument("--json", action="store_true", help="output JSON to stdout")
 
+    e_goal = eng_sub.add_parser(
+        "goal",
+        help="resolve one ordinary-language assessment goal to an in-scope target offline",
+    )
+    e_goal.add_argument("goal", help="ordinary-language goal naming one exact included target")
+    e_goal.add_argument("--engagement", required=True, help="path to engagement contract JSON file")
+    e_goal.add_argument("--json", action="store_true", help="output structured JSON")
+
     e_info = eng_sub.add_parser("info", help="display details of an engagement contract")
     e_info.add_argument("file", help="path to engagement JSON file")
     e_info.add_argument("--json", action="store_true", help="output structured JSON")
+
+    e_report = eng_sub.add_parser("report", help="build an offline evidence-aware assessment report")
+    e_report.add_argument("--input", required=True, type=Path, help="bounded assessment input JSON")
+    e_report.add_argument("--json-output", required=True, type=Path, help="new private report JSON file")
+    e_report.add_argument("--markdown-output", required=True, type=Path, help="new private Markdown report file")
+
+    e_detection = eng_sub.add_parser(
+        "detection-validate", help="validate imported action-linked detection evidence offline"
+    )
+    e_detection.add_argument("--input", required=True, type=Path, help="bounded detection input JSON")
+    e_detection.add_argument("--json-output", required=True, type=Path, help="new private detection report JSON file")
+    e_detection.add_argument("--markdown-output", required=True, type=Path, help="new private Markdown report file")
+
+    e_retest = eng_sub.add_parser("retest", help="compare saved assessment evidence for closure review")
+    e_retest.add_argument("--input", required=True, type=Path, help="bounded retest input JSON")
+    e_retest.add_argument("--json-output", required=True, type=Path, help="new private retest report JSON file")
+    e_retest.add_argument("--markdown-output", required=True, type=Path, help="new private Markdown report file")
 
     e_handoff = eng_sub.add_parser("handoff", help="specialist routing and bounded workflow handoffs")
     e_h_sub = e_handoff.add_subparsers(dest="handoff_command", required=True)
@@ -654,6 +847,8 @@ def build_parser() -> argparse.ArgumentParser:
     h_propose.add_argument("--task", required=True, help="task description")
     h_propose.add_argument("--planner", default="secops-lead", help="planner identifier")
     h_propose.add_argument("--specialist", help="target specialist profile ID (default: auto-route)")
+    h_propose.add_argument("--workflow-skill", help="existing contributor skill ID for this handoff")
+    h_propose.add_argument("--capability", help="registered specialist capability ID for this handoff")
     h_propose.add_argument("--output", help="output path for handoff JSON")
     h_propose.add_argument("--json", action="store_true", help="output JSON")
 
@@ -684,6 +879,8 @@ def build_parser() -> argparse.ArgumentParser:
     h_workflow.add_argument("--task", required=True, help="task description")
     h_workflow.add_argument("--planner", default="secops-lead", help="planner identifier")
     h_workflow.add_argument("--specialist", help="target specialist profile ID (default: auto-route)")
+    h_workflow.add_argument("--workflow-skill", required=True, help="existing contributor skill ID for this handoff")
+    h_workflow.add_argument("--capability", required=True, help="registered specialist capability ID for this handoff")
     h_workflow.add_argument("--output", help="output path for completed handoff JSON")
     h_workflow.add_argument("--json", action="store_true", help="output JSON")
 
@@ -697,27 +894,55 @@ def build_parser() -> argparse.ArgumentParser:
     l_ver = lab_sub.add_parser("verify", help="verify laboratory environment isolation, prerequisites, and canary")
     l_ver.add_argument("environment", help="path to laboratory environment JSON")
     l_ver.add_argument("--tools", help="comma-separated list of required tools")
-    l_ver.add_argument("--mock", action="store_true", default=True, help="use mock checks for offline testing")
+    l_ver.add_argument("--mock", action="store_true", help="validate configuration without runtime observations")
     l_ver.add_argument("--output", help="output path for verified environment JSON")
 
     l_res = lab_sub.add_parser("reset", help="reproducible reset of laboratory environment")
     l_res.add_argument("environment", help="path to laboratory environment JSON")
-    l_res.add_argument("--mock", action="store_true", default=True, help="use mock reset")
+    l_res.add_argument("--mock", action="store_true", help="validate reset configuration without performing a reset")
     l_res.add_argument("--output", help="output path for reset environment JSON")
 
     l_mat = lab_sub.add_parser("matrix", help="display tested platform and tool matrix")
     l_mat.add_argument("--output", help="output path for matrix JSON")
 
     l_run = lab_sub.add_parser("run", help="execute a laboratory test case")
-    l_run.add_argument("--environment", required=True, help="path to laboratory environment JSON")
+    l_run.add_argument("--environment", help="path to laboratory environment JSON")
+    l_run.add_argument(
+        "--evidence-dir",
+        type=Path,
+        help="absolute owner-only directory for durable evidence outside the disposable workspace",
+    )
     l_run.add_argument("--plan", required=True, help="path to action plan JSON")
-    l_run.add_argument("--authorization", required=True, help="path to execution authorization JSON")
-    l_run.add_argument("--case-type", choices=["positive", "negative", "remediated"], default="positive", help="case type")
+    l_run.add_argument("--authorization", help="path to execution authorization JSON")
+    l_run.add_argument(
+        "--worker-inventory",
+        type=Path,
+        help="owner-only independently provisioned worker capability inventory",
+    )
+    l_run.add_argument("--worker-id", help="assert the expected inventory worker identity")
+    l_run.add_argument("--authorization-trust-store", type=Path, help="verifier-owned authorization key configuration")
+    l_run.add_argument(
+        "--engagement",
+        type=Path,
+        help="path to active engagement JSON for authorization and scope enforcement",
+    )
+    l_run.add_argument(
+        "--case-type", choices=["positive", "negative", "remediated"], default="positive", help="case type"
+    )
     l_run.add_argument("--store", help="path to sqlite3 approval store")
     l_run.add_argument("--allowed-cidr", help="allowed network CIDR for scope guard")
     l_run.add_argument("--output", help="output path for case result JSON")
+    l_run.add_argument(
+        "--explain",
+        "--dry-run",
+        dest="explain",
+        action="store_true",
+        help="preview without execution or evidence writes",
+    )
+    l_run.add_argument("--json", action="store_true")
 
     from .diagnostics.cli import build_diagnostics_parser
+
     build_diagnostics_parser(subparsers)
 
     from .discovery.cli import (
@@ -730,6 +955,7 @@ def build_parser() -> argparse.ArgumentParser:
         build_messaging_parser,
         build_remote_parser,
     )
+
     build_discovery_parser(subparsers)
     active_parser = subparsers.add_parser(
         "active-discovery",
@@ -767,13 +993,24 @@ def build_parser() -> argparse.ArgumentParser:
     )
     build_legacy_parser(legacy_parser)
 
+    from .expansion_cli import register_expansion_commands
+
+    register_expansion_commands(subparsers)
     return parser
 
 
 def main(argv: list[str] | None = None, *, root: Path = ROOT) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    if args.command == "worker" and args.worker_command == "execute" and not args.explain:
+        for flag in ("authorization", "worker_id", "ssh_endpoint_inventory"):
+            if not getattr(args, flag):
+                parser.error(f"worker execute requires --{flag.replace('_', '-')} unless --explain is selected")
     try:
+        if args.command in {"explain", "assess", "report", "workflow", "web-api", "telemetry", "forensic"}:
+            from .expansion_cli import dispatch_expansion_command
+
+            return dispatch_expansion_command(args, root)
         if args.command == "list":
             return command_list(root)
         if args.command == "info":
@@ -788,6 +1025,10 @@ def main(argv: list[str] | None = None, *, root: Path = ROOT) -> int:
             return command_check(args.plugin_ids, root)
         if args.command == "generate":
             return command_generate(check=args.check, root=root)
+        if args.command == "service-notices":
+            from .service_notices import command_service_notices
+
+            return command_service_notices(args, root=root)
         if args.command == "coverage":
             return command_coverage(
                 matrix=args.matrix,
@@ -800,20 +1041,32 @@ def main(argv: list[str] | None = None, *, root: Path = ROOT) -> int:
                 as_json=args.json,
                 root=root,
             )
+        if args.command == "ask":
+            from .workflows.detection_quality import command_ask
+
+            return command_ask(args, root)
         if args.command == "route":
             from .routing.cli import command_route
+
             return command_route(args)
         if args.command == "specialists":
             from .routing.cli import command_list as spec_list
+
             return spec_list(args)
         if args.command == "contract":
             if args.contract_command == "validate":
-                return command_contract_validate(args.file, args.type)
+                return command_contract_validate(args.file, args.type, args.source_input)
             if args.contract_command == "transition":
                 return command_contract_transition(args.current, args.target, args.type)
         if args.command == "scenario":
             if args.scenario_command == "list":
-                return command_scenario_list(family_id=args.family_id, tactic=args.tactic, coverage_mode=args.coverage_mode, as_json=args.json, root=root)
+                return command_scenario_list(
+                    family_id=args.family_id,
+                    tactic=args.tactic,
+                    coverage_mode=args.coverage_mode,
+                    as_json=args.json,
+                    root=root,
+                )
             if args.scenario_command == "info":
                 return command_scenario_info(args.scenario_id, as_json=args.json, root=root)
             if args.scenario_command == "validate":
@@ -837,52 +1090,78 @@ def main(argv: list[str] | None = None, *, root: Path = ROOT) -> int:
         if args.command == "engagement":
             from .engagement.cli import (
                 command_engagement_create,
+                command_engagement_goal,
                 command_engagement_handoff,
                 command_engagement_info,
                 command_engagement_plan,
                 command_engagement_validate,
             )
+
             if args.engagement_command == "create":
                 return command_engagement_create(args)
             if args.engagement_command == "validate":
                 return command_engagement_validate(args)
             if args.engagement_command == "plan":
                 return command_engagement_plan(args)
+            if args.engagement_command == "goal":
+                return command_engagement_goal(args)
             if args.engagement_command == "info":
                 return command_engagement_info(args)
             if args.engagement_command == "handoff":
                 return command_engagement_handoff(args)
+            if args.engagement_command == "report":
+                from .reporting.cli import command_engagement_report
+
+                return command_engagement_report(args)
+            if args.engagement_command == "detection-validate":
+                from .reporting.cli import command_engagement_detection_validate
+
+                return command_engagement_detection_validate(args)
+            if args.engagement_command == "retest":
+                from .reporting.cli import command_engagement_retest
+
+                return command_engagement_retest(args)
         if args.command == "lab":
             from .laboratory.cli import command_laboratory
+
             return command_laboratory(args, root=root)
         if args.command == "diagnostics":
             from .diagnostics.cli import command_diagnostics
+
             return command_diagnostics(args, root=root)
         if args.command == "discovery":
             from .discovery.cli import command_discovery
+
             return command_discovery(args, root=root)
         if args.command == "active-discovery":
             from .discovery.cli import command_active_discovery
+
             return command_active_discovery(args, root=root)
         if args.command == "infrastructure-services":
             from .discovery.cli import command_infra_discovery
+
             return command_infra_discovery(args, root=root)
         if args.command == "remote-services":
             from .discovery.cli import command_remote_discovery
+
             return command_remote_discovery(args, root=root)
         if args.command == "data-services":
             from .discovery.cli import command_data_discovery
+
             return command_data_discovery(args, root=root)
         if args.command == "messaging-services":
             from .discovery.cli import command_messaging_discovery
+
             return command_messaging_discovery(args, root=root)
         if args.command == "developer-services":
             from .discovery.cli import command_developer_discovery
+
             return command_developer_discovery(args, root=root)
         if args.command == "legacy-services":
             from .discovery.cli import command_legacy_discovery
+
             return command_legacy_discovery(args, root=root)
-    except (CatalogError, ValidationError, CoverageError) as error:
+    except (CatalogError, ValidationError, CoverageError, ReportError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
     parser.error(f"unsupported command: {args.command}")

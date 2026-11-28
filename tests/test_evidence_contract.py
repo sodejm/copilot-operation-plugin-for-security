@@ -1,7 +1,7 @@
 """Behavior-first tests for shared provenance and integrity."""
 import json
-from pathlib import Path
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -89,6 +89,30 @@ def test_oversize_payload_rejected_before_serialization(monkeypatch, payload):
 def test_bounded_json(raw):
     with pytest.raises(EvidenceError):
         decode_json(raw, max_depth=3)
+
+
+@pytest.mark.parametrize(
+    ("payload", "encoded", "accepted"),
+    [
+        ([[0]], b"[[0]]", True),
+        ([[[0]]], b"[[[0]]]", True),
+        ([[[[0]]]], b"[[[[0]]]]", False),
+        ([[]], b"[[]]", True),
+        ([[[]]], b"[[[]]]", True),
+        ([[[[]]]], b"[[[[]]]]", False),
+    ],
+    ids=["populated-below", "populated-at", "populated-above",
+         "empty-below", "empty-at", "empty-above"],
+)
+def test_container_depth_consistent_for_canonical_and_decode(payload, encoded, accepted):
+    if accepted:
+        assert canonical(payload, max_depth=3) == encoded
+        assert decode_json(encoded, max_depth=3) == payload
+        return
+    with pytest.raises(EvidenceError, match="payload_limit"):
+        canonical(payload, max_depth=3)
+    with pytest.raises(EvidenceError, match="payload_limit"):
+        decode_json(encoded, max_depth=3)
 
 
 def test_freshness_does_not_invent_observation_time():

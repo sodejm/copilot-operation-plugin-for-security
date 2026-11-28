@@ -1,13 +1,15 @@
 """Validate actual CLI artifacts against the shipped Azure JSON Schemas."""
+
 import copy
 import json
-from pathlib import Path
 import tempfile
 import unittest
-from jsonschema import Draft202012Validator, ValidationError
+from pathlib import Path
+
 from azure_fixtures import write_bundle
-from test_azure_paths import base, role, NOW, SECRET, VAULT, T, S
-from test_azure_sdk_cli import run_cli, PLUGIN
+from jsonschema import Draft202012Validator, ValidationError
+from test_azure_paths import NOW, SECRET, VAULT, S, T, base, role
+from test_azure_sdk_cli import PLUGIN, run_cli
 
 
 def validate(document, name):
@@ -16,7 +18,38 @@ def validate(document, name):
     Draft202012Validator(schema).validate(document)
 
 
+def validate_legacy_completion(document):
+    schema = json.loads((PLUGIN / "schemas" / "completion-v1.schema.json").read_text())
+    Draft202012Validator.check_schema(schema)
+    Draft202012Validator(schema).validate(document)
+
+
 class SchemaTests(unittest.TestCase):
+    def test_legacy_completion_schema(self):
+        marker = {
+            "schema_version": "attackpath.completion/v1",
+            "run_id": "run-example",
+            "status": "complete",
+            "files": {
+                "report.json": "0" * 64,
+                "graph.json": "1" * 64,
+                "report.md": "2" * 64,
+                "remediation-ledger.json": "3" * 64,
+            },
+        }
+        validate_legacy_completion(marker)
+        for mutation in ("missing_report", "extra_report", "invalid_digest"):
+            with self.subTest(mutation=mutation):
+                malformed = copy.deepcopy(marker)
+                if mutation == "missing_report":
+                    del malformed["files"]["report.md"]
+                elif mutation == "extra_report":
+                    malformed["files"]["unexpected.json"] = "4" * 64
+                else:
+                    malformed["files"]["graph.json"] = "not-a-sha256"
+                with self.assertRaises(ValidationError):
+                    validate_legacy_completion(malformed)
+
     def test_actual_analysis_and_collection_artifacts(self):
         g = base()
         role(g, "user", data=[SECRET], scope=VAULT)
@@ -26,9 +59,13 @@ class SchemaTests(unittest.TestCase):
             output = Path(tmp) / "report"
             result = run_cli("analyze-azure", "--input", manifest, "--as-of", NOW, "--output", output)
             self.assertEqual(0, result.returncode, result.stderr)
-            for filename, schema in (("report.json", "report"), ("graph.json", "graph"),
-                                     ("evidence-ledger.json", "ledger"), ("remediation.json", "remediation"),
-                                     ("completion.json", "completion")):
+            for filename, schema in (
+                ("report.json", "report"),
+                ("graph.json", "graph"),
+                ("evidence-ledger.json", "ledger"),
+                ("remediation.json", "remediation"),
+                ("completion.json", "completion"),
+            ):
                 with self.subTest(schema=schema):
                     validate(json.loads((output / filename).read_text()), schema)
             report = json.loads((output / "report.json").read_text())

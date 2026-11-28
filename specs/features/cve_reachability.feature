@@ -69,3 +69,8 @@ Feature: Honest CVE reachability evidence reporting
 
   Scenario: Resolve packaged workflow assets
     Then the manifests and workflow assets resolve consistently
+
+  Scenario: Reject synchronized descriptor swaps
+    Given an empty repository and evidence workspace
+    When directory and leaf entries are swapped after validation
+    Then descriptor race reads fail closed with scoped errors

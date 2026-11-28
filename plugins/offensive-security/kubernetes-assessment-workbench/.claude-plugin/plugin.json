@@ -1,0 +1,7 @@
+{
+  "name": "kubernetes-assessment-workbench",
+  "version": "0.1.0",
+  "description": "Reconcile an approved Kubernetes context with a sanitized local observation without cluster access.",
+  "author": {"name": "Justin Soderberg"},
+  "license": "PolyForm-Noncommercial-1.0.0"
+}

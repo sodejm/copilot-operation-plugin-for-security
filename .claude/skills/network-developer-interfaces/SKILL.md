@@ -7,6 +7,15 @@ description: Assess developer and runtime interfaces (Docker, Docker Registry, R
 
 Execute authorized, bounded exposure and configuration assessments across developer tooling, debugging endpoints, distributed build systems, and application gateway interfaces under strict Rules of Engagement and operational boundaries.
 
+**Execution availability:** the public assessment API defaults to offline
+synthetic fixtures. CLI `--mode live` and direct calls to the standard socket
+collector are currently rejected before DNS or socket use because these
+operations do not yet have a verified worker-mediated authorization path.
+`allow_code_execution` and `allow_state_change` classify fixture cases only;
+they are not execution authorization. The plan-bound service-validation
+laboratory remains the supported executable lab path. This is a compatibility
+change for callers that previously selected live mode directly.
+
 ## Core Capabilities
 
 1. **Protocol-Specific Coverage**:
@@ -31,12 +40,13 @@ Execute authorized, bounded exposure and configuration assessments across develo
      - `non_destructive`: Benign version probes, authenticated handshake verification.
      - `state_change`: Spawning a temporary test container or registering a test branch.
      - `code_execution`: Verifying JDWP, distcc, or Docker API command invocation.
-   - Probes that can execute code (`can_execute_code`) or modify state (`can_change_state`) MUST be explicitly authorized via `--allow-code-execution` or `--allow-state-change` and bound to the approved action plan. Unauthorized code execution attempts are blocked by default.
+   - `can_execute_code` and `can_change_state` classify possible effects in synthetic assessments. The similarly named allow flags are classification inputs only; they do not authorize or enable live execution. Any future live path requires the approved immutable action plan and worker-mediated controls.
 
 3. **Routing Application Behavior vs Infrastructure & Cluster Paths**:
    - Application-layer findings (e.g. AJP servlet exposure, Docker registry manifest contents) route to web and application specialists (`cops-web-specialist`, `cops-appsec-engineer`).
    - Container cluster and cloud control-plane interfaces route to cloud infrastructure specialists (`cops-cloud-specialist`).
    - Host breakout and remote code execution findings route to penetration testing specialists (`cops-pentest-specialist`, `cops-redteam-operator`).
+   - Before cluster handoff, use `developer-services handoff --kind cluster` with exact destination allowlists and a JSON kubeconfig. The command validates context metadata offline and reports `connectivity_verified: false`.
 
 4. **Crucial Truth Boundary: Inaccessible != Secure**:
    - If an interface times out, is connection-refused, or is filtered by network controls, it is strictly recorded as `inaccessible` with `auth_prerequisite: unknown` and explicit uncertainty notes.
@@ -65,7 +75,9 @@ Execute authorized, bounded exposure and configuration assessments across develo
 ### 1. Assess Developer and Runtime Interface Services
 ```bash
 python3 -m cops developer-services assess \
-  --targets "198.51.100.50,dev-runner01.corp.internal" \
+  --mode synthetic \
+  --targets "dev-runner01.corp.internal" \
+  --offline-targets approved-fixtures.json \
   --vantage internal \
   --canary-id "canary_debug_probe" \
   --output developer_assessment.json
@@ -74,7 +86,9 @@ python3 -m cops developer-services assess \
 With authorized non-destructive code execution verification:
 ```bash
 python3 -m cops developer-services assess \
-  --targets "198.51.100.50" \
+  --mode synthetic \
+  --targets "dev-runner01.corp.internal" \
+  --offline-targets approved-fixtures.json \
   --services "docker,jdwp,distcc" \
   --allow-code-execution \
   --canary-id "canary_docker_probe" \
@@ -84,9 +98,24 @@ python3 -m cops developer-services assess \
 Or via the discovery namespace:
 ```bash
 python3 -m cops discovery developer assess \
-  --targets "198.51.100.50" \
+  --mode synthetic \
+  --targets "dev-runner01.corp.internal" \
+  --offline-targets approved-fixtures.json \
   --output developer_assessment.json
 ```
+
+Developer and runtime assessment examples use offline synthetic fixtures. The destination policy is used to scope handoff preparation; it does not authorize live network I/O. `--allow-code-execution` and `--allow-state-change` classify requested or observed impact and never grant execution authorization. See the package README for the policy schema and example.
+
+### Prepare a Cluster Handoff
+```bash
+python3 -m cops developer-services handoff \
+  --kind cluster --target-host dev-runner01.corp.internal \
+  --destination-policy destination-policy.json \
+  --cluster lab-cluster --kubeconfig kubeconfig.json \
+  --output cluster_handoff.json
+```
+
+The JSON kubeconfig must have a current context selecting `lab-cluster` and an allowed HTTPS API server hostname. This offline command does not verify connectivity or credentials.
 
 ### 2. Export Developer Privilege Candidates
 ```bash

@@ -15,10 +15,75 @@ Thank you for contributing to COPS! Whether you are fixing a bug, improving docu
 All contributions adhere to the canonical [Repository Contract (AGENTS.md)](../AGENTS.md):
 
 1. **Offline-First & Deterministic**: Offload data parsing, schema checks, and evidence evaluations to standard-library Python scripts. Reserve LLM context for reasoning and synthesis.
-2. **Standard-Library Core**: The core runner, CLI, scanner, and plugin validator must use only the Python standard library. External dependencies are strictly reserved for testing (`requirements.txt`).
+2. **Standard-Library Core**: The core runner, CLI, scanner, plugin validator,
+   and unsigned workflow discovery, validation, and playback must use only the
+   Python standard library. Signed laboratory receipt verification uses the
+   optional `laboratory` extra; Ed25519 workflow evidence signing uses the
+   optional `crypto` extra only when a caller requests signing. Contributor test
+   dependencies are in `requirements.txt`.
 3. **Dedicated Branches**: Always implement changes on a dedicated task branch based on a fresh fetch of `origin/main`.
-4. **Honest Evidence Reporting**: Never claim a check passed unless it ran in the local checkout. Clearly distinguish between offline validated tests, unverified cloud claims, and live-tested results.
+4. **Honest Evidence Reporting**: Never claim a check passed unless it ran in the local checkout. Clearly distinguish offline fixture results from laboratory evidence. No live-evidence verifier is currently registered, so filenames, flags, manifests, and receipt labels cannot support a `live-validated` claim.
 5. **No Secrets or Private Paths**: Never commit API keys, personal credentials, private tenant data, or machine-specific home paths.
+
+The [offline engagement reporting guide](ENGAGEMENT_REPORTING.md) defines the
+input bundle, assessment labels, and privacy review for findings reports.
+Changes to its joins or claims need focused tests for missing evidence,
+partial outcomes, contradictory findings, and sensitive text.
+
+### Issue model and effort preflight
+
+Before implementing an issue, apply the [model routing guide](model-effort-routing.md)
+and [contributor routing skill](../.agents/skills/route-security-specialist/SKILL.md).
+Read the issue, assess whether Daybreak would materially help, and verify the
+current model/effort against fresh exact host evidence. Pause for a supported
+change when needed; an authorized subagent override must satisfy the applicable
+launcher routing and workboard rules and does not switch the parent.
+
+Model advisor changes need focused coverage for catalog validation, freshness,
+access, capabilities, effort limits, current settings, and both CLI entry points:
+
+```bash
+python -m pytest tests/test_model_advisor.py tests/step_defs/test_model_effort_routing.py tests/test_routing.py -q
+```
+
+The full repository gate still applies. Provider access and host installation
+remain separate from offline test evidence.
+
+---
+
+## Authenticated Execution Changes
+
+Changes to Action Plans, execution authorizations, trust stores, approval storage, or worker dispatch must preserve these invariants:
+
+- secret bytes enter only through the environment variable named by verifier-owned trust configuration;
+- signatures cover the full approved Action Plan snapshot and expected worker identity;
+- key, authorization, and Engagement identities and validity windows agree;
+- worker capability inventories are owner-provisioned measurements, loaded only from
+  current-user-owned non-symlink files without group or other permission bits, and
+  never described as runtime host capability discovery;
+- external adapter dispatch verifies an operator-provisioned platform SHA-256 and
+  the adapter's pinned upstream revision, then binds version probe and operation to
+  the same held executable inode on supported Linux workers;
+- raw stdout and stderr are bounded during collection, timeout and overflow remain
+  explicit partial outcomes, and evidence writes reject symlinks and workspace
+  escapes;
+- compatibility failures happen before authority is consumed;
+- the approval authority alone holds verifier trust and the protected approval store;
+  the worker submits only an authorization identifier and exact plan through a
+  peer-credential-checked local control channel;
+- SSH requests bind a pinned host key and exact host and worker identities, and
+  required Linux process-isolation controls fail closed before consumption;
+- consumption is atomic and replay fails closed; and
+- migrated unsigned or digest-only rows remain `legacy-untrusted`.
+
+Add focused acceptance tests for tampering, unknown/revoked/expired keys, operator and worker mismatches, replay, migration, inventory ownership and permissions, exact tool/platform compatibility, authority peer credentials, SSH identity binding, and sandbox readiness. Update the [Authenticated Execution Guide](AUTHENTICATED_EXECUTION.md), Security Model, compatibility/migration guidance, and affected plugin operator docs when an interface or trust assumption changes. Never add live secrets, private paths, or realistic credential material to fixtures or evidence.
+
+For purple-team handoff changes, preserve the four documented result states and
+require every `expected_telemetry` field path to be unique. Tests must cover
+equal and conflicting duplicate values, valid multi-field predicates, and
+insufficient or malformed input. Duplicate fields must fail before handoff
+output, detection classification, or Sigma/KQL proposal generation; do not test
+or document predicate collapsing as supported behavior.
 
 ---
 
@@ -26,7 +91,7 @@ All contributions adhere to the canonical [Repository Contract (AGENTS.md)](../A
 
 ### 1. Create a Dedicated Virtual Environment
 
-COPS requires **Python 3.11 or newer**:
+COPS requires **Python 3.14 or newer**:
 
 ```bash
 # Clone the repository
@@ -76,6 +141,68 @@ make check PYTHON=.venv/bin/python
 make check-issue-coverage
 ```
 
+`make check` is the portable repository baseline.
+
+Run repository tests in a writable Git checkout. Tests that create commits or
+exercise file permissions need their own test account and checkout; keep those
+separate from a restricted execution worker and its read-only source tree.
+Preserve the worker's service restrictions when provisioning a test runner.
+
+Filesystem mutation tests must establish a real metadata change before asserting
+that the scanner rejects it. Same-tick rewrites can retain `ctime`, even after
+restoring `mtime`; metadata comparisons cannot establish a content snapshot in
+that case. TLS handshake fixtures must explicitly set their client context's
+minimum to TLS 1.2 or stronger. Distribution defaults can report
+`MINIMUM_SUPPORTED`, which the replay transport intentionally rejects before
+connecting, even when system policy separately restricts older protocols.
+
+Changes to laboratory behavior or readiness claims must also pass the mandatory
+laboratory gate:
+
+```bash
+make check-laboratory
+```
+
+That gate exercises local service activity and verifies telemetry, isolation, and restoration. Offline fixtures, generated playbooks, and generated walkthroughs validate deterministic logic and documentation; they do not establish laboratory readiness.
+
+For changes to integrated service chains, first run
+`python -m pytest -q tests/test_integrated_service_laboratory.py tests/test_check_laboratory.py tests/test_laboratory_container.py`.
+These checks cover typed prior outputs, exact service destinations, changed plans,
+wrong workers, approval replay, and restoration. The Docker gate additionally
+proves the network boundary and executes all twelve acceptance cases.
+
+Python changes must also pass `ruff check .`; YAML changes must pass `yamllint -s .`, matching the hosted quality gate. Install these tools in the development environment before running them. After changing canonical skills or portable evidence sources, regenerate adapters with `make sync-agent-adapters` and the evidence bundle with `python scripts/agent/bundle_evidence.py`, then rerun validation.
+
+Linux sandbox changes must also pass the real bubblewrap integration gate:
+
+```bash
+sudo apt-get install apparmor-profiles apparmor-utils bubblewrap util-linux
+sudo install -m 0644 /usr/share/apparmor/extra-profiles/bwrap-userns-restrict /etc/apparmor.d/bwrap-userns-restrict
+sudo apparmor_parser -r /etc/apparmor.d/bwrap-userns-restrict
+python -m pytest -m linux_bubblewrap tests/integration/test_linux_bubblewrap_sandbox.py tests/integration/test_linux_fd_scrubber_qualification.py -q
+```
+
+These setup commands target Ubuntu 24.04, whose AppArmor user-namespace policy
+otherwise blocks bubblewrap while it configures the isolated loopback interface.
+Run the gate as a non-root user with unprivileged user namespaces enabled.
+The hosted Ubuntu job treats a missing bubblewrap installation, blocked user
+namespaces, or a failed readiness probe as a failure because production dispatch
+must fail closed when these boundaries are unavailable.
+The sandbox also requires the root-owned `/usr/bin/prlimit` from `util-linux`.
+It applies the process-count limit inside the new namespace, immediately before
+the adapter starts, so the host account's existing tasks cannot block namespace
+creation on a shared runner.
+
+Security lint exceptions must describe the concrete reason at the narrowest applicable scope. Offline tests use synthetic credentials and noncryptographic seeded fuzzing; standalone scripts may set up the repository import path before imports. Public string-enum behavior is preserved rather than migrated solely to satisfy a style rule. Production authorization storage errors must propagate, and XML imports must reject entity declarations before parsing imported data.
+
+### Publishing documentation
+
+The GitHub Pages workflow validates documentation, builds the `docs/` site with
+Jekyll, prepares its index and redirect files, uploads the generated `./_site`
+directory with `actions/upload-pages-artifact@v5`, and deploys that artifact.
+Pushes to `main` that change `docs/` or the workflow trigger publication; the
+workflow can also be started manually.
+
 ### Issue Documentation & Test Coverage Requirements
 Every branch addressing an issue or feature must include:
 1. **Documentation**: Updated or newly created markdown files in `docs/`, `specs/`, or root guides.
@@ -96,7 +223,7 @@ If an administrative change, refactor, or typo fix requires an exemption, provid
 7. **Evidence Bundle Validation** (`scripts/agent/bundle_evidence.py --check`): Ensures evidence receipts adhere to schema constraints.
 8. **Host Marketplace Synchronization** (`python3 -m cops generate --check`): Verifies that `.github/`, `.claude-plugin/`, and `.agents/` marketplace files match `catalog/plugins.json`.
 9. **ATT&CK Coverage Check** (`python3 -m cops coverage --check`): Validates MITRE ATT&CK matrix mappings.
-10. **Plugin Test Suites** (`python3 -m cops check`): Runs declared offline verification suites across all 13 plugins.
+10. **Plugin Test Suites** (`python3 -m cops check`): Runs declared offline verification suites across all 25 plugins.
 11. **Pytest & Unittest Suites**: Executes all acceptance scenarios (`pytest tests`) and skill unittests.
 12. **Git Diff Check**: Confirms no trailing whitespace or corrupt line endings exist.
 
@@ -113,26 +240,38 @@ To contribute a new cybersecurity capability to COPS:
    - `vulnerability-management`
    - `offensive-security`
    - `incident-response`
+   - `governance-compliance`
 
 2. **Register the Package in `catalog/plugins.json`**:
-   Add the plugin definition including its ID, name, version, category, maturity (`experimental`, `beta`, `stable`), and operational mode (`planned`, `import`, `laboratory`, `live-validated`).
+   Add the plugin definition including its ID, name, version, category, maturity (`experimental`, `beta`, `stable`), and operational mode (`planned`, `guidance`, `import`, `laboratory`, `live-validated`).
 
 3. **Create the Package Directory Structure**:
    Place the package at `plugins/<category>/<plugin-id>/` with:
    - `plugin.json`: Core Agent Plugins v1.0.0 manifest.
    - `README.md`: Overview, target practitioners, and prerequisites.
    - `docs/PLAYBOOK.md`: Step-by-step practitioner playbook.
+   - `playbooks/offline-assessment.json`: Generated offline workflow contract.
+   - `walkthroughs/offline-assessment.md`: Generated operator walkthrough.
    - `scripts/`: Standard-library Python validation and demo scripts.
    - `tests/`: Offline synthetic test data and unit tests.
    - `skills/`: Reusable agent skills conforming to `agentskills.io`.
 
-4. **Regenerate Host Marketplaces**:
+4. **Generate Package Playbooks and Walkthroughs**:
+   ```bash
+   python3 scripts/generate_plugin_playbooks.py
+   python3 scripts/generate_plugin_playbooks.py --check
+   ```
+   The generator refreshes package-owned offline workflow assets and their `docs/PLAYBOOK.md` links for all 25 packages. Generated files must be tracked by Git to appear in a portable export. Their presence documents an offline workflow; it is not evidence of laboratory execution or live integration.
+
+   Portable packages may include approved, tracked assets under `examples/`, `playbooks/`, `walkthroughs/`, `datasets/`, `provenance/`, and `signatures/`. The exporter rejects symlinks and broken or escaping Markdown links.
+
+5. **Regenerate Host Marketplaces**:
    ```bash
    python3 -m cops generate
    ```
    This updates `.github/plugin/marketplace.json`, `.claude-plugin/marketplace.json`, and `.agents/plugins/marketplace.json` automatically.
 
-5. **Verify the New Package**:
+6. **Verify the New Package**:
    ```bash
    python3 -m cops validate <plugin-id>
    python3 -m cops demo <plugin-id>
@@ -143,6 +282,31 @@ To contribute a new cybersecurity capability to COPS:
 For complete authoring details, review [Adding a Plugin (docs/ADDING_A_PLUGIN.md)](ADDING_A_PLUGIN.md).
 
 ---
+
+## Plugin verification and maturity
+
+Every package also needs a [runnable practitioner workflow](plugin-playbacks.md).
+Its README must explain the problem it solves, usage, design choices, and data
+flow. Include schema tables that describe each artifact's purpose, fields,
+producer, consumer, validation, and example. Link `docs/PLAYBOOK.md` and
+`docs/VERIFICATION.md` from the README.
+
+The manifest demo must run the actual package tools and assert expected domain
+results, including a control or evidence-gap case and invalid-input behavior.
+Document its exact `python3 -m cops demo <plugin-id>` command in the playbook and
+link it from the shared workflow index. The catalog acceptance scenario runs
+every demo twice; new entries are included automatically. Use package tests for
+semantic comparisons when timestamps or workspace paths vary between runs.
+
+Each package has a [verification playbook](plugin-verification.md) for its complete
+user workflow. Include `docs/VERIFICATION.md` in new packages and link it from the
+package README and shared index. Update its exercise, acceptance criteria,
+negative/recovery cases, cleanup, and host instructions alongside behavior changes.
+
+Use the [record template](templates/PLUGIN_VERIFICATION_RECORD.md) and shared
+maturity gates before proposing a status update. The documentation check rejects
+missing playbooks and public maturity labels that disagree with package manifests.
+A passing CLI suite does not qualify a host installation or live integration.
 
 ## Offline Dependency Setup
 
@@ -161,3 +325,37 @@ For air-gapped or restricted network development environments:
    make check-prerequisites
    make check PYTHON=.venv/bin/python
    ```
+
+Workflow maintenance keeps checkout actions aligned with the current hosted runner runtime. The dependency pull requests update the remaining Python, CodeQL, and Pages actions; shell values used by issue summaries are quoted before passing them to the GitHub CLI.
+
+For evidence capture or persistence changes, update the
+[CodeQL evidence guard](../codeql/README.md) and run its good and bad regression
+fixtures. The CodeQL workflow runs these fixtures before extended Python analysis
+and separately analyzes Actions workflows.
+
+
+Typed network changes require `tests/test_network_policy_inputs.py` and the
+package correction demo, including vulnerable, corrected and incomplete inputs.
+Synchronize all artifact runtimes after shared parser edits. Keep policy
+predictions distinct from measured enforcement when recording laboratory readiness.
+
+For typed TLS/JWT evidence, install the declared `crypto` extra and run
+`python -m pytest -q tests/test_crypto_inputs.py tests/test_jwt_verification.py`.
+Use ephemeral keys and public certificate fixtures; never commit private key
+material or usable credentials. Run `tests/test_service_laboratory.py` and the
+strict laboratory gate to compare offline outcomes with actual requests.
+
+Workflow signing is also an explicit `crypto`-extra path. Do not add a runtime
+crypto import to workflow startup: use a subprocess with site packages disabled
+to cover workflow listing, catalog validation, and every unsigned fixture
+playback profile. Keep real Ed25519 signing, invalid-key/signature, and
+redaction tests in an environment where the extra is installed.
+
+For Actions parser changes, run `tests/test_supply_chain_corrections.py` with
+named, reordered and adjacent steps, block scalars, corrected refs and unsupported
+input mappings. Regenerate portable artifact runtimes after changing the parser.
+
+Cloud policy parser changes require `tests/test_cloud_corrections.py`, including
+conditional statements in direct AWS, Policy wrapper and Terraform plan shapes.
+Keep conditional evidence unknown, test independent unconditional statements, and
+synchronize the portable artifact runtimes.

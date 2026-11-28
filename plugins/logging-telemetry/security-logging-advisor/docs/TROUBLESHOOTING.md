@@ -3,7 +3,7 @@
 ## Local commands fail
 
 Check `python3 --version` and confirm the target exists and is readable. Use
-Python 3.11+ for contributor tooling. Invoking the scanner through Python does
+Python 3.14+ for contributor tooling. Invoking the scanner through Python does
 not require an executable bit. From the COPS repository root:
 
 ```bash

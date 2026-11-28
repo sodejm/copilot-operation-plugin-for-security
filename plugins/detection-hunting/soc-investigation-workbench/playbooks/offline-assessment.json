@@ -1,0 +1,124 @@
+{
+  "entrypoints": [
+    {
+      "argv": [
+        "python3",
+        "plugins/detection-hunting/soc-investigation-workbench/scripts/run_demo.py"
+      ],
+      "effects": {
+        "authorization": "not applicable to this offline entrypoint",
+        "network": "none declared by the offline package contract",
+        "read_scope": "exact argv-declared repository paths; the script can also select package-local fixtures, so inspect its implementation before invocation",
+        "reads": [
+          "plugins/detection-hunting/soc-investigation-workbench/scripts/run_demo.py"
+        ],
+        "subprocess": "the generator executes none; operator invocation may run subprocesses implemented by the declared repository script",
+        "temporary_storage": "implementation-controlled and not retained; location is not declared by argv",
+        "write_scope": "complete durable destinations explicitly declared in argv; an empty list means no durable destination is declared, not that the implementation performs no temporary writes",
+        "writes": []
+      },
+      "expectations": {
+        "evidence": [
+          "the declared command exits successfully",
+          "reported results are limited to the supplied offline fixtures and metadata"
+        ],
+        "inputs": {
+          "argv": [],
+          "implementation_selected": "package-local fixtures may be selected inside the declared script; review the script before invocation",
+          "review_sources": [
+            "plugins/detection-hunting/soc-investigation-workbench/package.json",
+            "plugins/detection-hunting/soc-investigation-workbench/docs/PLAYBOOK.md"
+          ]
+        },
+        "outputs": {
+          "durable_destinations": [],
+          "process": [
+            "exit status",
+            "standard output",
+            "standard error"
+          ],
+          "schemas": []
+        }
+      },
+      "id": "demo",
+      "purpose": "Run the complete malicious, benign, and insufficient-evidence investigation playback.",
+      "timeout_seconds": 60,
+      "working_directory": "."
+    },
+    {
+      "argv": [
+        "python3",
+        "plugins/detection-hunting/soc-investigation-workbench/scripts/validate-package.py"
+      ],
+      "effects": {
+        "authorization": "not applicable to this offline entrypoint",
+        "network": "none declared by the offline package contract",
+        "read_scope": "exact argv-declared repository paths; the script can also select package-local fixtures, so inspect its implementation before invocation",
+        "reads": [
+          "plugins/detection-hunting/soc-investigation-workbench/scripts/validate-package.py"
+        ],
+        "subprocess": "the generator executes none; operator invocation may run subprocesses implemented by the declared repository script",
+        "temporary_storage": "implementation-controlled and not retained; location is not declared by argv",
+        "write_scope": "complete durable destinations explicitly declared in argv; an empty list means no durable destination is declared, not that the implementation performs no temporary writes",
+        "writes": []
+      },
+      "expectations": {
+        "evidence": [
+          "the declared command exits successfully",
+          "reported results are limited to the supplied offline fixtures and metadata"
+        ],
+        "inputs": {
+          "argv": [],
+          "implementation_selected": "package-local fixtures may be selected inside the declared script; review the script before invocation",
+          "review_sources": [
+            "plugins/detection-hunting/soc-investigation-workbench/package.json",
+            "plugins/detection-hunting/soc-investigation-workbench/docs/PLAYBOOK.md"
+          ]
+        },
+        "outputs": {
+          "durable_destinations": [],
+          "process": [
+            "exit status",
+            "standard output",
+            "standard error"
+          ],
+          "schemas": []
+        }
+      },
+      "id": "validation-1",
+      "purpose": "development package gate",
+      "timeout_seconds": 120,
+      "working_directory": "."
+    }
+  ],
+  "generation": {
+    "commands_executed": false,
+    "source": "catalog/plugins.json and package metadata"
+  },
+  "limitations": [
+    "The local planner does not run security queries or response actions.",
+    "Sentinel vendor integration and live service behavior require separate validation.",
+    "Microsoft 365 acquisition requires the COPS shared evidence and connector SDK from this repository; standalone plugin installation does not include it.",
+    "Microsoft 365 live integration and the remaining issue #27 sources are unverified."
+  ],
+  "links": {
+    "operator_playbook": "../docs/PLAYBOOK.md",
+    "package_contract": "../package.json",
+    "walkthrough": "../walkthroughs/offline-assessment.md"
+  },
+  "package_path": "plugins/detection-hunting/soc-investigation-workbench",
+  "plugin_id": "soc-investigation-workbench",
+  "purpose": "Plan and review bounded, evidence-backed SOC investigations without executing queries or response actions.",
+  "schema_version": "cops.plugin-playbook/v1",
+  "status": {
+    "isolated_laboratory": "unverified",
+    "maturity": "beta",
+    "offline_workflow": "validated",
+    "support": {
+      "host_installation": "unverified",
+      "live_integration": "unverified",
+      "offline_workflow": "validated",
+      "structural_validation": "validated"
+    }
+  }
+}

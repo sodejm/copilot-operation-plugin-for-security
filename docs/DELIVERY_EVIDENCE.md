@@ -9,7 +9,7 @@ Use exact language for exact states.
 | Committed | commit ID in the intended branch |
 | Pushed | remote branch contains the commit |
 | Open for review | pull request URL and head commit |
-| Ready to merge | current required checks, reviews, threads, and mergeability |
+| Ready to merge | owner authorization, current PR head, required checks, unresolved feedback, and mergeability |
 | Merged | merge state and resulting default-branch commit |
 | Released | authoritative release/tag/package evidence |
 | Deployed | target-environment deployment and health evidence |

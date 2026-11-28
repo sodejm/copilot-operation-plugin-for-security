@@ -1,9 +1,9 @@
 """CLI regression coverage for independently managed Claude skills."""
 
-from pathlib import Path
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -31,7 +31,9 @@ def checkout(tmp_path):
 def run(root, *args):
     return subprocess.run(
         [sys.executable, str(root / "scripts/agent/sync_adapters.py"), *args],
-        capture_output=True, text=True, check=False,
+        capture_output=True,
+        text=True,
+        check=False,
     )
 
 

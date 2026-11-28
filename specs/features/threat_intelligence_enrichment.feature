@@ -13,3 +13,13 @@ Feature: Read-only threat intelligence enrichment
     Given a positive claim cached beyond its configured TTL
     When the analyst requests a cache-only lookup
     Then the result is labeled stale
+
+  Scenario: Historical replay retains expired claim provenance
+    Given an older marked claim was replaced by a later negative lookup
+    When the analyst replays the cache before the later lookup
+    Then the expired claim retains its retrieval time, marking, and source locator
+
+  Scenario: A provider rate limit stops outbound retries
+    Given a provider responds with a rate limit
+    When another indicator is looked up from the same source
+    Then the source cooldown prevents an outbound request

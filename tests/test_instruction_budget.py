@@ -1,10 +1,9 @@
 """Acceptance checks for project instruction budgets through the contract CLI."""
 
-from pathlib import Path
 import shutil
 import subprocess
 import sys
-
+from pathlib import Path
 
 SOURCE = Path(__file__).resolve().parents[1]
 
@@ -14,8 +13,13 @@ def fixture(tmp_path):
     scripts.mkdir(parents=True)
     for name in ("validate_contract.py", "repository_files.py"):
         shutil.copyfile(SOURCE / "scripts/agent" / name, scripts / name)
-    for name in ("AGENTS.md", "CLAUDE.md", ".github/copilot-instructions.md",
-                 "docs/COMPATIBILITY.md", "docs/SECURITY_MODEL.md"):
+    for name in (
+        "AGENTS.md",
+        "CLAUDE.md",
+        ".github/copilot-instructions.md",
+        "docs/COMPATIBILITY.md",
+        "docs/SECURITY_MODEL.md",
+    ):
         path = tmp_path / name
         path.parent.mkdir(parents=True, exist_ok=True)
         path.touch()
@@ -26,7 +30,9 @@ def fixture(tmp_path):
 def run_contract(root):
     return subprocess.run(
         [sys.executable, str(root / "scripts/agent/validate_contract.py")],
-        capture_output=True, text=True, check=False,
+        capture_output=True,
+        text=True,
+        check=False,
     )
 
 
@@ -76,17 +82,18 @@ def test_override_takes_precedence_per_directory(tmp_path):
 def test_repaired_squad_skills_pass_contract_validation(monkeypatch):
     import importlib.util
 
-    spec = importlib.util.spec_from_file_location(
-        "repository_contract", SOURCE / "scripts/agent/validate_contract.py")
+    spec = importlib.util.spec_from_file_location("repository_contract", SOURCE / "scripts/agent/validate_contract.py")
     sys.path.insert(0, str(SOURCE / "scripts/agent"))
     try:
         contract = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(contract)
     finally:
         sys.path.pop(0)
-    paths = [SOURCE / root / name / "SKILL.md"
-             for root in (".claude/skills", ".squad/templates/skills")
-             for name in ("humanizer", "e2e-template-testing")]
+    paths = [
+        SOURCE / root / name / "SKILL.md"
+        for root in (".claude/skills", ".squad/templates/skills")
+        for name in ("humanizer", "e2e-template-testing")
+    ]
     assert all(path.is_file() for path in paths)
     monkeypatch.setattr(contract, "repository_files", lambda root: paths)
     errors = []

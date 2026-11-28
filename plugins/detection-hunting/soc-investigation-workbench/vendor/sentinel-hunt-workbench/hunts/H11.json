@@ -1,0 +1,350 @@
+{
+  "analyst_guidance": [
+    "Treat returned stage records as observed evidence only.",
+    "The ordered joins form an investigative hypothesis, not causal or attribution proof.",
+    "Record supporting, conflicting, and missing evidence before escalation.",
+    "A separate detection-engineering review is required before operational rule conversion."
+  ],
+  "attck_mappings": [
+    {
+      "id": "T1021",
+      "name": "Remote Services",
+      "rationale": "Ordered remote authentication and execution evidence may support remote-services investigation.",
+      "version": "18"
+    }
+  ],
+  "authorized_use": "defensive_only",
+  "confounders": [
+    "jump hosts",
+    "authorized administrators",
+    "orchestration tools",
+    "shared infrastructure"
+  ],
+  "defensive_objective": "Trace remote-service evidence while accounting for jump hosts, administrators, orchestration, and shared infrastructure.",
+  "disconfirming_evidence": [
+    "Target device names map to different immutable device IDs",
+    "Process belongs to a different account",
+    "Approved orchestration explains the full chain"
+  ],
+  "entities": [
+    {
+      "class": "account",
+      "collision_risk": "names and mutable representations can collide across tenants or time; require scoped immutable identifiers",
+      "identifier": "immutable identifier emitted by the applicable stage extractor",
+      "normalization": "tostring without case folding; preserve the original source value"
+    },
+    {
+      "class": "source_device",
+      "collision_risk": "names and mutable representations can collide across tenants or time; require scoped immutable identifiers",
+      "identifier": "immutable identifier emitted by the applicable stage extractor",
+      "normalization": "tostring without case folding; preserve the original source value"
+    },
+    {
+      "class": "target_device",
+      "collision_risk": "names and mutable representations can collide across tenants or time; require scoped immutable identifiers",
+      "identifier": "immutable identifier emitted by the applicable stage extractor",
+      "normalization": "tostring without case folding; preserve the original source value"
+    },
+    {
+      "class": "process",
+      "collision_risk": "names and mutable representations can collide across tenants or time; require scoped immutable identifiers",
+      "identifier": "immutable identifier emitted by the applicable stage extractor",
+      "normalization": "tostring without case folding; preserve the original source value"
+    },
+    {
+      "class": "network_destination",
+      "collision_risk": "names and mutable representations can collide across tenants or time; require scoped immutable identifiers",
+      "identifier": "immutable identifier emitted by the applicable stage extractor",
+      "normalization": "tostring without case folding; preserve the original source value"
+    }
+  ],
+  "expected_evidence": [
+    "source-side authentication",
+    "target-device logon",
+    "process execution",
+    "outbound network evidence"
+  ],
+  "hypothesis": "A principal authenticates toward a remote device, logs on to that device, executes a process, and produces outbound network evidence in bounded order.",
+  "id": "H11",
+  "joins": [
+    {
+      "cardinality": "bounded_many_to_many_requires_fanout_review",
+      "collision_risk": "same textual value may identify different entities across tenant, workspace, reuse, rename, NAT, or proxy contexts",
+      "from": "S01",
+      "key": "Join1",
+      "time_window": "correlation_window",
+      "to": "S02",
+      "type": "inner"
+    },
+    {
+      "cardinality": "bounded_many_to_many_requires_fanout_review",
+      "collision_risk": "same textual value may identify different entities across tenant, workspace, reuse, rename, NAT, or proxy contexts",
+      "from": "S02",
+      "key": "Join2",
+      "time_window": "correlation_window",
+      "to": "S03",
+      "type": "inner"
+    },
+    {
+      "cardinality": "bounded_many_to_many_requires_fanout_review",
+      "collision_risk": "same textual value may identify different entities across tenant, workspace, reuse, rename, NAT, or proxy contexts",
+      "from": "S03",
+      "key": "Join3",
+      "time_window": "correlation_window",
+      "to": "S04",
+      "type": "inner"
+    }
+  ],
+  "offline_assurance_disclaimer": "Offline qualification leaves Microsoft Sentinel tenant behavior, operational efficacy, cost, latency, precision, recall, and false-positive performance unverified.",
+  "parameters": [
+    {
+      "name": "start_time",
+      "required": true,
+      "type": "utc_timestamp"
+    },
+    {
+      "name": "end_time",
+      "required": true,
+      "type": "utc_timestamp"
+    },
+    {
+      "name": "workspace_id",
+      "required": true,
+      "type": "workspace_identifier"
+    },
+    {
+      "name": "tenant_id",
+      "required": true,
+      "type": "tenant_identifier"
+    },
+    {
+      "default": "2h",
+      "name": "correlation_window",
+      "required": false,
+      "type": "duration"
+    }
+  ],
+  "provenance": {
+    "as_of": "2026-09-17",
+    "license_review": "pending_human_review",
+    "query_authorship": "Original query authored for Sentinel Hunt Workbench; not copied from vendor sample queries.",
+    "schema_basis": "Microsoft Azure Monitor table references listed in references."
+  },
+  "qualification_state": "draft",
+  "queries": {
+    "sentinel_analytics": {
+      "content": "// Generated original query: Sentinel Hunt Workbench\n// huntwb:time-scope\n// huntwb:tenant-scope\n// huntwb:workspace-scope\n// huntwb:order=ascending\n// huntwb:join-key=typed\n// huntwb:entity-discriminator=immutable\n// huntwb:dedup\n// huntwb:aggregate-after-correlation\n// huntwb:typed-identifiers\n// huntwb:correlation-window=bounded\n// huntwb:validity-check\n// huntwb:missing-is-unknown\n// huntwb:language=correlation\nlet start_time = {{start_time}};\nlet end_time = {{end_time}};\nlet workspace_id = {{workspace_id}};\nlet tenant_id = {{tenant_id}};\nlet correlation_window = {{correlation_window}};\nlet Stage1 = workspace(workspace_id).IdentityLogonEvents\n| where TimeGenerated between (start_time .. end_time)\n| where isnotempty(TargetDeviceName)\n| project Stage1Time=todatetime(TimeGenerated), WorkspaceScope=workspace_id, TenantScope=tenant_id, Stage1EntityId=tostring(AccountObjectId), Stage1EventId=strcat_array(pack_array(tostring(ReportId), tostring(TimeGenerated)), \"|\"), Stage1EvidenceType=\"source-side authentication\", Join1=tostring(AccountObjectId)\n| where isnotempty(Stage1EntityId) and isnotempty(Stage1EventId)\n| summarize arg_min(Stage1Time, *) by Stage1EventId;\nlet Stage1Rows = toscalar(Stage1 | count);\nlet Stage2 = workspace(workspace_id).DeviceLogonEvents\n| where TimeGenerated between (start_time .. end_time)\n| where isnotempty(DeviceId)\n| project Stage2Time=todatetime(TimeGenerated), WorkspaceScope=workspace_id, TenantScope=tenant_id, Stage2EntityId=tostring(DeviceId), Stage2EventId=strcat_array(pack_array(tostring(DeviceId), tostring(ReportId), tostring(TimeGenerated)), \"|\"), Stage2EvidenceType=\"target-device logon\", Join1=tostring(AccountObjectId), Join2=tostring(AccountObjectId)\n| where isnotempty(Stage2EntityId) and isnotempty(Stage2EventId)\n| summarize arg_min(Stage2Time, *) by Stage2EventId;\nlet Stage2Rows = toscalar(Stage2 | count);\nlet Stage3 = workspace(workspace_id).DeviceProcessEvents\n| where TimeGenerated between (start_time .. end_time)\n| where isnotempty(ProcessUniqueId)\n| project Stage3Time=todatetime(TimeGenerated), WorkspaceScope=workspace_id, TenantScope=tenant_id, Stage3EntityId=tostring(ProcessUniqueId), Stage3EventId=strcat_array(pack_array(tostring(DeviceId), tostring(ReportId), tostring(TimeGenerated)), \"|\"), Stage3EvidenceType=\"process execution\", Join2=tostring(AccountObjectId), Join3=tostring(ProcessUniqueId)\n| where isnotempty(Stage3EntityId) and isnotempty(Stage3EventId)\n| summarize arg_min(Stage3Time, *) by Stage3EventId;\nlet Stage3Rows = toscalar(Stage3 | count);\nlet Stage4 = workspace(workspace_id).DeviceNetworkEvents\n| where TimeGenerated between (start_time .. end_time)\n| where isnotempty(RemoteIP)\n| project Stage4Time=todatetime(TimeGenerated), WorkspaceScope=workspace_id, TenantScope=tenant_id, Stage4EntityId=tostring(RemoteIP), Stage4EventId=strcat_array(pack_array(tostring(DeviceId), tostring(ReportId), tostring(TimeGenerated)), \"|\"), Stage4EvidenceType=\"outbound network evidence\", Join3=tostring(InitiatingProcessUniqueId)\n| where isnotempty(Stage4EntityId) and isnotempty(Stage4EventId)\n| summarize arg_min(Stage4Time, *) by Stage4EventId;\nlet Stage4Rows = toscalar(Stage4 | count);\nStage1\n| join kind=inner Stage2 on WorkspaceScope, TenantScope, Join1\n| where Stage2Time between (Stage1Time .. Stage1Time + correlation_window)\n| join kind=inner Stage3 on WorkspaceScope, TenantScope, Join2\n| where Stage3Time between (Stage2Time .. Stage2Time + correlation_window)\n| join kind=inner Stage4 on WorkspaceScope, TenantScope, Join3\n| where Stage4Time between (Stage3Time .. Stage3Time + correlation_window)\n| project Stage1Time, Stage1EntityId, Stage1EventId, Stage1EvidenceType, Stage1Rows, Stage2Time, Stage2EntityId, Stage2EventId, Stage2EvidenceType, Stage2Rows, Stage3Time, Stage3EntityId, Stage3EventId, Stage3EvidenceType, Stage3Rows, Stage4Time, Stage4EntityId, Stage4EventId, Stage4EvidenceType, Stage4Rows, WorkspaceScope, TenantScope, EvidenceCompleteness=\"all required synthetic stages present\", CorrelationStatement=\"correlated evidence; not proof of causation or compromise\"\n| order by Stage1Time asc\n",
+      "kind": "correlation",
+      "language": "KQL",
+      "offline_assurance": "schema and static checks only until fixture execution is recorded",
+      "stage_contract": [
+        "S01",
+        "S02",
+        "S03",
+        "S04"
+      ]
+    }
+  },
+  "references": [
+    {
+      "kind": "authoritative",
+      "title": "MITRE ATT&CK Analytics",
+      "url": "https://attack.mitre.org/analytics/"
+    },
+    {
+      "kind": "authoritative",
+      "title": "MITRE ATT&CK October 2025 updates",
+      "url": "https://attack.mitre.org/resources/updates/updates-october-2025/"
+    },
+    {
+      "kind": "authoritative",
+      "title": "NIST SP 800-61 Rev. 3",
+      "url": "https://csrc.nist.gov/pubs/sp/800/61/r3/final"
+    },
+    {
+      "kind": "authoritative",
+      "title": "Microsoft schema reference: devicelogonevents",
+      "url": "https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/devicelogonevents"
+    },
+    {
+      "kind": "authoritative",
+      "title": "Microsoft schema reference: devicenetworkevents",
+      "url": "https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/devicenetworkevents"
+    },
+    {
+      "kind": "authoritative",
+      "title": "Microsoft schema reference: deviceprocessevents",
+      "url": "https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/deviceprocessevents"
+    },
+    {
+      "kind": "authoritative",
+      "title": "Microsoft schema reference: identitylogonevents",
+      "url": "https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/identitylogonevents"
+    },
+    {
+      "kind": "authoritative",
+      "title": "Hunt for threats with Microsoft Sentinel",
+      "url": "https://learn.microsoft.com/en-us/azure/sentinel/hunting"
+    },
+    {
+      "kind": "vendor_framework",
+      "title": "Splunk PEAK Threat Hunting Framework",
+      "url": "https://www.splunk.com/en_us/blog/security/peak-threat-hunting-framework.html"
+    }
+  ],
+  "stages": [
+    {
+      "entity_extractors": {
+        "account": "tostring(AccountObjectId)"
+      },
+      "event_id_fields": [
+        "ReportId",
+        "TimeGenerated"
+      ],
+      "event_time": "TimeGenerated",
+      "evidence_output": [
+        "source-side authentication"
+      ],
+      "id": "S01",
+      "join_in": null,
+      "join_out": "tostring(AccountObjectId)",
+      "order": 1,
+      "required_fields": [
+        "AccountObjectId",
+        "TargetDeviceName",
+        "ReportId"
+      ],
+      "stream": "source_authentication",
+      "table": "IdentityLogonEvents"
+    },
+    {
+      "entity_extractors": {
+        "target_device": "tostring(DeviceId)"
+      },
+      "event_id_fields": [
+        "DeviceId",
+        "ReportId",
+        "TimeGenerated"
+      ],
+      "event_time": "TimeGenerated",
+      "evidence_output": [
+        "target-device logon"
+      ],
+      "id": "S02",
+      "join_in": "tostring(AccountObjectId)",
+      "join_out": "tostring(AccountObjectId)",
+      "order": 2,
+      "required_fields": [
+        "AccountObjectId",
+        "DeviceId",
+        "LogonId",
+        "ReportId"
+      ],
+      "stream": "target_logon",
+      "table": "DeviceLogonEvents"
+    },
+    {
+      "entity_extractors": {
+        "process": "tostring(ProcessUniqueId)"
+      },
+      "event_id_fields": [
+        "DeviceId",
+        "ReportId",
+        "TimeGenerated"
+      ],
+      "event_time": "TimeGenerated",
+      "evidence_output": [
+        "process execution"
+      ],
+      "id": "S03",
+      "join_in": "tostring(AccountObjectId)",
+      "join_out": "tostring(ProcessUniqueId)",
+      "order": 3,
+      "required_fields": [
+        "AccountObjectId",
+        "DeviceId",
+        "ProcessUniqueId",
+        "ReportId"
+      ],
+      "stream": "remote_execution",
+      "table": "DeviceProcessEvents"
+    },
+    {
+      "entity_extractors": {
+        "network_destination": "tostring(RemoteIP)"
+      },
+      "event_id_fields": [
+        "DeviceId",
+        "ReportId",
+        "TimeGenerated"
+      ],
+      "event_time": "TimeGenerated",
+      "evidence_output": [
+        "outbound network evidence"
+      ],
+      "id": "S04",
+      "join_in": "tostring(InitiatingProcessUniqueId)",
+      "join_out": null,
+      "order": 4,
+      "required_fields": [
+        "InitiatingProcessUniqueId",
+        "DeviceId",
+        "RemoteIP",
+        "ReportId"
+      ],
+      "stream": "outbound_activity",
+      "table": "DeviceNetworkEvents"
+    }
+  ],
+  "stopping_rules": [
+    "Stop when immutable account or device mapping fails",
+    "Escalate after remote-service type and administrative authorization review"
+  ],
+  "surface_support": {
+    "defender_advanced_hunting": "unverified",
+    "sentinel_analytics": "supported",
+    "sentinel_data_lake": "unverified"
+  },
+  "telemetry": {
+    "latency_assumptions": [
+      "Streams can arrive late or out of order; event time controls correlation.",
+      "No production latency or retention behavior has been measured."
+    ],
+    "optional": [],
+    "required": [
+      "source_authentication",
+      "target_logon",
+      "remote_execution",
+      "outbound_activity"
+    ],
+    "timestamps": [
+      {
+        "event_time": "TimeGenerated",
+        "ingestion_time": "not used for event ordering; unavailable ingestion time remains unknown",
+        "stream": "source_authentication"
+      },
+      {
+        "event_time": "TimeGenerated",
+        "ingestion_time": "not used for event ordering; unavailable ingestion time remains unknown",
+        "stream": "target_logon"
+      },
+      {
+        "event_time": "TimeGenerated",
+        "ingestion_time": "not used for event ordering; unavailable ingestion time remains unknown",
+        "stream": "remote_execution"
+      },
+      {
+        "event_time": "TimeGenerated",
+        "ingestion_time": "not used for event ordering; unavailable ingestion time remains unknown",
+        "stream": "outbound_activity"
+      }
+    ]
+  },
+  "tests": {
+    "curated_scenarios": 48,
+    "generated_perturbations": 250,
+    "semantic_mutations": 12
+  },
+  "title": "Lateral movement with remote authentication, execution, and egress",
+  "version": "1.0.0"
+}

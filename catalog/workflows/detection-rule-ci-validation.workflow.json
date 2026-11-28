@@ -1,0 +1,261 @@
+{
+  "budget": {
+    "max_evidence_refs": 4,
+    "max_output_bytes": 1048576,
+    "max_stages": 4,
+    "max_total_attempts": 4
+  },
+  "description": "Replay correlated telemetry, execute generated Sigma and KQL-equivalent conditions against attack and benign fixtures, and report detection evidence.",
+  "engagement_id": "eng-integrated-offline-fixtures",
+  "inputs": {
+    "alerts": {
+      "required": true,
+      "type": "array"
+    },
+    "attack_fixture": {
+      "required": true,
+      "type": "array"
+    },
+    "benign_fixture": {
+      "required": true,
+      "type": "array"
+    },
+    "correlation_ids": {
+      "required": true,
+      "type": "array"
+    },
+    "evidence_refs": {
+      "required": true,
+      "type": "array"
+    },
+    "expected_telemetry": {
+      "required": true,
+      "type": "array"
+    },
+    "source_result": {
+      "required": true,
+      "type": "object"
+    },
+    "telemetry": {
+      "required": true,
+      "type": "array"
+    },
+    "time_window": {
+      "required": true,
+      "type": "object"
+    }
+  },
+  "outputs": {
+    "outcome": {
+      "source": "stage.report.output.outcome",
+      "type": "string"
+    },
+    "report": {
+      "source": "stage.report.output.report",
+      "type": "object"
+    }
+  },
+  "scenario_id": "COPS-E15.03-S01",
+  "schema_version": "cops.workflow-definition/v1",
+  "stages": [
+    {
+      "action": {
+        "action": "detection.replay_telemetry",
+        "expected_evidence": [
+          "purple handoff",
+          "replayed events"
+        ],
+        "limits": {
+          "egress_allowed": false,
+          "max_duration_seconds": 30,
+          "max_output_bytes": 262144
+        },
+        "side_effects": [],
+        "specialist_id": "cops-purple-team-coordinator",
+        "target": "fixture://detection-rule-ci-validation",
+        "timeout_seconds": 30,
+        "tool": "integrated-fixture-playback",
+        "tool_version": "1.0.0"
+      },
+      "depends_on": [],
+      "inputs": {
+        "alerts": {
+          "source": "workflow.input.alerts",
+          "type": "array"
+        },
+        "attack_fixture": {
+          "source": "workflow.input.attack_fixture",
+          "type": "array"
+        },
+        "benign_fixture": {
+          "source": "workflow.input.benign_fixture",
+          "type": "array"
+        },
+        "correlation_ids": {
+          "source": "workflow.input.correlation_ids",
+          "type": "array"
+        },
+        "evidence_refs": {
+          "source": "workflow.input.evidence_refs",
+          "type": "array"
+        },
+        "expected_telemetry": {
+          "source": "workflow.input.expected_telemetry",
+          "type": "array"
+        },
+        "source_result": {
+          "source": "workflow.input.source_result",
+          "type": "object"
+        },
+        "telemetry": {
+          "source": "workflow.input.telemetry",
+          "type": "array"
+        },
+        "time_window": {
+          "source": "workflow.input.time_window",
+          "type": "object"
+        }
+      },
+      "outputs": {
+        "replay": {
+          "type": "object"
+        }
+      },
+      "retry": {
+        "max_attempts": 1
+      },
+      "stage_id": "replay"
+    },
+    {
+      "action": {
+        "action": "detection.execute_sigma_kql",
+        "expected_evidence": [
+          "Sigma proposal",
+          "KQL proposal",
+          "correlation result"
+        ],
+        "limits": {
+          "egress_allowed": false,
+          "max_duration_seconds": 30,
+          "max_output_bytes": 262144
+        },
+        "side_effects": [],
+        "specialist_id": "cops-detection-engineer",
+        "target": "fixture://detection-rule-ci-validation",
+        "timeout_seconds": 30,
+        "tool": "integrated-fixture-playback",
+        "tool_version": "1.0.0"
+      },
+      "depends_on": [
+        "replay"
+      ],
+      "inputs": {
+        "replay": {
+          "source": "stage.replay.output.replay",
+          "type": "object"
+        }
+      },
+      "outputs": {
+        "rule_evaluation": {
+          "type": "object"
+        }
+      },
+      "retry": {
+        "max_attempts": 1
+      },
+      "stage_id": "execute"
+    },
+    {
+      "action": {
+        "action": "detection.report_fixture_counts",
+        "expected_evidence": [
+          "attack count",
+          "benign count"
+        ],
+        "limits": {
+          "egress_allowed": false,
+          "max_duration_seconds": 30,
+          "max_output_bytes": 262144
+        },
+        "side_effects": [],
+        "specialist_id": "cops-detection-engineer",
+        "target": "fixture://detection-rule-ci-validation",
+        "timeout_seconds": 30,
+        "tool": "integrated-fixture-playback",
+        "tool_version": "1.0.0"
+      },
+      "depends_on": [
+        "execute"
+      ],
+      "inputs": {
+        "rule_evaluation": {
+          "source": "stage.execute.output.rule_evaluation",
+          "type": "object"
+        }
+      },
+      "outputs": {
+        "detection_status": {
+          "type": "string"
+        },
+        "fixture_counts": {
+          "type": "object"
+        }
+      },
+      "retry": {
+        "max_attempts": 1
+      },
+      "stage_id": "counts"
+    },
+    {
+      "action": {
+        "action": "detection.build_evidence_report",
+        "expected_evidence": [
+          "detection result",
+          "fixture counts"
+        ],
+        "limits": {
+          "egress_allowed": false,
+          "max_duration_seconds": 30,
+          "max_output_bytes": 262144
+        },
+        "side_effects": [],
+        "specialist_id": "cops-purple-team-coordinator",
+        "target": "fixture://detection-rule-ci-validation",
+        "timeout_seconds": 30,
+        "tool": "integrated-fixture-playback",
+        "tool_version": "1.0.0"
+      },
+      "depends_on": [
+        "execute",
+        "counts"
+      ],
+      "inputs": {
+        "detection_status": {
+          "source": "stage.counts.output.detection_status",
+          "type": "string"
+        },
+        "fixture_counts": {
+          "source": "stage.counts.output.fixture_counts",
+          "type": "object"
+        },
+        "rule_evaluation": {
+          "source": "stage.execute.output.rule_evaluation",
+          "type": "object"
+        }
+      },
+      "outputs": {
+        "outcome": {
+          "type": "string"
+        },
+        "report": {
+          "type": "object"
+        }
+      },
+      "retry": {
+        "max_attempts": 1
+      },
+      "stage_id": "report"
+    }
+  ],
+  "workflow_id": "detection-rule-ci-validation"
+}

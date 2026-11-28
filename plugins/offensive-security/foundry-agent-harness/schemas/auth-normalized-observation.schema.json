@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "COPS provider-neutral MCP authorization observation",
+  "description": "Redacted correlation, target decision, and effect provenance for one MCP authorization attempt. Identifiers are opaque; this record alone does not establish independent effect observation.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "correlation", "request", "target_authority", "effect", "redacted"],
+  "properties": {
+    "schema_version": {"const": "cops.agent-mcp-auth-normalized-observation/v1"},
+    "correlation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["plan_digest", "case_id", "attempt_id", "request_id", "canary_id", "test_identity"],
+      "properties": {
+        "plan_digest": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "case_id": {"type": "string", "minLength": 1, "maxLength": 128},
+        "attempt_id": {"type": "string", "minLength": 1, "maxLength": 128},
+        "request_id": {"type": "string", "minLength": 1, "maxLength": 128},
+        "canary_id": {"type": "string", "minLength": 1, "maxLength": 128},
+        "test_identity": {"type": "string", "minLength": 1, "maxLength": 256}
+      }
+    },
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["principal", "agent", "peer", "tenant", "resource", "operation", "audience", "downstream_service", "tool", "requested_scopes", "delegation_depth", "authorization_alias"],
+      "properties": {
+        "principal": {"type": "string", "minLength": 1, "maxLength": 256},
+        "agent": {"type": "string", "minLength": 1, "maxLength": 256},
+        "peer": {"type": "string", "minLength": 1, "maxLength": 256},
+        "tenant": {"type": ["string", "null"], "maxLength": 256},
+        "resource": {"type": "string", "minLength": 1, "maxLength": 256},
+        "operation": {"type": "string", "minLength": 1, "maxLength": 128},
+        "audience": {"type": "string", "minLength": 1, "maxLength": 256},
+        "downstream_service": {"type": "string", "minLength": 1, "maxLength": 256},
+        "tool": {"type": "string", "minLength": 1, "maxLength": 256},
+        "requested_scopes": {"type": "array", "items": {"type": "string", "minLength": 1, "maxLength": 256}, "maxItems": 32},
+        "delegation_depth": {"type": "integer", "minimum": 0, "maximum": 32},
+        "authorization_alias": {"type": "string", "minLength": 1, "maxLength": 256, "description": "Redacted handle only; never a bearer credential or receipt."}
+      }
+    },
+    "target_authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["server_identity", "decision", "phase", "reason"],
+      "properties": {
+        "server_identity": {"type": ["string", "null"], "maxLength": 256},
+        "decision": {"enum": ["allowed", "denied", "inconclusive", "unavailable"]},
+        "phase": {"type": "string", "minLength": 1, "maxLength": 128},
+        "reason": {"type": "string", "minLength": 1, "maxLength": 256}
+      }
+    },
+    "effect": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "kinds", "count", "observer_identity", "observer_key_id", "observer_session_id", "record_authentication", "signing_authority", "observation_channel", "trust_relation"],
+      "properties": {
+        "status": {"enum": ["observed", "absent", "uncertain", "unavailable"]},
+        "kinds": {"type": "array", "items": {"type": "string", "minLength": 1, "maxLength": 128}, "maxItems": 32},
+        "count": {"type": "integer", "minimum": 0, "maximum": 32},
+        "observer_identity": {"type": ["string", "null"], "maxLength": 256},
+        "observer_key_id": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "observer_session_id": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "record_authentication": {"const": "ed25519_observer_process"},
+        "signing_authority": {"const": "observer_process_private_key"},
+        "observation_channel": {"type": "string", "minLength": 1, "maxLength": 128},
+        "trust_relation": {"enum": ["target_produced", "separate_process_same_trust_boundary", "independent", "unavailable"]}
+      }
+    },
+    "redacted": {"const": true}
+  }
+}

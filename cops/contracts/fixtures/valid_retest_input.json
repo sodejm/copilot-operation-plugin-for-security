@@ -1,0 +1,135 @@
+{
+  "baseline_plan_id": "plan-scan-10-0-0-5",
+  "baseline_report": {
+    "coverage": [
+      {
+        "access": "available",
+        "evidence_records": [
+          "d05639aeda1a86175b080c8a0f70a9e611f747f198d1d47cde8f399b9253575b"
+        ],
+        "mode": "laboratory",
+        "provenance": "laboratory",
+        "result_id": "res-scan-10-0-0-5-001",
+        "scenario_id": "COPS-E01.03-S01",
+        "status": "assessed",
+        "target": "10.0.0.5"
+      }
+    ],
+    "engagement_id": "eng-secops-20261002",
+    "evidence_notice": "Record hashes establish internal integrity only; source authenticity and authorization need separate validation.",
+    "findings": [
+      {
+        "affected_assets": [
+          "10.0.0.5"
+        ],
+        "assessment_status": "assessed",
+        "attack_path_dependencies": [],
+        "claim": "Target host 10.0.0.5 is exposing an unencrypted plaintext HTTP service on TCP port 80.",
+        "classification": "observation",
+        "confidence": "high",
+        "evidence_references": [
+          "d05639aeda1a86175b080c8a0f70a9e611f747f198d1d47cde8f399b9253575b"
+        ],
+        "evidence_strength": "recorded",
+        "finding_id": "find-open-port-http-80",
+        "kind": "observed_behavior",
+        "limitations": [],
+        "mitre_attack": [
+          "T1046"
+        ],
+        "remediation": "Enforce TLS redirection or disable unencrypted HTTP on port 80.",
+        "reproducibility": "repeatable",
+        "result_id": "res-scan-10-0-0-5-001",
+        "scenario_id": "COPS-E01.03-S01",
+        "severity": "medium",
+        "title": "Unencrypted HTTP Port 80 Open on Boundary Host",
+        "uncertainty": "none",
+        "verification": "verified"
+      }
+    ],
+    "generated_at": "2026-10-02T12:00:00Z",
+    "limitations": [
+      "Only the selected service was reviewed."
+    ],
+    "report_id": "report-internal-001",
+    "schema_version": "cops.assessment-report/v1",
+    "scope": {
+      "excluded_targets": [
+        "10.0.0.1",
+        "prod-db.internal"
+      ],
+      "included_targets": [
+        "10.0.0.0/24",
+        "corp.internal"
+      ]
+    }
+  },
+  "checks": [
+    {
+      "asset": "10.0.0.5",
+      "evidence_records": [
+        "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+      ],
+      "finding_id": "find-open-port-http-80",
+      "outcome": "absent",
+      "retest_asset": "10.0.0.5"
+    }
+  ],
+  "cleanup_receipts": [
+    {
+      "cleaned_effects": [],
+      "completed_at": "2026-10-03T12:01:00Z",
+      "created_at": "2026-10-03T12:00:00Z",
+      "engagement_id": "eng-secops-20261002",
+      "evidence_hash": "30da84599fd60e2d50fc68a454ee0a124d2a9221bfcd54e97fbed9fc47528e8c",
+      "plan_id": "plan-scan-10-0-0-5",
+      "receipt_id": "cln-retest-same",
+      "schema_version": "cops.cleanup-receipt/v1",
+      "status": "not_required",
+      "unresolved_effects": [],
+      "worker_identity": "worker-1"
+    }
+  ],
+  "generated_at": "2026-10-03T13:00:00Z",
+  "owner_acknowledged": true,
+  "owner_reference": "owner-ticket-123",
+  "residual_risks": [],
+  "retest_id": "retest-service-001",
+  "retest_plan_id": "plan-scan-10-0-0-5",
+  "retest_report": {
+    "coverage": [
+      {
+        "access": "available",
+        "evidence_records": [
+          "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+        ],
+        "mode": "laboratory",
+        "provenance": "laboratory",
+        "result_id": "res-scan-10-0-0-5-001",
+        "scenario_id": "COPS-E01.03-S01",
+        "status": "assessed",
+        "target": "10.0.0.5"
+      }
+    ],
+    "engagement_id": "eng-secops-20261002",
+    "evidence_notice": "Record hashes establish internal integrity only; source authenticity and authorization need separate validation.",
+    "findings": [],
+    "generated_at": "2026-10-03T12:00:00Z",
+    "limitations": [
+      "Only the selected service was reviewed."
+    ],
+    "report_id": "report-retest-001",
+    "schema_version": "cops.assessment-report/v1",
+    "scope": {
+      "excluded_targets": [
+        "10.0.0.1",
+        "prod-db.internal"
+      ],
+      "included_targets": [
+        "10.0.0.0/24",
+        "corp.internal"
+      ]
+    }
+  },
+  "schema_version": "cops.retest-input/v1"
+}

@@ -1,13 +1,13 @@
 """Read-only Git inventory and immutable, first-parent history measurements."""
 from __future__ import annotations
 
-from collections import Counter
-from datetime import datetime, timezone
-from fnmatch import fnmatchcase
 import hashlib
 import os
-from pathlib import Path
 import subprocess
+from collections import Counter
+from datetime import UTC, datetime
+from fnmatch import fnmatchcase
+from pathlib import Path
 
 CATEGORIES = ("production", "tests", "documentation", "generated_dependency", "unclassified")
 
@@ -19,7 +19,7 @@ def git(path, *args, data=None, check=True):
         env.pop(name, None)
     result = subprocess.run(["git", "--no-optional-locks", "--no-replace-objects", "-C", str(path),
                              "-c", "core.quotePath=false", *args], input=data,
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
+                            capture_output=True, env=env)
     if check and result.returncode:
         # Error bodies may contain private source; report only the operation.
         raise ValueError(f"Git {args[0]} failed in {path} (exit {result.returncode})")
@@ -232,7 +232,7 @@ def history(repo, start, end, config):
         for line in decode(raw).splitlines():
             ids, epoch = line.split("\t")
             fields = ids.split()
-            chain.append((fields[0], fields[1:], datetime.fromtimestamp(int(epoch), timezone.utc)))
+            chain.append((fields[0], fields[1:], datetime.fromtimestamp(int(epoch), UTC)))
         # Locate an immutable end then a contiguous ancestry range. Nonmonotonic
         # commit dates are diagnosed and disable range ratios/rework.
         before_end = [c for c in chain if c[2] < end]

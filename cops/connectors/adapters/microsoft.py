@@ -1,8 +1,10 @@
 """Two reviewed, read-only projections; provider pagination stays private."""
 import re
 from urllib.parse import parse_qsl, urlsplit
+
 from cops.evidence import EvidenceError
 from cops.evidence.canonical import canonical
+
 from ..interfaces import Page, Request
 
 UUID = re.compile(r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$')

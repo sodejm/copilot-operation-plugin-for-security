@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/sodejm/copilot-operation-plugin-for-security/catalog/schemas/package.schema.json",
+  "title": "COPS package governance contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "id",
+    "display_name",
+    "maturity",
+    "summary",
+    "support",
+    "limitations",
+    "demo",
+    "validation"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "id": {"type": "string", "minLength": 1},
+    "display_name": {"type": "string", "minLength": 1},
+    "maturity": {"enum": ["experimental", "beta", "stable"]},
+    "summary": {"type": "string", "minLength": 1},
+    "support": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["structural_validation", "offline_workflow", "host_installation", "live_integration"],
+      "properties": {
+        "structural_validation": {"enum": ["validated", "unverified"]},
+        "offline_workflow": {"enum": ["validated", "unverified", "not_applicable"]},
+        "host_installation": {"enum": ["validated", "unverified", "not_applicable"]},
+        "live_integration": {"enum": ["validated", "unverified", "not_applicable"]}
+      }
+    },
+    "limitations": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "demo": {"$ref": "#/$defs/demo"},
+    "validation": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/check"}
+    }
+  },
+  "$defs": {
+    "command": {
+      "type": "array",
+      "minItems": 2,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "demo": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["description", "command", "timeout_seconds"],
+      "properties": {
+        "description": {"type": "string", "minLength": 1},
+        "command": {"$ref": "#/$defs/command"},
+        "timeout_seconds": {"type": "integer", "minimum": 1, "maximum": 900}
+      }
+    },
+    "check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "command", "timeout_seconds"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "command": {"$ref": "#/$defs/command"},
+        "timeout_seconds": {"type": "integer", "minimum": 1, "maximum": 900}
+      }
+    }
+  }
+}
