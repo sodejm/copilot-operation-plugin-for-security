@@ -242,6 +242,19 @@
       ],
       "runner": "unittest",
       "test": "tests/test_copilot_entry.py::CopilotTests::test_interrupted_chat_resumes"
+    },
+    {
+      "kind": "boundary",
+      "entrypoint": "required GitHub validate job",
+      "given": "A pull request is draft or ready and the three prerequisite jobs return terminal states.",
+      "when": "Run the validation step for every combination of readiness and job results.",
+      "then": "Only a ready PR with headless conformance, laboratory, and portability checks all successful proceeds to the full suite.",
+      "paths": [
+        ".github/workflows/repository-contract.yml",
+        "tests/test_local_push_gate.py"
+      ],
+      "runner": "unittest",
+      "test": "tests/test_local_push_gate.py::PolicyTests::test_draft_review_workflow_blocks_until_ready_and_all_jobs_pass"
     }
   ],
   "pending": []
