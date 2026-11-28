@@ -1,9 +1,7 @@
 # Routing, capability, and workflow migration
 
-This expansion preserves existing plugin IDs and adds six experimental packages,
-six specialist profiles, and the existing API workbench. The catalog contains 25
-packages, 27 specialist profiles, and 37 canonical scenarios. No production
-integration receives `live-validated` status from fixture or laboratory results.
+The catalog contains 23 packages, 27 specialist profiles, and 37 canonical
+scenarios. Production `live-validated` status requires live evidence.
 
 ## Routing clients
 
@@ -74,10 +72,10 @@ digests are unchanged.
 
 ## Packages and portable exports
 
-The new governance category covers control mapping and evidence sufficiency.
-Cloud, supply-chain, segmentation, and TLS packages remain under vulnerability
-management; provider and runtime names are tags. Secrets remediation is under
-identity and access. Existing primary categories and package IDs stay stable.
+Governance and compliance covers control mapping and evidence sufficiency.
+Vulnerability management covers cloud configuration, software supply chain,
+network segmentation, and transport identity. Secrets remediation is under
+identity and access. Platforms and runtimes appear as tags.
 
 The existing `web-api-inventory-and-replay` skill now ships in
 `web-api-assessment-workbench`, which owns inventory and replay execution. Its
@@ -145,6 +143,80 @@ rejected, and the default image limit is 128 MiB. E01/AFF4, device capture, nati
 collection, and filesystem/memory interpretation remain separate adapter work.
 
 
+## Retired artifact workbenches
+
+The four workbenches ship under two package IDs. Use the selector to choose the
+same offline assessment and v1 evidence formats.
+
+| Retired package | Replacement package | Capability selector |
+| --- | --- | --- |
+| `cloud-posture-workbench` | `artifact-security-workbench` | `cloud_configuration` |
+| `supply-chain-cicd-workbench` | `artifact-security-workbench` | `supply_chain` |
+| `tls-crypto-workbench` | `artifact-security-workbench` | `transport_identity` |
+| `compliance-posture-workbench` | `governance-evidence-workbench` | `compliance_evidence` |
+
+1. Record the marketplace revision, enabled package IDs and versions, and
+   package pins before updating. Keep a checked copy of the previous revision
+   and its portable exports for rollback.
+2. Disable or uninstall the four retired packages. Refresh the COPS
+   marketplace in Codex, GitHub Copilot, or Claude Code from the same release
+   revision and install each replacement once. For portable installs, use the
+   matching export and verify the release checksums.
+3. Update package pins, namespaced skill references, scripts, and automation
+   paths. The four skill names and specialist IDs carry forward. The
+   repository's `python3 -m cops info <retired-package>` exits with migration
+   guidance for the requested package ID.
+4. Restart or refresh discovery. Verify that each skill appears once, the
+   retired package IDs are absent, and the replacement demos pass.
+
+### Release verification
+
+Authenticated model-driven invocation is deferred beyond the source merge.
+Verify all four skills in authenticated Codex CLI and Claude Code sessions
+before publishing the replacement packages and withdrawing the retired entries.
+
+| Client | Verified | Deferred |
+| --- | --- | --- |
+| Codex CLI 0.172.0 | Clean install, namespaced discovery of all four skills, migration, and rollback in a disposable Linux VM. The read-only sandbox permitted reads and denied writes with AppArmor enabled. | Model-driven invocation is unverified and requires an authenticated session in the isolated VM. |
+| Claude Code 2.1.263 | Native install, discovery of all four skills, migration, and rollback in an isolated profile. | Model-driven invocation is unverified because an active subscription was unavailable. |
+
+### Compatibility and rollback
+
+A saved compliance-auditor proposal can still name the
+`compliance-posture-workbench` skill. Acceptance binds the proposal to the
+replacement package's skill file and records the current workflow target
+checksum.
+
+If a GitHub Copilot local marketplace moves to a different path, record all
+enabled COPS packages before changing the source. Uninstall the enabled entries
+before removing the previous marketplace registration. Add the new source and
+reinstall the recorded packages, substituting the replacement IDs above.
+Repeat the same procedure with the previous source to roll back.
+
+Repository assessments use `python3 -m cops assess <capability>`. Repository
+reports use `python3 -m cops report artifact <capability>`. The following
+command reports on a cloud configuration artifact.
+
+```console
+python3 -m cops report artifact cloud_configuration \
+  --input assessment-input.json --as-of 2026-10-15T12:00:00Z \
+  --report-id report-001 --engagement-id eng-001 --scenario-id COPS-SCENARIO-001 \
+  --result-id res-001 --target artifact:cloud-config
+```
+
+From the replacement package directory, use `python3 scripts/report.py
+<capability>` with the same flags. For native artifact assessment JSON, use
+`python3 scripts/assess.py <capability>` with the assessment flags. Portable
+commands accept only the selectors listed for their package.
+
+For the first seven days after publication, review reports of install and
+discovery failures, changed routing or workflow behavior, and output differences
+for the same inputs. Treat an unresolved regression in these paths as a
+rollback trigger. To roll back, restore the prior marketplace revision and its
+checksum-verified exports, reinstate the previous pins and script paths,
+re-enable the prior packages, and remove the replacements. Recheck discovery,
+the four previous demos, and the release acceptance commands.
+
 ## Typed network inputs
 
 The legacy `segmentation_model` remains an allow-graph format. Use new versioned
@@ -160,7 +232,7 @@ New `certificate_chain` and `jwt_verification` artifacts use the optional pinned
 `crypto` extra and explicit local trust. Reports add `verification_results` with
 accepted, rejected or unknown outcomes. A rejection is a local observation,
 not a remote vulnerability. Missing dependencies or trust remain unknown.
-See the [typed contract](../plugins/vulnerability-management/tls-crypto-workbench/docs/CRYPTO_INPUTS.md).
+See the [typed contract](../plugins/vulnerability-management/artifact-security-workbench/docs/CRYPTO_INPUTS.md).
 
 ## Credential pattern coverage
 

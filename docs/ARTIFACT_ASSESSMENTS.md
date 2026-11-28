@@ -34,6 +34,14 @@ from standard input. CLI errors contain only a stable error code.
 
 The result uses `cops.artifact-assessment/v1`. Findings use the repository `cops.finding/v1` contract. Evidence entries contain only an artifact ID, kind, SHA-256 digest, and byte count. Artifact bodies and credential values are never copied into a report.
 
+To convert the same input to `cops.assessment-report/v1`, use
+`python3 -m cops report artifact <capability>` with the report context flags.
+The artifact security and governance evidence workbenches also ship standalone
+`scripts/assess.py` and `scripts/report.py` entry points. Both require a
+capability selector from the installed package. See the
+[workbench migration guide](EXPANSION_MIGRATION.md#retired-artifact-workbenches)
+for the supported selectors and a complete reporting command.
+
 ## Artifact envelope and limits
 
 Each artifact is a mapping with these required fields:
@@ -69,7 +77,7 @@ Install the optional repository extra with `python3 -m pip install '.[crypto]'`
 in the configured environment. Exported packages require `cryptography==50.0.2`.
 The registered `cryptographic-verification/v1` adapter is limited to 256 KiB per
 artifact and performs no key, intermediate, issuer or revocation discovery.
-See the [typed input contract](../plugins/vulnerability-management/tls-crypto-workbench/docs/CRYPTO_INPUTS.md).
+See the [typed input contract](../plugins/vulnerability-management/artifact-security-workbench/docs/CRYPTO_INPUTS.md).
 
 Typed verification emits content-free `verification_results` with `accepted`,
 `rejected` or `unknown` status, a bounded reason code and public-key/certificate

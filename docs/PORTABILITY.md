@@ -121,6 +121,11 @@ COPS uses the project namespace `org.cops` for both the manifest's
 package that uses the username-based namespace, replace the manifest key and
 directory together, update references, and regenerate any portable exports.
 
+Use marketplace indexes and portable exports from the same revision. The
+[artifact workbench migration](EXPANSION_MIGRATION.md#retired-artifact-workbenches)
+maps retired package IDs to their replacements and documents the explicit
+capability selectors.
+
 ### Declarative Prerequisites (No Surprise Scripts)
 Rather than executing arbitrary installation scripts during setup, COPS declares prerequisites as structured JSON metadata. You can inspect what external tools (like `git` or specific linters) a plugin requires without running untrusted code:
 

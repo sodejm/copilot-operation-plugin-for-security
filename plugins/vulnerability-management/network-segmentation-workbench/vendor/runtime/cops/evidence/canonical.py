@@ -81,7 +81,7 @@ def canonical(value, *, max_bytes=1024 * 1024, max_depth=32):
         result = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False).encode(
             "utf-8"
         )
-    except (ValueError, UnicodeError, RecursionError):
+    except ValueError, UnicodeError, RecursionError:
         raise EvidenceError("invalid_json") from None
     if len(result) > max_bytes:
         raise EvidenceError("payload_limit")
@@ -134,5 +134,5 @@ def decode_json(raw, *, max_bytes=4 * 1024 * 1024, max_depth=32):
         return result
     except EvidenceError:
         raise
-    except (ValueError, UnicodeError, RecursionError):
+    except ValueError, UnicodeError, RecursionError:
         raise EvidenceError("invalid_json") from None

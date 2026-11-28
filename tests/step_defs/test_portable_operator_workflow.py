@@ -182,12 +182,10 @@ EXPECTED_PLAYBACK_FIELDS: dict[str, dict[tuple[str, ...], object]] = {
 }
 
 CORRECTION_PACKAGES = {
-    "compliance-posture-workbench",
-    "cloud-posture-workbench",
-    "supply-chain-cicd-workbench",
-    "secrets-remediation-workbench",
-    "network-segmentation-workbench",
-    "tls-crypto-workbench",
+    "artifact-security-workbench": {"cloud", "supply", "transport"},
+    "governance-evidence-workbench": {"compliance"},
+    "secrets-remediation-workbench": None,
+    "network-segmentation-workbench": None,
 }
 for _package in CORRECTION_PACKAGES:
     EXPECTED_PLAYBACK_FIELDS[_package] = {
@@ -238,12 +236,14 @@ def _assert_playback_semantics(plugin_id: str, result: subprocess.CompletedProce
 
     if plugin_id in CORRECTION_PACKAGES:
         cases = payload["cases"]
-        assert {case["phase"] for case in cases} == {
-            "vulnerable",
-            "corrected",
-            "insufficient",
-            "benign",
-        }
+        phases = {"vulnerable", "corrected", "insufficient", "benign"}
+        case_prefixes = CORRECTION_PACKAGES[plugin_id]
+        if case_prefixes is None:
+            assert {case["phase"] for case in cases} == phases
+        else:
+            expected_cases = {f"{prefix}-{phase}" for prefix in case_prefixes for phase in phases}
+            assert len(cases) == len(expected_cases)
+            assert {case["case"] for case in cases} == expected_cases
         for case in cases:
             if case["phase"] == "vulnerable":
                 assert case["finding_codes"]

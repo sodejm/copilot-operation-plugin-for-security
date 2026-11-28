@@ -13,7 +13,7 @@
   <img src="https://img.shields.io/badge/assistants-Copilot%20%7C%20Claude%20%7C%20Codex-purple.svg" alt="Universal Portability">
 </p>
 
-Welcome to **COPS (Copilot Operations Plugins for Security)**! COPS is an open-source, universal catalog of 25 defensive cybersecurity plugins, 27 specialist agent profiles, 37 canonical scenarios, and deterministic offline verification tools. The current registries reconcile these sources into 89 capabilities.
+Welcome to **COPS (Copilot Operations Plugins for Security)**! COPS is an open-source, universal catalog of 23 defensive cybersecurity plugins, 27 specialist agent profiles, 37 canonical scenarios, and deterministic offline verification tools. The current registries reconcile these sources into 87 capabilities.
 
 The [AI asset inventory](docs/AI_ASSET_INVENTORY.md) documents the bounded, offline evidence graph contract.
 
@@ -52,7 +52,7 @@ cd copilot-operation-plugin-for-security
 # 2. Check your local environment health
 python3 -m cops doctor
 
-# 3. List all 25 available security plugins and their status
+# 3. List all 23 available security plugins and their status
 python3 -m cops list
 
 # 4. Recommend a specialist profile for a natural language task
@@ -94,7 +94,7 @@ In Copilot chat, ask “Check whether our Sentinel and Splunk detections catch t
 
 ### What these commands do for you
 - `cops doctor`: Checks the Python version, catalog and package manifests, and generated marketplace indexes. It does not run plugins or audit their network behavior.
-- `cops list`: Displays the 25 available security plugins, their maturity stage, and their validation status.
+- `cops list`: Displays the 23 available security plugins, their maturity stage, and their validation status.
 - `cops route`: Uses local keyword rules to recommend a specialist profile without an LLM or external API call. It does not launch an agent.
 - `cops demo`: Runs a self-contained, offline walkthrough using synthetic test data.
 - `cops check`: Executes deterministic verification suites (syntax checks, schema tests, mutation tests) right on your machine.
@@ -102,7 +102,9 @@ In Copilot chat, ask “Check whether our Sentinel and Splunk detections catch t
 
 ---
 
-## Available Security Plugins (25 Packages)
+## Available Security Plugins (23 Packages)
+
+See the [workbench migration guide](docs/EXPANSION_MIGRATION.md#retired-artifact-workbenches) for replacement package IDs and commands.
 
 Each package lives in its own self-contained directory under `plugins/<category>/<plugin-id>/` and includes a complete practitioner playbook:
 
@@ -121,10 +123,8 @@ Each package lives in its own self-contained directory under `plugins/<category>
 | **[Exposure Triage Workbench](plugins/vulnerability-management/exposure-triage-workbench/README.md)** | Vulnerability Management | <span class="badge badge-beta">Beta</span> | Prioritizes vulnerability triage by correlating advisory CVEs, SBOM components, and call graph reachability. | `python3 -m cops check exposure-triage-workbench` |
 | **[Exploit Validation Workbench](plugins/vulnerability-management/exploit-validation-workbench/README.md)** | Vulnerability Management | <span class="badge badge-experimental">Experimental</span> | Checks exact-version reproduction plans and local file digests offline; never authorizes or runs a proof. | `python3 -m cops demo exploit-validation-workbench` |
 | **[Patch Security Review](plugins/vulnerability-management/patch-security-review/README.md)** | Vulnerability Management | <span class="badge badge-beta">Beta</span> | Analyzes code patches and pull request diffs for dangerous patterns, authorization flaws, and regression risks. | `python3 -m cops check patch-security-review` |
-| **[Cloud Posture Workbench](plugins/vulnerability-management/cloud-posture-workbench/README.md)** | Vulnerability Management | <span class="badge badge-experimental">Experimental</span> | Assesses imported infrastructure, Kubernetes, IAM, and cloud configuration evidence without connecting to a tenant. | `python3 -m cops demo cloud-posture-workbench` |
-| **[Supply Chain CI/CD Workbench](plugins/vulnerability-management/supply-chain-cicd-workbench/README.md)** | Vulnerability Management | <span class="badge badge-experimental">Experimental</span> | Reviews imported lockfiles, SBOMs, workflow definitions, and provenance records for supply-chain risks. | `python3 -m cops demo supply-chain-cicd-workbench` |
+| **[Artifact Security Workbench](plugins/vulnerability-management/artifact-security-workbench/README.md)** | Vulnerability Management | <span class="badge badge-experimental">Experimental</span> | Assesses imported cloud configuration, software supply-chain, and transport identity evidence. | `python3 -m cops demo artifact-security-workbench` |
 | **[Network Segmentation Workbench](plugins/vulnerability-management/network-segmentation-workbench/README.md)** | Vulnerability Management | <span class="badge badge-experimental">Experimental</span> | Evaluates imported policy, flow, DNS, packet, and reachability evidence against intended network boundaries. | `python3 -m cops demo network-segmentation-workbench` |
-| **[TLS and Crypto Workbench](plugins/vulnerability-management/tls-crypto-workbench/README.md)** | Vulnerability Management | <span class="badge badge-experimental">Experimental</span> | Reviews imported certificate, TLS, JWT, JWKS, and OpenSSL evidence with explicit provenance and coverage limits. | `python3 -m cops demo tls-crypto-workbench` |
 | **[Attack Surface Planner](plugins/offensive-security/attack-surface-planner/README.md)** | Offensive Security | <span class="badge badge-experimental">Experimental</span> | Translates authorized rules of engagement into bounded, passive review plans from local export manifests. | `python3 -m cops demo attack-surface-planner` |
 | **[Kubernetes Assessment Workbench](plugins/offensive-security/kubernetes-assessment-workbench/README.md)** | Offensive Security | <span class="badge badge-experimental">Experimental</span> | Reconciles an approved Kubernetes context and namespace scope with a sanitized local observation. | `python3 -m cops demo kubernetes-assessment-workbench` |
 | **[Offensive Engagement Workbench](plugins/offensive-security/offensive-engagement-workbench/README.md)** | Offensive Security | <span class="badge badge-experimental">Experimental</span> | Validates authorized engagement scope and prepares reviewable action plans from local inputs. | `python3 -m cops check offensive-engagement-workbench` |
@@ -132,7 +132,7 @@ Each package lives in its own self-contained directory under `plugins/<category>
 | **[Foundry Agent Harness](plugins/offensive-security/foundry-agent-harness/README.md)** | Offensive Security | <span class="badge badge-beta">Beta</span> | Rehearses synthetic agent/MCP authorization and provider response normalization with deterministic local fixtures. | `python3 -m cops check foundry-agent-harness` |
 | **[Web API Assessment Workbench](plugins/offensive-security/web-api-assessment-workbench/README.md)** | Offensive Security | <span class="badge badge-experimental">Experimental</span> | Inventories and assesses imported HAR, OpenAPI, GraphQL, Postman, and gateway records through offline fixtures. | `python3 -m cops demo web-api-assessment-workbench` |
 | **[Incident Response Sandbox](plugins/incident-response/incident-response-sandbox/README.md)** | Incident Response | <span class="badge badge-experimental">Experimental</span> | Rehearses containment workflows, calculates blast radius, and generates cryptographic execution receipts. | `python3 -m cops check incident-response-sandbox` |
-| **[Compliance Posture Workbench](plugins/governance-compliance/compliance-posture-workbench/README.md)** | Governance & Compliance | <span class="badge badge-experimental">Experimental</span> | Maps dated, versioned evidence to SOC 2, NIST, CIS, ISO, and PCI controls while preserving missing and stale states. | `python3 -m cops demo compliance-posture-workbench` |
+| **[Governance Evidence Workbench](plugins/governance-compliance/governance-evidence-workbench/README.md)** | Governance & Compliance | <span class="badge badge-experimental">Experimental</span> | Maps dated evidence to registered SOC 2, CIS, and NIST controls and identifies missing, stale, or unknown evidence. | `python3 -m cops demo governance-evidence-workbench` |
 
 For in-depth guidance on choosing the right plugin for your operational scenario, see the **[When to Use Each Plugin Guide](docs/plugin-guide.md)**.
 

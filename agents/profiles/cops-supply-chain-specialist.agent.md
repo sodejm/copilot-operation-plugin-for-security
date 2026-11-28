@@ -4,7 +4,7 @@ display_name: COPS Supply Chain and CI/CD Specialist
 domain: defensive-operations
 criticality: normal
 interactive_authorization_required: false
-primary_plugin: supply-chain-cicd-workbench
+primary_plugin: artifact-security-workbench
 skills:
   - supply-chain-cicd-workbench
 tools:

@@ -1,12 +1,12 @@
 ---
 layout: documentation
 title: "When to Use Each COPS Plugin"
-description: "A comprehensive guide to selecting, evaluating, and running each of the 25 security plugins across defensive and offensive cybersecurity disciplines."
+description: "A comprehensive guide to selecting, evaluating, and running each of the 23 security plugins across defensive and offensive cybersecurity disciplines."
 ---
 
 # When to Use Each COPS Plugin
 
-COPS packages **25 specialized cybersecurity plugins** across seven core disciplines. Each plugin is self-contained under `plugins/<category>/<plugin-id>/` and includes deterministic Python tools, reusable AI skills, and a practitioner playbook.
+COPS packages **23 specialized cybersecurity plugins** across seven core disciplines. Each plugin is self-contained under `plugins/<category>/<plugin-id>/` and includes deterministic Python tools, reusable AI skills, and a practitioner playbook.
 
 Use the [runnable workflow index](plugin-playbacks.md) for checked examples and
 the [malicious-access walkthrough](investigate-malicious-access.md) for a complete
@@ -44,10 +44,8 @@ for the stage-by-stage requirements and a local example.
 | **Prioritize vulnerability triage with SBOM reachability** | `exposure-triage-workbench` | Vulnerability Management | <span class="badge badge-beta">Beta</span> | `import` | `python3 -m cops check exposure-triage-workbench` |
 | **Preflight an exact-version vulnerability reproduction plan** | `exploit-validation-workbench` | Vulnerability Management | <span class="badge badge-experimental">Experimental</span> | `import` | `python3 -m cops demo exploit-validation-workbench` |
 | **Review code diffs and pull requests for security flaws** | `patch-security-review` | Vulnerability Management | <span class="badge badge-beta">Beta</span> | `import` | `python3 -m cops check patch-security-review` |
-| **Assess imported cloud and infrastructure configuration** | `cloud-posture-workbench` | Vulnerability Management | <span class="badge badge-experimental">Experimental</span> | `import` | `python3 -m cops demo cloud-posture-workbench` |
-| **Review software supply-chain and CI/CD evidence** | `supply-chain-cicd-workbench` | Vulnerability Management | <span class="badge badge-experimental">Experimental</span> | `import` | `python3 -m cops demo supply-chain-cicd-workbench` |
+| **Assess imported cloud, supply-chain, and transport identity evidence** | `artifact-security-workbench` | Vulnerability Management | <span class="badge badge-experimental">Experimental</span> | `import` | `python3 -m cops demo artifact-security-workbench` |
 | **Compare network evidence with segmentation intent** | `network-segmentation-workbench` | Vulnerability Management | <span class="badge badge-experimental">Experimental</span> | `import` | `python3 -m cops demo network-segmentation-workbench` |
-| **Review TLS, certificate, JWT, and JWKS evidence** | `tls-crypto-workbench` | Vulnerability Management | <span class="badge badge-experimental">Experimental</span> | `import` | `python3 -m cops demo tls-crypto-workbench` |
 | **Plan an authorized, passive attack surface review** | `attack-surface-planner` | Offensive Security | <span class="badge badge-experimental">Experimental</span> | `planned` | `python3 -m cops demo attack-surface-planner` |
 | **Reconcile an approved Kubernetes context and namespace scope** | `kubernetes-assessment-workbench` | Offensive Security | <span class="badge badge-experimental">Experimental</span> | `import` | `python3 -m cops demo kubernetes-assessment-workbench` |
 | **Intake engagement scope and compile action plans** | `offensive-engagement-workbench` | Offensive Security | <span class="badge badge-experimental">Experimental</span> | `planned` | `python3 -m cops demo offensive-engagement-workbench` |
@@ -55,7 +53,7 @@ for the stage-by-stage requirements and a local example.
 | **Rehearse synthetic agent/MCP and provider response handling** | `foundry-agent-harness` | Offensive Security | <span class="badge badge-beta">Beta</span> | `laboratory` | `python3 -m cops check foundry-agent-harness` |
 | **Inventory and assess imported web API records** | `web-api-assessment-workbench` | Offensive Security | <span class="badge badge-experimental">Experimental</span> | `import` | `python3 -m cops demo web-api-assessment-workbench` |
 | **Rehearse containment with cryptographic receipts** | `incident-response-sandbox` | Incident Response | <span class="badge badge-experimental">Experimental</span> | `laboratory` | `python3 -m cops check incident-response-sandbox` |
-| **Map dated evidence to compliance controls** | `compliance-posture-workbench` | Governance & Compliance | <span class="badge badge-experimental">Experimental</span> | `import` | `python3 -m cops demo compliance-posture-workbench` |
+| **Map dated evidence to registered compliance controls** | `governance-evidence-workbench` | Governance & Compliance | <span class="badge badge-experimental">Experimental</span> | `import` | `python3 -m cops demo governance-evidence-workbench` |
 
 ---
 
@@ -179,21 +177,14 @@ for the stage-by-stage requirements and a local example.
 - **Playbook**: `plugins/vulnerability-management/patch-security-review/skills/patch-review/SKILL.md`
 - **Verification**: [End-to-end playbook](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/plugins/vulnerability-management/patch-security-review/docs/VERIFICATION.md)
 
-#### Cloud Posture Workbench
-- **Maturity**: <span class="badge badge-experimental">Experimental</span> | **Operational Mode**: `import`
-- **When to use**: When reviewing exported Terraform, cloud, Kubernetes, and IAM configuration evidence before deciding what needs live validation.
-- **Key Capabilities**: Versioned evidence import, posture rule evaluation, coverage reporting, and provenance-preserving findings.
-- **Boundaries**: Does not connect to a cloud tenant or establish deployed state, tenant identity, or effective production enforcement.
-- **Playbook**: `plugins/vulnerability-management/cloud-posture-workbench/`
-- **Related Specialist**: `cops-cloud-posture-specialist`
+#### Artifact Security Workbench
 
-#### Supply Chain CI/CD Workbench
 - **Maturity**: <span class="badge badge-experimental">Experimental</span> | **Operational Mode**: `import`
-- **When to use**: When reviewing lockfiles, SBOMs, workflow definitions, and provenance records for dependency and pipeline risks.
-- **Key Capabilities**: Offline artifact normalization, provenance checks, CI workflow inspection, and explicit missing-evidence reporting.
-- **Boundaries**: Does not query a package registry, execute a build, or prove runtime exploit reachability or current deployment integrity.
-- **Playbook**: `plugins/vulnerability-management/supply-chain-cicd-workbench/`
-- **Related Specialist**: `cops-supply-chain-specialist`
+- **When to use**: Review Terraform, cloud, Kubernetes, and IAM evidence with `cloud_configuration`; lockfiles, SBOMs, CI workflows, and provenance with `supply_chain`; or certificates, TLS, JWTs, JWKS, and OpenSSL evidence with `transport_identity`.
+- **Boundaries**: The workbench evaluates supplied records. Live tenant state, deployed dependencies, and endpoint enforcement require separate evidence.
+- **Playbook**: [Offline assessment](../plugins/vulnerability-management/artifact-security-workbench/docs/PLAYBOOK.md)
+- **Package**: `plugins/vulnerability-management/artifact-security-workbench/`
+- **Related specialists**: `cops-cloud-posture-specialist`, `cops-supply-chain-specialist`, and `cops-tls-crypto-specialist`
 
 #### Network Segmentation Workbench
 - **Maturity**: <span class="badge badge-experimental">Experimental</span> | **Operational Mode**: `import`
@@ -202,14 +193,6 @@ for the stage-by-stage requirements and a local example.
 - **Boundaries**: Synthetic fixture playback does not prove deployed isolation or establish that a required isolated laboratory is provisioned and ready.
 - **Playbook**: `plugins/vulnerability-management/network-segmentation-workbench/`
 - **Related Specialist**: `cops-network-segmentation-specialist`
-
-#### TLS and Crypto Workbench
-- **Maturity**: <span class="badge badge-experimental">Experimental</span> | **Operational Mode**: `import`
-- **When to use**: When evaluating imported certificate chains, TLS records, JWTs, JWKS documents, or OpenSSL output with known collection context.
-- **Key Capabilities**: Certificate and algorithm inventory, policy comparison, signature-material provenance, and explicit coverage limits.
-- **Boundaries**: Does not probe live endpoints or prove that production clients and servers negotiate or enforce the assessed configuration.
-- **Playbook**: `plugins/vulnerability-management/tls-crypto-workbench/`
-- **Related Specialist**: `cops-tls-crypto-specialist`
 
 ---
 
@@ -280,13 +263,14 @@ for the stage-by-stage requirements and a local example.
 
 ### 7. Governance & Compliance
 
-#### Compliance Posture Workbench
+#### Governance Evidence Workbench
+
 - **Maturity**: <span class="badge badge-experimental">Experimental</span> | **Operational Mode**: `import`
-- **When to use**: When mapping dated and versioned evidence to SOC 2, NIST, CIS, ISO, or PCI controls and separating gaps from stale or unknown evidence.
-- **Key Capabilities**: Evidence-to-control mapping, freshness evaluation, coverage accounting, and supported, missing, stale, or unknown outcomes.
-- **Boundaries**: Does not perform penetration testing, establish operating effectiveness, or convert incomplete evidence into a passing control result.
-- **Playbook**: `plugins/governance-compliance/compliance-posture-workbench/`
-- **Related Specialist**: `cops-compliance-auditor`
+- **When to use**: Select `compliance_evidence` to map dated and versioned evidence to the registered SOC 2, CIS, and NIST control subset.
+- **Boundaries**: The report distinguishes supported, missing, stale, and unknown evidence. Audit conclusions and operating effectiveness require separate evidence.
+- **Playbook**: [Offline assessment](../plugins/governance-compliance/governance-evidence-workbench/docs/PLAYBOOK.md)
+- **Package**: `plugins/governance-compliance/governance-evidence-workbench/`
+- **Related specialist**: `cops-compliance-auditor`
 
 ---
 
@@ -299,7 +283,7 @@ To maintain absolute integrity and avoid capability over-claiming, COPS reconcil
 - **`laboratory`**: Controlled offline simulation, synthetic event replay, or sandbox rehearsal. A passing bundled fixture covers only that fixture path and does not establish that a separately required isolated laboratory is provisioned or ready.
 - **`live-validated`**: Fully authorized, live-tested execution path against an authorized environment with cryptographic evidence receipt. Currently 0 capabilities claim live-validated, ensuring zero false claims.
 
-To audit all 89 capabilities across 25 plugins, 27 specialist profiles, and 37 canonical scenarios:
+To audit all 87 capabilities across 23 plugins, 27 specialist profiles, and 37 canonical scenarios:
 
 ```bash
 python3 -m cops capabilities audit --check

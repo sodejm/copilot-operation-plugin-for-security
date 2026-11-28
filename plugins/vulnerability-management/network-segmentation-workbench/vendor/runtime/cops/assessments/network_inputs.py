@@ -373,7 +373,7 @@ def inspect_network(kind: str, value: Any, as_of: datetime) -> NetworkInput:
             _flows(value, result, as_of)
         elif kind == "dns_evidence":
             _dns(value, result, as_of)
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         # Never publish predictions computed from a partially interpreted policy.
         result.codes.clear()
         result.incomplete = True

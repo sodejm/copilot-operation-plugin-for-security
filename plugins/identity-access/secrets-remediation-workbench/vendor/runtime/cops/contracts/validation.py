@@ -49,6 +49,7 @@ SCHEMA_MAP: dict[str, str] = {
     "cops.detection-validation-report/v1": "detection-validation-report.schema.json",
     "cops.retest-input/v1": "retest-input.schema.json",
     "cops.retest-report/v1": "retest-report.schema.json",
+    "cops.laboratory-retest-evidence/v1": "laboratory-retest-evidence.schema.json",
 }
 
 TYPE_MAP: dict[str, str] = {
@@ -68,6 +69,7 @@ TYPE_MAP: dict[str, str] = {
     "cops.detection-validation-report/v1": "detection_validation_report",
     "cops.retest-input/v1": "retest_input",
     "cops.retest-report/v1": "retest_report",
+    "cops.laboratory-retest-evidence/v1": "laboratory_retest_evidence",
 }
 
 

@@ -258,7 +258,7 @@ def _application_security(
         if artifact.kind == "python_source" and text is not None:
             try:
                 tree = ast.parse(text)
-            except (SyntaxError, ValueError):
+            except SyntaxError, ValueError:
                 issues.append(_unresolved(artifact, "python_source"))
                 continue
             analyzed.add(artifact.artifact_id)
@@ -657,7 +657,7 @@ def _malware(items: list[_Artifact], _as_of: datetime) -> tuple[list[_Issue], li
         elif artifact.kind == "powershell_encoded" and isinstance(artifact.content, str):
             try:
                 raw = base64.b64decode(artifact.content, validate=True)
-            except (binascii.Error, ValueError):
+            except binascii.Error, ValueError:
                 issues.append(_unresolved(artifact, "powershell_encoding"))
                 continue
             if len(raw) > 262_144:
@@ -1100,7 +1100,7 @@ def _b64url_json(value: str) -> dict[str, Any] | None:
     try:
         raw = base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
         result = json.loads(raw.decode("utf-8"))
-    except (ValueError, UnicodeError, binascii.Error, json.JSONDecodeError):
+    except ValueError, UnicodeError, binascii.Error, json.JSONDecodeError:
         return None
     return result if isinstance(result, dict) else None
 

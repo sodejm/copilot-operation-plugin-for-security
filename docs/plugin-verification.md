@@ -38,12 +38,10 @@ limits. The index deliberately does not repeat status labels.
 | COPS Incident Response Sandbox | [Run the playbook](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/plugins/incident-response/incident-response-sandbox/docs/VERIFICATION.md) |
 | COPS Host Assessment Workbench | [Run the playbook](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/plugins/offensive-security/host-assessment-workbench/docs/VERIFICATION.md) |
 | COPS Offensive Engagement Workbench | [Run the playbook](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/plugins/offensive-security/offensive-engagement-workbench/docs/VERIFICATION.md) |
-| COPS Compliance Posture Workbench | [Run the playbook](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/plugins/governance-compliance/compliance-posture-workbench/docs/VERIFICATION.md) |
-| COPS Cloud Posture Workbench | [Run the playbook](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/plugins/vulnerability-management/cloud-posture-workbench/docs/VERIFICATION.md) |
-| COPS Supply Chain and CI/CD Workbench | [Run the playbook](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/plugins/vulnerability-management/supply-chain-cicd-workbench/docs/VERIFICATION.md) |
+| COPS Governance Evidence Workbench | [Run the playbook](../plugins/governance-compliance/governance-evidence-workbench/docs/VERIFICATION.md) |
+| COPS Artifact Security Workbench | [Run the playbook](../plugins/vulnerability-management/artifact-security-workbench/docs/VERIFICATION.md) |
 | COPS Secrets Remediation Workbench | [Run the playbook](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/plugins/identity-access/secrets-remediation-workbench/docs/VERIFICATION.md) |
 | COPS Network Segmentation Workbench | [Run the playbook](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/plugins/vulnerability-management/network-segmentation-workbench/docs/VERIFICATION.md) |
-| COPS TLS and Crypto Workbench | [Run the playbook](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/plugins/vulnerability-management/tls-crypto-workbench/docs/VERIFICATION.md) |
 | COPS Web API Assessment Workbench | [Run the playbook](https://github.com/sodejm/copilot-operation-plugin-for-security/blob/main/plugins/offensive-security/web-api-assessment-workbench/docs/VERIFICATION.md) |
 
 ## Prepare the run

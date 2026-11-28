@@ -1,0 +1,26 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "governance-evidence-workbench",
+  "version": "0.1.0",
+  "description": "Map dated evidence to registered SOC 2, CIS, and NIST controls and identify unsupported and unknown claims.",
+  "author": {
+    "name": "Justin Soderberg",
+    "url": "https://github.com/sodejm"
+  },
+  "repository": "https://github.com/sodejm/copilot-operation-plugin-for-security",
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "keywords": [
+    "claude",
+    "codex",
+    "github-copilot",
+    "governance-compliance",
+    "offline-analysis"
+  ],
+  "extensions": {
+    "com.openai": {
+      "displayName": "COPS Governance Evidence Workbench",
+      "category": "Developer Tools"
+    },
+    "org.cops": {}
+  }
+}

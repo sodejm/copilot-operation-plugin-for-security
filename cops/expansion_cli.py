@@ -17,7 +17,7 @@ def load_bounded_json(path: Path, *, limit: int = 4_194_304) -> dict[str, Any]:
         raise ValueError("input_size_limit")
     try:
         value = json.loads(raw)
-    except (ValueError, RecursionError):
+    except ValueError, RecursionError:
         raise ValueError("invalid_input_json") from None
     if not isinstance(value, dict):
         raise ValueError("input_must_be_object")
@@ -25,7 +25,7 @@ def load_bounded_json(path: Path, *, limit: int = 4_194_304) -> dict[str, Any]:
 
 
 def register_expansion_commands(commands: Any) -> None:
-    from .assessments.__main__ import add_assessment_arguments
+    from .assessments.__main__ import add_assessment_arguments, add_report_arguments
     from .routing.cli import add_input_kind_arguments
     from .web_api.cli import build_web_api_parser
 
@@ -55,6 +55,8 @@ def register_expansion_commands(commands: Any) -> None:
 
     report = commands.add_parser("report", help="export evidence-aware developer reports")
     report_commands = report.add_subparsers(dest="report_command", required=True)
+    artifact = report_commands.add_parser("artifact", help="create a native report from supplied artifacts")
+    add_report_arguments(artifact)
     export = report_commands.add_parser("export")
     export.add_argument("--input", type=Path, required=True)
     export.add_argument("--format", choices=("sarif", "junit", "pr-markdown"), required=True)
@@ -175,6 +177,11 @@ def dispatch_expansion_command(args: argparse.Namespace, root: Path) -> int:
                     render_clarification(decision.clarification)
             return 0
         if args.command == "report":
+            if args.report_command == "artifact":
+                from .assessments.__main__ import command_report
+
+                return command_report(args)
+
             from .reports import SourceAnchor, export_report
 
             anchors = ()

@@ -1193,7 +1193,7 @@
       "criticality": "normal",
       "interactive_authorization_required": false,
       "description": "Governance and regulatory compliance specialist mapping technical security controls to NIST CSF 2.0, ISO 27001, SOC 2, HIPAA, and PCI-DSS frameworks and verifying evidence integrity.",
-      "primary_plugin": "compliance-posture-workbench",
+      "primary_plugin": "governance-evidence-workbench",
       "skills": [
         "compliance-posture-workbench",
         "logging-recommendations",
@@ -1250,7 +1250,7 @@
       "criticality": "normal",
       "interactive_authorization_required": false,
       "description": "Review exported cloud configuration and rendered workloads for IAM, storage, RBAC and workload policy weaknesses.",
-      "primary_plugin": "cloud-posture-workbench",
+      "primary_plugin": "artifact-security-workbench",
       "skills": [
         "cloud-posture-workbench"
       ],
@@ -1304,7 +1304,7 @@
       "criticality": "normal",
       "interactive_authorization_required": false,
       "description": "Inspect dependency, SBOM and CI evidence for vulnerable packages, unsafe permissions and registry resolution risks.",
-      "primary_plugin": "supply-chain-cicd-workbench",
+      "primary_plugin": "artifact-security-workbench",
       "skills": [
         "supply-chain-cicd-workbench"
       ],
@@ -1466,7 +1466,7 @@
       "criticality": "normal",
       "interactive_authorization_required": false,
       "description": "Review TLS chains, mTLS client authorization and JWT/JWKS signing configuration using ephemeral laboratory credentials.",
-      "primary_plugin": "tls-crypto-workbench",
+      "primary_plugin": "artifact-security-workbench",
       "skills": [
         "tls-crypto-workbench"
       ],

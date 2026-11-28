@@ -47,6 +47,8 @@ class MaterialPlanModifiedError(AuthorizationExpansionError):
 
 
 _SKILL_ID = re.compile(r"^[a-z0-9][a-z0-9-]*$")
+_GOVERNANCE_PLUGIN = "governance-evidence-workbench"
+_GOVERNANCE_SKILL = "compliance-posture-workbench"
 
 
 def _resolve_workflow_target(
@@ -85,8 +87,16 @@ def _resolve_workflow_target(
     ):
         raise MissingCapabilityError(f"Workflow capability '{capability_id}' is not registered as a specialist")
 
-    skills_root = (root / ".agents" / "skills").resolve()
-    skill_file = root / ".agents" / "skills" / skill_id / "SKILL.md"
+    skills_dir = root / ".agents" / "skills"
+    skills_root = skills_dir.resolve()
+    if (
+        specialist_id == "cops-compliance-auditor"
+        and profile.primary_plugin == _GOVERNANCE_PLUGIN
+        and skill_id == _GOVERNANCE_SKILL
+    ):
+        skills_dir = root / "plugins" / "governance-compliance" / _GOVERNANCE_PLUGIN / "skills"
+        skills_root = skills_dir
+    skill_file = skills_dir / skill_id / "SKILL.md"
     if not skill_file.resolve().is_relative_to(skills_root) or not skill_file.is_file():
         raise MissingCapabilityError(f"Workflow skill '{skill_id}' has no local implementation")
     try:
@@ -109,7 +119,7 @@ def _resolve_workflow_target(
     return {
         "skill_id": skill_id,
         "capability_id": capability_id,
-        "implementation": f".agents/skills/{skill_id}/SKILL.md",
+        "implementation": skill_file.relative_to(root).as_posix(),
         "implementation_digest": f"sha256:{hashlib.sha256(content).hexdigest()}",
     }
 

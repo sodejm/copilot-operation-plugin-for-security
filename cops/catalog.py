@@ -80,9 +80,7 @@ def plugin_records(root: Path = ROOT) -> list[PluginRecord]:
             path = str(raw["path"])
             raw_tags = raw["tags"]
             if not isinstance(raw_tags, list):
-                raise CatalogError(
-                    f"catalog/plugins.json.plugins[{index}].tags must be an array"
-                )
+                raise CatalogError(f"catalog/plugins.json.plugins[{index}].tags must be an array")
             tags = tuple(str(tag) for tag in raw_tags)
             package = load_json(root / path / "package.json", root)
             records.append(
@@ -97,17 +95,30 @@ def plugin_records(root: Path = ROOT) -> list[PluginRecord]:
                 )
             )
         except KeyError as error:
-            raise CatalogError(
-                f"catalog/plugins.json.plugins[{index}] is missing {error.args[0]}"
-            ) from error
+            raise CatalogError(f"catalog/plugins.json.plugins[{index}] is missing {error.args[0]}") from error
     return records
 
 
+_RETIRED_ARTIFACT_PACKAGES = {
+    "cloud-posture-workbench": ("artifact-security-workbench", "cloud_configuration"),
+    "supply-chain-cicd-workbench": ("artifact-security-workbench", "supply_chain"),
+    "tls-crypto-workbench": ("artifact-security-workbench", "transport_identity"),
+    "compliance-posture-workbench": ("governance-evidence-workbench", "compliance_evidence"),
+}
+
+
 def find_plugin(plugin_id: str, root: Path = ROOT) -> PluginRecord:
-    for record in plugin_records(root):
+    records = plugin_records(root)
+    for record in records:
         if record.id == plugin_id:
             return record
-    choices = ", ".join(record.id for record in plugin_records(root))
+    if plugin_id in _RETIRED_ARTIFACT_PACKAGES:
+        replacement, capability = _RETIRED_ARTIFACT_PACKAGES[plugin_id]
+        raise CatalogError(
+            f"plugin {plugin_id!r} was retired; install {replacement!r} "
+            f"and pass {capability!r} to its assessment or report command"
+        )
+    choices = ", ".join(record.id for record in records)
     raise CatalogError(f"unknown plugin {plugin_id!r}; choose one of: {choices}")
 
 
