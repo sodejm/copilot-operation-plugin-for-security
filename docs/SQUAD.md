@@ -3,7 +3,7 @@
 COPS uses [GitHub Squad](https://github.com/github/squad) for contributor
 coordination across Copilot, Claude, Kiro, OpenCode, Cursor, Codex and Antigravity.
 This is development tooling, not a change to installed security-plugin execution.
-The canonical policy is [AGENTS.md](../AGENTS.md#automatic-squad-orchestration).
+The canonical policy is [AGENTS.md](AGENT_CONTRACT.md#automatic-squad-orchestration).
 
 ## Installation and startup
 

@@ -11,14 +11,22 @@ import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from _template_common import DISTRIBUTION_IGNORE, TemplateError, synchronize_claude_skills  # noqa: E402
+from _template_common import (  # noqa: E402
+    DISTRIBUTION_IGNORE,
+    TemplateError,
+    is_squad_managed_skill,
+    synchronize_claude_skills,
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def trees_match(left: Path, right: Path) -> bool:
+def trees_match(left: Path, right: Path, *, allow_squad_skills: bool = False) -> bool:
     comparison = filecmp.dircmp(left, right, ignore=["__pycache__", ".DS_Store"])
-    if comparison.left_only or comparison.right_only or comparison.funny_files:
+    extra = comparison.right_only
+    if allow_squad_skills:
+        extra = [name for name in extra if not is_squad_managed_skill(right / name)]
+    if comparison.left_only or extra or comparison.funny_files:
         return False
     if any(not filecmp.cmp(left / name, right / name, shallow=False) for name in comparison.common_files):
         return False
@@ -34,11 +42,10 @@ def main() -> int:
         if args.check:
             with tempfile.TemporaryDirectory(prefix="park-adapters-") as temp:
                 scratch = Path(temp)
-                shutil.copytree(ROOT / ".agents" / "skills", scratch / ".agents" / "skills",
-                                ignore=DISTRIBUTION_IGNORE)
+                shutil.copytree(ROOT / ".agents" / "skills", scratch / ".agents" / "skills", ignore=DISTRIBUTION_IGNORE)
                 synchronize_claude_skills(scratch)
                 expected = scratch / ".claude" / "skills"
-                if not target.is_dir() or not trees_match(expected, target):
+                if not target.is_dir() or not trees_match(expected, target, allow_squad_skills=True):
                     print("error: .claude/skills has drifted; run `make sync-agent-adapters`", file=sys.stderr)
                     return 1
             print("Agent adapters are synchronized.")
