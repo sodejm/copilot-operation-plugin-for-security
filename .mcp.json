@@ -18,6 +18,18 @@
         "machineSpecific": false,
         "source": "pinned"
       }
+    },
+    "cops": {
+      "type": "local",
+      "command": "python3",
+      "args": [
+        "-m",
+        "cops.copilot"
+      ],
+      "cwd": ".",
+      "tools": [
+        "request"
+      ]
     }
   }
 }

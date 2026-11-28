@@ -66,3 +66,25 @@ python3 .git/push-gate/gate.py uninstall
 ```
 
 Use `git rev-parse --git-path push-gate` in worktrees. Recovery refuses if another tool changed hooksPath after installation; reconcile the recorded installation JSON and backup manually. Backups remain for review. An emergency bypass requires a separately reviewed decision and equivalent CI evidence; it does not constitute a passing local gate. Do not remove rules, lower severities or ignore findings to make a baseline green.
+
+## Publishing a draft for review
+
+Push a reviewed tip to a branch under `codex/draft/` and open a draft PR targeting
+`main`. Install the policy from the reviewed commit first. The hook pins the
+repository contract workflow as well as the local gate. A normal push to any
+other destination for the same tip still runs the full checks.
+
+The draft hook checks the canonical COPS remote and reads the effective rules
+on `main` with GitHub CLI. A repository administrator must enable the additive
+ruleset in `tools/push_gate/draft-ruleset.json` alongside the existing pull
+request rule. Its required check names are bound to GitHub Actions. Ruleset
+read errors, missing checks, or an exemption on the status-check rule block
+draft publication.
+
+Scanners, changed-test checks, named session acceptance, static checks and the
+dependency audit run on the proposed commit. Review the named acceptance cases
+before publishing a draft that must avoid labs. GitHub runs static PR checks
+on drafts and leaves the required `validate` check red while the full suite is
+deferred. Marking the PR ready schedules the service lab, all three native
+smoke jobs, `make check`, and the full pytest run with branch coverage.
+Conversion back to draft cancels superseded validation.

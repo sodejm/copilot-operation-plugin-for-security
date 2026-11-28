@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import textwrap
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -29,6 +30,109 @@ CHECKS_SPEC.loader.exec_module(CHECKS)
 
 class PolicyTests(unittest.TestCase):
     """Exercise closed policy and meaningful assertion detection."""
+
+    def test_draft_update_is_scoped_to_destination(self):
+        sha = "a" * 40
+        draft = ("local", sha, "refs/heads/codex/draft/detection", "0" * 40)
+        ordinary = ("local", sha, "refs/heads/codex/draftish", "0" * 40)
+        self.assertEqual(GATE.push_profiles([draft]), {sha: True})
+        for updates in ([draft, ordinary], [ordinary, draft], [ordinary]):
+            self.assertEqual(GATE.push_profiles(updates), {sha: False})
+
+    def test_draft_requires_enforced_full_checks(self):
+        config = json.loads((ROOT / "tools/push_gate/draft-ruleset.json").read_text())
+        rule = config["rules"][0]
+        effective = [dict(rule, ruleset_id=42), {"type": "pull_request"}]
+        remote = "git@github.com:sodejm/copilot-operation-plugin-for-security.git"
+        ruleset = dict(config, bypass_actors=[])
+        for url, rules, detail, allowed in (
+            (remote, effective, ruleset, True),
+            (remote, [effective[0]], ruleset, False),
+            (remote, effective, dict(ruleset, bypass_actors=[{"actor_id": 1}]), False),
+            (remote, effective, dict(ruleset, enforcement="evaluate"), False),
+            (remote, [{"type": "pull_request"}], ruleset, False),
+            (remote + ".elsewhere", effective, ruleset, False),
+        ):
+            with self.subTest(url=url, rules=rules, allowed=allowed):
+                with mock.patch.object(
+                    GATE,
+                    "run",
+                    side_effect=[
+                        json.dumps(rules).encode(),
+                        json.dumps(detail).encode(),
+                    ],
+                ):
+                    if allowed:
+                        GATE.require_draft_protection(ROOT, url, config)
+                    else:
+                        with self.assertRaises(GATE.GateError):
+                            GATE.require_draft_protection(ROOT, url, config)
+
+    def test_draft_review_workflow_blocks_until_ready_and_all_jobs_pass(self):
+        workflow = (ROOT / GATE.REVIEW_WORKFLOW).read_text()
+        events = workflow.split("  pull_request:", 1)[1].split("  push:", 1)[0]
+        for event in (
+            "opened",
+            "synchronize",
+            "reopened",
+            "ready_for_review",
+            "converted_to_draft",
+        ):
+            self.assertIn(event, events)
+        jobs, validate = workflow.split("  validate:\n")
+        for job in ("isolated-service-laboratory", "portability-smoke"):
+            self.assertIn(
+                f"  {job}:\n    if: github.event_name != 'pull_request' || !github.event.pull_request.draft",
+                jobs,
+            )
+        self.assertIn(
+            "needs: [isolated-service-laboratory, portability-smoke]", validate
+        )
+        self.assertIn("if: always()", validate)
+        self.assertIn("python3 tools/push_gate/checks.py cops-full-suite", validate)
+        script = textwrap.dedent(
+            validate.split("        run: |\n", 1)[1].split("      - name:", 1)[0]
+        )
+        for draft in ("true", "false"):
+            for lab in ("success", "failure", "skipped", "cancelled"):
+                for smoke in ("success", "failure", "skipped", "cancelled"):
+                    with self.subTest(draft=draft, lab=lab, smoke=smoke):
+                        proc = subprocess.run(
+                            ["bash", "-e", "-c", script],
+                            env={
+                                "DRAFT": draft,
+                                "LAB_RESULT": lab,
+                                "SMOKE_RESULT": smoke,
+                            },
+                            check=False,
+                        )
+                        self.assertEqual(
+                            proc.returncode == 0,
+                            (draft, lab, smoke) == ("false", "success", "success"),
+                        )
+
+    def test_draft_defers_only_the_full_suite(self):
+        def commands(profile):
+            with (
+                mock.patch.object(sys, "argv", ["checks.py", profile, "base", "head"]),
+                mock.patch.object(CHECKS, "run") as run,
+                mock.patch.object(CHECKS.glob, "glob", return_value=[]),
+                mock.patch.object(CHECKS.subprocess, "check_output", return_value=""),
+                mock.patch.dict(os.environ),
+            ):
+                CHECKS.main()
+            return [call.args for call in run.call_args_list]
+
+        draft = commands("cops-draft")
+        full = commands("cops")
+        self.assertTrue(any("pip_audit" in c for c in draft))
+        self.assertTrue(any("tools/push_gate/session_delivery.py" in c for c in draft))
+        deferred = [c for c in full if c not in draft]
+        self.assertEqual(len(deferred), 3)
+        self.assertEqual(deferred[0][:2], ("make", "check"))
+        self.assertIn("pytest", deferred[1])
+        self.assertIn("report", deferred[2])
+        self.assertEqual(draft, [c for c in full if c not in deferred])
 
     def test_current_scanner_pins_match_operator_prerequisites(self):
         policy = json.loads((ROOT / "tools/push_gate/policy.json").read_text())

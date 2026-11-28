@@ -22,6 +22,7 @@ import time
 from pathlib import Path
 
 SOURCE = "tools/push_gate"
+REVIEW_WORKFLOW = ".github/workflows/repository-contract.yml"
 
 
 class GateError(RuntimeError):
@@ -91,7 +92,7 @@ def policy_manifest(root, sha):
     return {
         name: [mode, oid]
         for mode, oid, name in tree(root, sha)
-        if name.startswith(SOURCE + "/")
+        if name.startswith(SOURCE + "/") or name == REVIEW_WORKFLOW
     }
 
 
@@ -242,6 +243,59 @@ def parse_updates(data, default_branch):
             raise GateError("Direct default-branch pushes are blocked")
         updates.append((local_ref, sha, remote_ref, old_sha))
     return updates
+
+
+def push_profiles(updates):
+    """A tip sent to any ordinary destination receives full validation."""
+    profiles = {}
+    for _, sha, destination, _ in updates:
+        profiles[sha] = profiles.get(sha, True) and destination.startswith(
+            "refs/heads/codex/draft/"
+        )
+    return profiles
+
+
+def require_draft_protection(root, remote_url, config):
+    """Verify effective, app-bound merge checks before deferring local suites."""
+    repo = "sodejm/copilot-operation-plugin-for-security"
+    if remote_url not in {
+        f"git@github.com:{repo}.git",
+        f"https://github.com/{repo}.git",
+    }:
+        raise GateError("Draft publication requires the canonical COPS remote")
+
+    def read(endpoint):
+        return json.loads(
+            run(
+                ["gh", "api", "--hostname", "github.com", f"repos/{repo}/{endpoint}"],
+                root,
+            )
+        )
+
+    def protects(rule):
+        if rule.get("type") != "required_status_checks":
+            return False
+        params = rule.get("parameters", {})
+        actual = params.get("required_status_checks", [])
+        return params.get("strict_required_status_checks_policy") is True and all(
+            item in actual for item in required
+        )
+
+    required = config["rules"][0]["parameters"]["required_status_checks"]
+    effective = read("rules/branches/main")
+    if any(rule.get("type") == "pull_request" for rule in effective):
+        for rule in effective:
+            if protects(rule) and isinstance(rule.get("ruleset_id"), int):
+                detail = read(f"rulesets/{rule['ruleset_id']}")
+                if (
+                    detail.get("enforcement") == "active"
+                    and detail.get("bypass_actors") == []
+                    and any(protects(item) for item in detail.get("rules", []))
+                ):
+                    return
+    raise GateError(
+        "Draft publication requires enforced, non-bypassable full PR checks"
+    )
 
 
 def executable_test(path, before, after):
@@ -498,12 +552,19 @@ def scanners(snapshot, files, policy, env, temporary):
                 )
 
 
-def validate(root, sha, remote_url, policy, manifest):
+def validate(root, sha, remote_url, policy, manifest, *, draft=False):
     """Validate the pushed object, never the caller's index or worktree."""
     if policy_manifest(root, sha) != manifest:
         raise GateError(
             "Pushed gate policy differs from installed policy; review and reinstall"
         )
+    if draft:
+        if REVIEW_WORKFLOW not in manifest:
+            raise GateError("Draft publication requires the installed review workflow")
+        config = json.loads(
+            (Path(__file__).resolve().parent / "draft-ruleset.json").read_text()
+        )
+        require_draft_protection(root, remote_url, config)
     if git(root, "cat-file", "-t", sha).strip() != b"commit":
         raise GateError("Push tip must be a commit object")
     entries = tree(root, sha)
@@ -590,7 +651,7 @@ def validate(root, sha, remote_url, policy, manifest):
             snapshot,
             env=env,
         )
-        for command in policy["checks"]:
+        for command in policy["draft_checks" if draft else "checks"]:
             argv = [
                 item.replace("{python}", sys.executable)
                 .replace("{base}", base)
@@ -607,6 +668,7 @@ def validate(root, sha, remote_url, policy, manifest):
                     json.dumps(manifest, sort_keys=True).encode()
                 ).hexdigest(),
                 "status": "passed",
+                "profile": "draft" if draft else "full",
                 "seconds": round(time.monotonic() - started, 1),
             }
         ),
@@ -653,8 +715,15 @@ def main():
         if len(args.arguments) != 2:
             raise GateError("Git pre-push requires remote name and URL")
         updates = parse_updates(sys.stdin.read(), policy["default_branch"])
-        for sha in dict.fromkeys(update[1] for update in updates):
-            validate(root, sha, args.arguments[1], policy, manifest)
+        for sha, draft in push_profiles(updates).items():
+            validate(
+                root,
+                sha,
+                args.arguments[1],
+                policy,
+                manifest,
+                draft=draft and "draft_checks" in policy,
+            )
 
 
 if __name__ == "__main__":
