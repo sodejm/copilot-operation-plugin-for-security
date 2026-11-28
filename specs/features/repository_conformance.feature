@@ -1,6 +1,11 @@
 Feature: Portable COPS repository validation
   Contributor checks inspect project sources without traversing local artifacts.
 
+  Scenario: Preserve independently managed Squad skills while detecting canonical drift
+    Given a checkout with canonical and Squad-managed Claude skills
+    When a canonical Claude skill drifts and adapters are synchronized
+    Then canonical adapters match and all Squad skill files are preserved
+
   Scenario: Ignore local environments while retaining tracked ignored sources
     Given a Git checkout with tracked, new, and ignored Python files
     When repository sources are enumerated

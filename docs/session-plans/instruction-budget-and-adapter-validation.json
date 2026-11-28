@@ -1,0 +1,128 @@
+{
+  "stage": "implementation",
+  "request": "Commit the instruction-budget guard, contract validation fixes, and adapter drift fix while preserving unrelated work.",
+  "scope": "Project instruction loading, deterministic repository validation, and canonical Claude adapter synchronization.",
+  "setup": "Use the existing development virtual environment; no live providers or credentials are required.",
+  "constraints": "Preserve unrelated checkout changes and Squad files. The user authorized this local commit on the active main checkout and inclusion of the four complete Squad skill files. No push is authorized.",
+  "steps": [
+    {
+      "action": "Bound automatically loaded project instruction chains and retain mandatory contributor requirements in linked documentation.",
+      "paths": [
+        "scripts/agent/validate_contract.py",
+        "tests/test_instruction_budget.py",
+        "AGENTS.md",
+        "docs/AGENT_CONTRACT.md"
+      ],
+      "verify": {
+        "command": ".venv/bin/python -m pytest tests/test_instruction_budget.py -q",
+        "expected": "Exact-limit and nested-chain acceptance cases pass."
+      }
+    },
+    {
+      "action": "Preserve Squad adapters while checking canonical copies and refusing unknown entries.",
+      "paths": [
+        "scripts/_template_common.py",
+        "scripts/agent/sync_adapters.py",
+        "specs/features/repository_conformance.feature",
+        "tests/step_defs/test_repository_conformance.py",
+        "tests/test_agent_adapters.py",
+        "docs/contributing.md",
+        "specs/repository-conformance.spec.md"
+      ],
+      "verify": {
+        "command": ".venv/bin/python -m pytest tests/test_agent_adapters.py tests/step_defs/test_repository_conformance.py -q",
+        "expected": "Adapter preservation and rejection cases pass."
+      }
+    },
+    {
+      "action": "Correct invalid links and machine-specific example paths in the Squad source skills and Claude projections.",
+      "paths": [
+        ".claude/skills/humanizer/SKILL.md",
+        ".claude/skills/e2e-template-testing/SKILL.md",
+        ".squad/templates/skills/humanizer/SKILL.md",
+        ".squad/templates/skills/e2e-template-testing/SKILL.md"
+      ],
+      "verify": {
+        "command": ".venv/bin/python scripts/agent/validate_contract.py",
+        "expected": "Repository contract is valid."
+      }
+    }
+  ],
+  "acceptance": [
+    {
+      "kind": "success",
+      "entrypoint": "scripts/agent/validate_contract.py",
+      "given": "A project has exactly 8192 instruction bytes.",
+      "when": "The contract CLI validates it.",
+      "then": "The CLI accepts the chain.",
+      "paths": [
+        "scripts/agent/validate_contract.py",
+        "tests/test_instruction_budget.py"
+      ],
+      "runner": "pytest",
+      "test": "tests/test_instruction_budget.py::test_exact_budget_passes"
+    },
+    {
+      "kind": "boundary",
+      "entrypoint": "scripts/agent/validate_contract.py",
+      "given": "A project has 8193 instruction bytes.",
+      "when": "The contract CLI validates it.",
+      "then": "The CLI rejects the chain with its byte count.",
+      "paths": [
+        "scripts/agent/validate_contract.py",
+        "tests/test_instruction_budget.py"
+      ],
+      "runner": "pytest",
+      "test": "tests/test_instruction_budget.py::test_one_byte_over_budget_fails"
+    },
+    {
+      "kind": "success",
+      "entrypoint": "scripts/agent/sync_adapters.py",
+      "given": "Canonical adapters coexist with independently generated Squad skills.",
+      "when": "Canonical adapters drift and synchronization runs.",
+      "then": "Canonical copies are repaired and Squad files are preserved.",
+      "paths": [
+        "scripts/_template_common.py",
+        "scripts/agent/sync_adapters.py",
+        "specs/features/repository_conformance.feature",
+        "tests/step_defs/test_repository_conformance.py",
+        "tests/test_agent_adapters.py"
+      ],
+      "runner": "pytest",
+      "test": "tests/test_agent_adapters.py::test_check_accepts_squad_and_sync_preserves_all_its_files"
+    },
+    {
+      "kind": "boundary",
+      "entrypoint": "scripts/agent/sync_adapters.py",
+      "given": "A Claude skills directory includes an unknown entry.",
+      "when": "Validation and synchronization run.",
+      "then": "Both reject the entry without deleting existing files.",
+      "paths": [
+        "scripts/_template_common.py",
+        "scripts/agent/sync_adapters.py",
+        "specs/features/repository_conformance.feature",
+        "tests/step_defs/test_repository_conformance.py",
+        "tests/test_agent_adapters.py"
+      ],
+      "runner": "pytest",
+      "test": "tests/test_agent_adapters.py::test_unknown_entries_fail_without_sync_deleting_them"
+    },
+    {
+      "kind": "success",
+      "entrypoint": "scripts/agent/validate_contract.py",
+      "given": "The four repaired Squad source and projection skills exist.",
+      "when": "The repository portability and Markdown link validators inspect those exact files.",
+      "then": "No machine-specific paths or broken Markdown links are reported.",
+      "paths": [
+        ".claude/skills/humanizer/SKILL.md",
+        ".claude/skills/e2e-template-testing/SKILL.md",
+        ".squad/templates/skills/humanizer/SKILL.md",
+        ".squad/templates/skills/e2e-template-testing/SKILL.md",
+        "tests/test_instruction_budget.py"
+      ],
+      "runner": "pytest",
+      "test": "tests/test_instruction_budget.py::test_repaired_squad_skills_pass_contract_validation"
+    }
+  ],
+  "pending": []
+}

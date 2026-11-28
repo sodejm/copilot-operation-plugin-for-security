@@ -16,6 +16,11 @@ and skills; distinguish included capabilities from potential future add-ons.
 - Root `AGENTS.md` owns contributor instructions; vendor adapters point to it.
 - Canonical contributor skills live in `.agents/skills/`; generated Claude copies
   must match. Distributed product skills remain inside their plugin packages.
+- Additional Claude skill directories carrying Squad's generated-file marker
+  belong to Squad and are preserved by adapter synchronization. This exception
+  never applies to canonical skill names. Unrecognized extra entries fail the
+  drift check; synchronization refuses to delete them. Squad content validation
+  remains the responsibility of Squad's tooling.
 - `make check` validates the repository contract, Markdown links, Python syntax,
   adapter drift, plugin package, plugin unit tests, pytest scenarios, and bundled
   skill tests. Failures must produce a nonzero exit status.
