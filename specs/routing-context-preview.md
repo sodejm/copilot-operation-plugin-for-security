@@ -14,6 +14,20 @@ normalized confidence, purpose, permissions, and required authorization. A resul
 requires clarification when the leading confidence is below 0.65 or when the lead
 over the next candidate is below 0.15. There is no implicit SOC fallback.
 
+When the goal is unclear, clarification asks for the desired outcome and the
+kind of evidence available. The caller can declare evidence categories with
+`--input-kind` on either router CLI or on `cops explain`. Recognized plain-language
+evidence descriptions also guide weak matches. Supported categories have an
+offline defensive shortlist with a specialist ID, purpose, suggested input,
+registered tool names, and required permissions. Generic formats such as CSV
+and JSON do not identify a specialist on their own.
+
+Declared evidence must agree with an otherwise decisive automatic route.
+Evidence categories alone and conflicts between the goal and evidence require
+clarification, with no optional classifier override. An exact profile ID still
+supports intentional selection. The router treats evidence categories as
+descriptions and does not read any artifacts based on them.
+
 An optional classifier receives only redacted feature names and counts plus the
 registered specialist identifiers. The caller must specify its model, deadline,
 and token budget. An unavailable classifier, invalid response, exceeded deadline,

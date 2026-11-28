@@ -37,6 +37,21 @@ python3 -m cops route "Rehearse containment of a compromised service principal w
 python3 -m cops route "Audit this Python codebase for missing audit logs and credential leaks"
 ```
 
+If you have evidence but are still deciding what to ask, describe the evidence
+category. The preview asks for your goal and shows the relevant specialist, its
+registered tools and permissions, and the input to prepare:
+
+```bash
+python3 -m cops explain "Can you take a look?" --input-kind source-diff
+```
+
+Phrases such as “pull request diff” and “sign-in alert” can guide a clarification
+without the flag. Repeat `--input-kind` when you have multiple kinds of evidence.
+A clear goal paired with conflicting evidence prompts a follow-up. For formats
+such as CSV or JSON, describe what the records represent and what you want to
+learn. Use a redacted description in the prompt and keep the artifact itself for
+the specialist workflow.
+
 To list all 27 specialist profiles from your terminal:
 
 ```bash

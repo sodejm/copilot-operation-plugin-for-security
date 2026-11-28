@@ -1,9 +1,9 @@
 {
   "stage": "implementation",
-  "request": "Resolve PR #368 conflicts with current main, rerun checks, and push its dedicated branch while preserving unrelated checkout changes.",
+  "request": "Update PR #368 with latest main, resolve reproducible Ruff findings, rerun checks, push with the pre-push hook enabled, and merge after hosted checks pass.",
   "scope": "Project instruction loading, deterministic repository validation, and canonical Claude adapter synchronization.",
   "setup": "Use the existing development virtual environment; no live providers or credentials are required.",
-  "constraints": "Use the dedicated codex/instruction-budget-guard branch in an isolated worktree. Preserve all unrelated active checkout files and index entries. The user authorized the integration merge, checks, and branch push; no hosted PR merge is authorized.",
+  "constraints": "Use the dedicated codex/instruction-budget-guard branch in an isolated worktree. Preserve all unrelated active checkout files and index entries. The owner explicitly authorized main integration, scoped lint fixes, checks, branch push with the pre-push hook enabled, and hosted merge of PR #368 after successful validation.",
   "steps": [
     {
       "action": "Bound automatically loaded project instruction chains and retain mandatory contributor requirements in linked documentation.",

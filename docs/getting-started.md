@@ -41,6 +41,11 @@ or grant permission. No assistant installation or cloud credentials are needed
 for these CLI commands. Run `python3 -m cops list` to browse the current catalog,
 or `python3 -m cops doctor` if you need environment diagnostics.
 
+If you know what evidence you have but are unsure how to ask, try
+`python3 -m cops explain "Can you take a look?" --input-kind source-diff`.
+The preview asks what you want to learn and shows the specialist, tool, and
+redacted input to prepare.
+
 For a packaged example with synthetic local evidence:
 
 ```bash
