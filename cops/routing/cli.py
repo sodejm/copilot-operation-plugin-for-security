@@ -132,11 +132,28 @@ def command_route(args: argparse.Namespace) -> int:
     except ModelCatalogError as exc:
         print(f"Model advice error: {exc}", file=sys.stderr)
         return 2
-    decision = route_request(
-        args.query,
-        force_critical=args.critical,
-        input_kinds=tuple(getattr(args, "input_kind", None) or ()),
-    )
+    from .detection_quality import route_bundled_review
+
+    input_kinds = tuple(getattr(args, "input_kind", None) or ())
+    bundled = route_bundled_review(args.query, force_critical=args.critical)
+    if bundled and input_kinds and set(input_kinds) != {"detection-rule"}:
+        from .classifier import _clarification
+        from .input_kinds import input_guidance
+
+        general = route_request(args.query, force_critical=args.critical, input_kinds=input_kinds)
+        candidates = list(bundled.ranked_candidates)
+        candidates.extend(c for c in general.ranked_candidates if c.profile.id != bundled.primary_profile.id)
+        decision = _clarification(
+            args.query,
+            candidates,
+            "The stated goal and declared evidence do not identify the same single specialist.",
+            input_guidance(input_kinds),
+            question="Which outcome should the review prioritize?",
+        )
+    else:
+        decision = bundled or route_request(
+            args.query, force_critical=args.critical, input_kinds=input_kinds
+        )
     out = decision.to_dict()
     if advice is not None:
         out["model_advice"] = advice

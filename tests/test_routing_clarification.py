@@ -92,3 +92,26 @@ def test_cli_evidence_guidance(entry, command, capsys):
     output = capsys.readouterr().out
     assert "Suggested input" in output
     assert "patchreview" in output
+
+
+@pytest.mark.parametrize("entry", [main, routing_main])
+def test_bundled_review_respects_declared_evidence(entry, capsys):
+    query = "Check the bundled Sentinel and Splunk rules against their labeled fixtures."
+    assert entry(["route", query, "--input-kind", "detection-rule", "--json"]) == 0
+    decision = json.loads(capsys.readouterr().out)
+    assert decision["primary_profile"]["id"] == "cops-detection-engineer"
+    assert decision["recommended_skills"] == ["detection-quality-review"]
+
+    assert entry(["route", query, "--input-kind", "source-diff", "--json"]) == 0
+    decision = json.loads(capsys.readouterr().out)
+    assert decision["status"] == "clarification_required"
+    assert decision["primary_profile"] is None
+    assert {option["specialist_id"] for option in decision["clarification"]["options"]} == {
+        "cops-detection-engineer",
+        "cops-appsec-engineer",
+    }
+
+    assert entry(["route", query, "--input-kind", "detection-rule", "--input-kind", "alert", "--json"]) == 0
+    decision = json.loads(capsys.readouterr().out)
+    assert decision["status"] == "clarification_required"
+    assert decision["primary_profile"] is None

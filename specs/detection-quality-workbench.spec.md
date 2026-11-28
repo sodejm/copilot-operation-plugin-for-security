@@ -56,3 +56,25 @@ The playback validates offline reference predicates and report contracts. Native
 KQL and SPL syntax, planner behavior, workspace or index schemas, provider
 authentication, and production execution require separate authorized integration
 evidence.
+
+## One-request fixture review
+
+A plain-language request for bundled Detection Quality fixtures selects the
+registered Detection Engineer and detection-quality-review skill. The operator
+can preview the same choice through the specialist router. The execution entry
+point accepts a positive request for the two packaged suites. Ambiguous,
+single-platform, external-input and compound requests require clarification.
+
+Each evaluated suite is accepted separately after its rule identity, labeled
+cases and report are verified. Resume uses the original registered selection
+and input fingerprint, revalidates accepted evidence and evaluates only pending
+suites. A verified result accounts for every case and names the gaps and missing
+telemetry. Verification concerns the completeness of the review, including
+unfavorable findings.
+
+In a trusted COPS workspace, Copilot chat accepts the original operator request
+through one COPS tool. The tool uses the CLI's selection and returns an opaque
+run ID before starting the evaluators. Copilot continues automatically, reports
+the verified fixture gaps, and can resume the same run using its chat history.
+Only a completed suite with a valid receipt may be reused. If the conversation
+does not identify a unique run, the agent asks which review to resume.

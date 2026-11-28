@@ -1,0 +1,95 @@
+{
+  "stage": "implementation",
+  "request": "Publish a draft PR with fixture evidence and require full validation when it becomes ready.",
+  "scope": "Support the canonical COPS repository and protect its default branch.",
+  "setup": "Use Python 3.14, the pinned scanners, the installed gate and GitHub CLI with read access to effective rules and bypass actors.",
+  "constraints": "Keep security scans, branch-wide issue and test checks, and focused acceptance at publication. Require every full check before merge.",
+  "steps": [
+    {
+      "action": "Add the draft destination profile, effective ruleset check and matching ready-for-review validation.",
+      "paths": [
+        ".github/workflows/repository-contract.yml",
+        "tools/push_gate/draft-ruleset.json",
+        "tools/push_gate/gate.py",
+        "tools/push_gate/policy.json",
+        "tools/push_gate/checks.py",
+        "tests/test_local_push_gate.py"
+      ],
+      "verify": {
+        "command": "python3 -m unittest discover -s tests -p test_local_push_gate.py -k test_draft",
+        "expected": "Draft selection and all transition and enforcement boundaries pass."
+      }
+    }
+  ],
+  "acceptance": [
+    {
+      "kind": "success",
+      "entrypoint": "COPS local push gate and repository contract workflow",
+      "given": "A canonical push requests the draft profile.",
+      "when": "Compare its commands with the ordinary push profile.",
+      "then": "Only make check and the full coverage run and report are deferred.",
+      "paths": [
+        ".github/workflows/repository-contract.yml",
+        "tools/push_gate/draft-ruleset.json",
+        "tools/push_gate/gate.py",
+        "tools/push_gate/policy.json",
+        "tools/push_gate/checks.py",
+        "tests/test_local_push_gate.py"
+      ],
+      "runner": "unittest",
+      "test": "tests/test_local_push_gate.py::PolicyTests::test_draft_defers_only_the_full_suite"
+    },
+    {
+      "kind": "boundary",
+      "entrypoint": "COPS local push gate and repository contract workflow",
+      "given": "A draft targets the canonical remote or a different remote.",
+      "when": "Evaluate active and bypassable or incomplete protection responses.",
+      "then": "Only an active, complete ruleset on the canonical remote permits publication.",
+      "paths": [
+        ".github/workflows/repository-contract.yml",
+        "tools/push_gate/draft-ruleset.json",
+        "tools/push_gate/gate.py",
+        "tools/push_gate/policy.json",
+        "tools/push_gate/checks.py",
+        "tests/test_local_push_gate.py"
+      ],
+      "runner": "unittest",
+      "test": "tests/test_local_push_gate.py::PolicyTests::test_draft_requires_enforced_full_checks"
+    },
+    {
+      "kind": "boundary",
+      "entrypoint": "COPS local push gate and repository contract workflow",
+      "given": "A pull request is ready or draft and the two prerequisite jobs return terminal states.",
+      "when": "Run the required validation step with each combination of job results.",
+      "then": "Only ready with both prerequisites successful allows the full suite to run.",
+      "paths": [
+        ".github/workflows/repository-contract.yml",
+        "tools/push_gate/draft-ruleset.json",
+        "tools/push_gate/gate.py",
+        "tools/push_gate/policy.json",
+        "tools/push_gate/checks.py",
+        "tests/test_local_push_gate.py"
+      ],
+      "runner": "unittest",
+      "test": "tests/test_local_push_gate.py::PolicyTests::test_draft_review_workflow_blocks_until_ready_and_all_jobs_pass"
+    },
+    {
+      "kind": "boundary",
+      "entrypoint": "COPS local push gate and repository contract workflow",
+      "given": "One commit can target multiple refs in a single push.",
+      "when": "Select a profile for each unique pushed tip.",
+      "then": "Any ordinary destination requires full validation for that tip.",
+      "paths": [
+        ".github/workflows/repository-contract.yml",
+        "tools/push_gate/draft-ruleset.json",
+        "tools/push_gate/gate.py",
+        "tools/push_gate/policy.json",
+        "tools/push_gate/checks.py",
+        "tests/test_local_push_gate.py"
+      ],
+      "runner": "unittest",
+      "test": "tests/test_local_push_gate.py::PolicyTests::test_draft_update_is_scoped_to_destination"
+    }
+  ],
+  "pending": []
+}

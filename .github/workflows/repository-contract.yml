@@ -2,15 +2,21 @@ name: COPS repository checks
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft, edited]
   push:
     branches: ["main"]
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
 
 jobs:
   isolated-service-laboratory:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     name: Isolated service laboratory
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -48,6 +54,7 @@ jobs:
           make check-laboratory PYTHON=python LABORATORY_ARGS="--runtime docker --image $(cat "$RUNNER_TEMP/cops-runtime/image.id")"
 
   portability-smoke:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     name: Operator smoke (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
@@ -113,8 +120,19 @@ jobs:
           python -m cops demo attack-path-workbench
 
   validate:
+    needs: [isolated-service-laboratory, portability-smoke]
+    if: always()
     runs-on: ubuntu-24.04
     steps:
+      - name: Require review readiness and successful full gate prerequisites
+        env:
+          DRAFT: ${{ github.event_name == 'pull_request' && github.event.pull_request.draft }}
+          LAB_RESULT: ${{ needs.isolated-service-laboratory.result }}
+          SMOKE_RESULT: ${{ needs.portability-smoke.result }}
+        run: |
+          test "$DRAFT" = false
+          test "$LAB_RESULT" = success
+          test "$SMOKE_RESULT" = success
       - name: Check out repository
         uses: actions/checkout@v7
       - name: Set up Python
@@ -130,4 +148,10 @@ jobs:
           sudo apparmor_parser -r /etc/apparmor.d/bwrap-userns-restrict
           python3 -m pip install -r requirements.txt
       - name: Validate repository and plugin
+        if: github.event_name != 'pull_request'
         run: make check PYTHON=python3
+      - name: Run the full push validation suite before merge
+        if: github.event_name == 'pull_request'
+        run: |
+          python3 -m pip install -r tools/push_gate/requirements.txt
+          python3 tools/push_gate/checks.py cops-full-suite

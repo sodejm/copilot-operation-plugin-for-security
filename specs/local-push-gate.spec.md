@@ -39,3 +39,13 @@ permissions; a temporary checkout is not a sandbox. Inherited application and
 scanner overrides are removed, but PATH, HOME and SSH agent access remain trusted.
 Local hooks are bypassable, so CI remains required. Installation, prerequisites,
 recovery and coverage limits are documented in `docs/LOCAL_PUSH_GATE.md`.
+
+## Draft pull requests
+
+A push exclusively to `codex/draft/` on the canonical repository may defer the
+full repository and coverage suites to review. The installed policy pins the
+hosted workflow and verifies active default-branch protection. Drafts retain
+the exact-commit scanners and focused handoff acceptance. Opening, updating,
+reopening or promoting the PR evaluates review readiness. The required
+`validate` check blocks merge until the PR is ready, laboratory and portability
+jobs succeed, and full repository validation including branch coverage passes.

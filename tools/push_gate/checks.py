@@ -16,6 +16,24 @@ def run(*argv):
     subprocess.run(argv, check=True, stdin=subprocess.DEVNULL)
 
 
+def cops_full_suite(python):
+    """Run the same full COPS suite locally and on review promotion."""
+    run("make", "check", "PYTHON=" + python)
+    # Approved controller snapshots are verified copies removed during the test.
+    # Counting them duplicates source coverage and leaves no file for reporting.
+    run(
+        python,
+        "-m",
+        "coverage",
+        "run",
+        "--branch",
+        "--omit=*/cops-auth-source-*/*",
+        "-m",
+        "pytest",
+    )
+    run(python, "-m", "coverage", "report")
+
+
 def main():
     """Run the repository's established validation entry points."""
     stack, base, sha = sys.argv[1:]
@@ -91,7 +109,7 @@ def main():
             "tests",
         )
         run(python, "-m", "coverage", "report")
-    elif stack == "cops":
+    elif stack in {"cops", "cops-draft"}:
         run(
             "uv",
             "pip",
@@ -103,7 +121,8 @@ def main():
         )
         os.environ["PATH"] = str(Path(python).parent) + os.pathsep + os.environ["PATH"]
         run(python, "tools/push_gate/session_delivery.py", "push", base, sha)
-        run("make", "check", "PYTHON=" + python)
+        if stack == "cops":
+            cops_full_suite(python)
         run(
             python,
             "scripts/agent/check_issue_coverage.py",
@@ -128,19 +147,6 @@ def main():
         ]
         if changed_python:
             run(python, "-m", "ruff", "format", "--check", *changed_python)
-        # Approved controller snapshots are verified copies removed during the test.
-        # Counting them duplicates source coverage and leaves no file for reporting.
-        run(
-            python,
-            "-m",
-            "coverage",
-            "run",
-            "--branch",
-            "--omit=*/cops-auth-source-*/*",
-            "-m",
-            "pytest",
-        )
-        run(python, "-m", "coverage", "report")
     elif stack == "best":
         run("uv", "pip", "install", "--python", python, ".[dev]")
         run(python, "-m", "ruff", "check", "src", "tests")
@@ -282,4 +288,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    if sys.argv[1:] == ["cops-full-suite"]:
+        cops_full_suite(sys.executable)
+    else:
+        main()

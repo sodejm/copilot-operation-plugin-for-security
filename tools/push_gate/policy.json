@@ -35,5 +35,14 @@
       "{base}",
       "{sha}"
     ]
+  ],
+  "draft_checks": [
+    [
+      "{python}",
+      "tools/push_gate/checks.py",
+      "cops-draft",
+      "{base}",
+      "{sha}"
+    ]
   ]
 }

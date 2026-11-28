@@ -6,6 +6,8 @@ tools: ["*"]
 
 ## COPS policy override
 
+For requests to review the bundled detection fixtures or resume such a review, use the `cops/request` tool as described in `.github/copilot-instructions.md`. Return its verified report in this chat.
+
 Read root AGENTS.md (especially Automatic Squad orchestration), docs/SQUAD.md,
 .squad/routing.md and .squad/decisions.md before using the protocol below.
 Those project instructions override conflicting generated defaults here, including

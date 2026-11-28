@@ -12,3 +12,9 @@ or release actions without explicit authorization.
 For implementation work, follow the automatic Squad orchestration section of
 `AGENTS.md` and `docs/SQUAD.md`; load the roster and route independent work
 automatically. Root policy takes precedence over generated Squad defaults.
+
+## Detection Quality requests
+
+When an operator asks to review the bundled detection fixtures, send the original ask to `cops/request`. On acceptance, continue with its run ID in the same turn. Report the run ID, case counts, gaps by platform, and which suites were evaluated or reused.
+
+When asked to resume, use the matching run ID in this chat. If several runs match, ask which one. If the ID is missing, ask for the saved ID. Start a fresh review only when the operator requests one. The optional COPS agent uses the same tool.

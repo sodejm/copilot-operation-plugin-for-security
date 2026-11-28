@@ -619,6 +619,13 @@ def build_parser() -> argparse.ArgumentParser:
     cov_parser.add_argument("--output-flow", type=Path, help="write Attack Flow bundle to file")
     cov_parser.add_argument("--json", action="store_true", help="output structured JSON")
 
+    ask = subparsers.add_parser("ask", help="complete a bundled Detection Quality fixture review")
+    selection = ask.add_mutually_exclusive_group(required=True)
+    selection.add_argument("query", nargs="?", help="plain-language request for the bundled fixture review")
+    selection.add_argument("--resume", type=Path, metavar="RUN_DIR", help="continue from a saved review")
+    ask.add_argument("--run-dir", type=Path, help="create the review in this new directory")
+    ask.add_argument("--json", action="store_true", help="emit the verified result as JSON")
+
     route_p = subparsers.add_parser("route", help="route a security task to the optimal specialist profile")
     route_p.add_argument("query", help="natural language task description or request")
     route_p.add_argument("--critical", action="store_true", help="force critical classification (triad)")
@@ -1035,6 +1042,10 @@ def main(argv: list[str] | None = None, *, root: Path = ROOT) -> int:
                 as_json=args.json,
                 root=root,
             )
+        if args.command == "ask":
+            from .workflows.detection_quality import command_ask
+
+            return command_ask(args, root)
         if args.command == "route":
             from .routing.cli import command_route
 
