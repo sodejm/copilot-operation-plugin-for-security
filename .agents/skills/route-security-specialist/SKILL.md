@@ -43,11 +43,15 @@ Keep `xhigh`, `max`, and `ultra` as explicit manual choices.
      ```bash
      python3 -m cops.routing route "<request-or-task-description>"
      ```
-     Add `--json` for structured automation pipelines.
+     If the request names evidence without a clear goal, add `--input-kind` for
+     each known evidence category. For example, use `--input-kind source-diff`
+     for a pull request diff. Add `--json` for structured automation pipelines.
 
 2. **Evaluate Routing Decision**:
    - Review the selected profile, confidence score, and primary plugin.
-   - If clarification is required, show the proposed purposes in plain language and ask what outcome the user wants. Do not select a specialist on their behalf.
+   - If clarification is required, use the returned question. Show the suggested
+     specialists, tools, and redacted inputs so the user can clarify their goal.
+     Wait for that clarification before selecting a specialist.
    - For high-confidence matches, adopt the persona and operational charter defined in `agents/profiles/<specialist-id>.agent.md`.
 
 3. **Handle Critical Tasks & Triad Orchestration**:

@@ -14,6 +14,7 @@ from typing import Protocol
 
 from .catalog import load_specialists_registry
 from .features import RoutingFeatures, extract_routing_features
+from .input_kinds import INPUT_KINDS, describe_evidence, input_guidance
 from .models import RoutingCandidate, RoutingDecision, SpecialistProfile
 from .triad import assemble_triad_plan
 
@@ -195,7 +196,14 @@ def _candidate_scores(
     return candidates
 
 
-def _clarification(query: str, candidates: list[RoutingCandidate], reason: str) -> RoutingDecision:
+def _clarification(
+    query: str,
+    candidates: list[RoutingCandidate],
+    reason: str,
+    guidance: dict[str, str],
+    *,
+    question: str | None = None,
+) -> RoutingDecision:
     shortlist = candidates[:3]
     return RoutingDecision(
         query=query,
@@ -209,15 +217,28 @@ def _clarification(query: str, candidates: list[RoutingCandidate], reason: str) 
         ranked_candidates=tuple(shortlist),
         clarification={
             "reason": reason,
-            "question": "Which specialist purpose and permission scope match the intended outcome?",
+            "question": question or (
+                "What outcome should this evidence help you reach?"
+                if guidance
+                else "What outcome do you want, and what kind of evidence do you have?"
+            ),
+            "supported_input_kinds": list(INPUT_KINDS),
             "options": [
                 {
                     "specialist_id": candidate.profile.id,
+                    "display_name": candidate.profile.display_name,
+                    **(
+                        {"suggested_input": guidance[candidate.profile.id]}
+                        if candidate.profile.id in guidance
+                        else {}
+                    ),
+                    "tools": list(candidate.profile.tools),
                     "purpose": candidate.profile.purpose or candidate.profile.description,
                     "required_permissions": list(candidate.profile.required_permissions),
                     "interactive_authorization_required": candidate.profile.interactive_authorization_required,
                 }
                 for candidate in shortlist
+                if candidate.profile.id in guidance or candidate.confidence >= MIN_ROUTE_CONFIDENCE
             ],
         },
     )
@@ -252,6 +273,7 @@ def route_request(
     *,
     registry_path: Path | None = None,
     force_critical: bool = False,
+    input_kinds: tuple[str, ...] = (),
     optional_classifier: OptionalClassifier | None = None,
     classifier_model: str | None = None,
     classifier_deadline_ms: int | None = None,
@@ -262,6 +284,9 @@ def route_request(
     clean_query = query.strip()
     query_lower = clean_query.lower()
     features = extract_routing_features(clean_query)
+    inferred_kinds, evidence_only = describe_evidence(clean_query)
+    guidance = input_guidance(input_kinds or inferred_kinds)
+    guidance = {profile.id: guidance[profile.id] for profile in profiles if profile.id in guidance}
 
     for profile in profiles:
         clean_id = profile.id.lower()
@@ -283,19 +308,39 @@ def route_request(
     candidates = _candidate_scores(clean_query, profiles, features)
     top = candidates[0] if candidates else None
     runner = candidates[1] if len(candidates) > 1 else None
-    deterministic_reason: str | None = None
-    if top is None or top.confidence < MIN_ROUTE_CONFIDENCE:
+    question = None
+    if evidence_only and guidance:
+        deterministic_reason = "The request describes evidence but leaves the desired outcome open."
+    elif top is None or top.confidence < MIN_ROUTE_CONFIDENCE:
         deterministic_reason = "No specialist reached the minimum routing confidence of 0.65"
     elif runner is not None and top.confidence - runner.confidence < MIN_LEAD_GAP:
         deterministic_reason = "The leading specialists are within the minimum confidence gap of 0.15"
-    else:
+    elif not input_kinds or set(guidance) == {top.profile.id}:
         return _routed(clean_query, top, candidates, registry_path, force_critical)
+    else:
+        deterministic_reason = "The stated goal and declared evidence do not identify the same single specialist."
+        question = "Which outcome should the review prioritize?"
+
+    if input_kinds or guidance:
+        matching = [candidate for candidate in candidates if candidate.profile.id in guidance]
+        matched_ids = {candidate.profile.id for candidate in matching}
+        matching.extend(
+            RoutingCandidate(profile, 0.0, 0.0, ("This specialist can use the indicated evidence.",))
+            for profile in profiles
+            if profile.id in guidance and profile.id not in matched_ids
+        )
+        if input_kinds and not evidence_only and top is not None and top.confidence >= MIN_ROUTE_CONFIDENCE:
+            if top.profile.id not in guidance:
+                matching.insert(0, top)
+        return _clarification(
+            clean_query, matching or candidates, deterministic_reason, guidance, question=question
+        )
 
     if optional_classifier is None:
-        return _clarification(clean_query, candidates, deterministic_reason)
+        return _clarification(clean_query, candidates, deterministic_reason, guidance)
     if not classifier_model or classifier_deadline_ms is None or classifier_token_budget is None:
         return _clarification(
-            clean_query, candidates, "Optional classifier requires explicit model, deadline, and budget"
+            clean_query, candidates, "Optional classifier requires explicit model, deadline, and budget", guidance
         )
     if (
         type(classifier_deadline_ms) is not int
@@ -303,7 +348,7 @@ def route_request(
         or classifier_deadline_ms <= 0
         or classifier_token_budget <= 0
     ):
-        return _clarification(clean_query, candidates, "Optional classifier deadline or budget is exhausted")
+        return _clarification(clean_query, candidates, "Optional classifier deadline or budget is exhausted", guidance)
 
     request = ClassifierRequest(
         model=classifier_model,
@@ -315,10 +360,10 @@ def route_request(
     try:
         response = _bounded_classification(optional_classifier, request)
     except (TimeoutError, ValueError):
-        return _clarification(clean_query, candidates, "Optional classifier was unavailable or timed out")
+        return _clarification(clean_query, candidates, "Optional classifier was unavailable or timed out", guidance)
     selected = next((profile for profile in profiles if profile.id == response.specialist_id), None)
     if type(response.tokens_used) is not int or not 0 <= response.tokens_used <= classifier_token_budget:
-        return _clarification(clean_query, candidates, "Optional classifier exceeded its token budget")
+        return _clarification(clean_query, candidates, "Optional classifier exceeded its token budget", guidance)
     if (
         selected is None
         or type(response.confidence) not in (int, float)
@@ -326,7 +371,7 @@ def route_request(
         or not MIN_ROUTE_CONFIDENCE <= response.confidence <= 1.0
     ):
         return _clarification(
-            clean_query, candidates, "Optional classifier returned an invalid or low-confidence route"
+            clean_query, candidates, "Optional classifier returned an invalid or low-confidence route", guidance
         )
 
     classified = RoutingCandidate(
